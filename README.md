@@ -36,9 +36,20 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `go run ./apps/api`: starts the API and exposes `/health/live` plus `/health/ready`.
 - `npm run dev:web`: starts the SvelteKit shell with public, auth, and app layouts.
 
+## Auth Core
+
+- `POST /v1/auth/login`: login with `{"login":"dev@example.com","password":"DevDemo123!"}` or `{"login":"owner-demo","password":"OwnerDemo123!"}`.
+- `POST /v1/auth/refresh`: rotate the refresh token with `{"refresh_token":"..."}`.
+- `GET /v1/auth/me`: read the current dashboard user with `Authorization: Bearer <access_token>`.
+- `POST /v1/auth/logout`: revoke the current session.
+- `POST /v1/auth/logout-all`: revoke every active session for the current account.
+
 ## Notes
 
 - `backend/` and `frontend/` are legacy placeholder directories; new work should go into `apps/`.
 - Use `make hooks` after the repository is initialized with Git to enable the local hooks in `.githooks/`.
 - API readiness is exposed at `/health/ready` and `/readyz`; liveness is exposed at `/health/live` and `/healthz`.
 - Demo seed rows create one `dev` user, one `owner` user, one store, and one audit log entry for local development.
+- Demo dashboard credentials after `./appctl migrate fresh --seed`:
+- `dev@example.com` or `dev-demo` with password `DevDemo123!`
+- `owner@example.com` or `owner-demo` with password `OwnerDemo123!`

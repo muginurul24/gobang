@@ -13,7 +13,7 @@ INSERT INTO users (
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
     'dev@example.com',
     'dev-demo',
-    '$2y$12$placeholderdevhash',
+    crypt('DevDemo123!', gen_salt('bf', 12)),
     'dev',
     true,
     false,
@@ -24,14 +24,21 @@ INSERT INTO users (
     'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
     'owner@example.com',
     'owner-demo',
-    '$2y$12$placeholderownerhash',
+    crypt('OwnerDemo123!', gen_salt('bf', 12)),
     'owner',
     true,
     false,
     now(),
     now()
   )
-ON CONFLICT (email) DO NOTHING;
+ON CONFLICT (email) DO UPDATE
+SET
+  username = EXCLUDED.username,
+  password_hash = EXCLUDED.password_hash,
+  role = EXCLUDED.role,
+  is_active = EXCLUDED.is_active,
+  totp_enabled = EXCLUDED.totp_enabled,
+  updated_at = now();
 
 INSERT INTO stores (
   id,

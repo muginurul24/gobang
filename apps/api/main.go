@@ -66,8 +66,13 @@ func run() error {
 	)
 
 	server := &http.Server{
-		Addr:              cfg.HTTP.Address,
-		Handler:           httpserver.NewHandler(cfg, httpserver.Dependencies{Health: healthService, Logger: logger}),
+		Addr: cfg.HTTP.Address,
+		Handler: httpserver.NewHandler(cfg, httpserver.Dependencies{
+			Health: healthService,
+			Logger: logger,
+			DB:     postgres,
+			Redis:  redis,
+		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
