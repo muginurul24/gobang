@@ -1,28 +1,31 @@
-.PHONY: api worker scheduler manage migrate-up migrate-fresh seed-demo test fmt web-install web-dev web-check hooks dev-up dev-down
+.PHONY: api worker scheduler manage migrate-up migrate-down migrate-fresh seed-demo test fmt web-install web-dev web-check hooks dev-up dev-down
 
 api:
-	go run ./apps/api
+	GOCACHE=$${GOCACHE:-/tmp/onixggr-go-build} go run ./apps/api
 
 worker:
-	go run ./apps/worker
+	GOCACHE=$${GOCACHE:-/tmp/onixggr-go-build} go run ./apps/worker
 
 scheduler:
-	go run ./apps/scheduler
+	GOCACHE=$${GOCACHE:-/tmp/onixggr-go-build} go run ./apps/scheduler
 
 manage:
-	go run ./apps/manage
+	./appctl
 
 migrate-up:
-	go run ./apps/manage migrate up
+	./scripts/migrate-up.sh
+
+migrate-down:
+	./scripts/migrate-down.sh
 
 migrate-fresh:
-	go run ./apps/manage migrate fresh
+	./scripts/migrate-fresh.sh
 
 seed-demo:
-	go run ./apps/manage seed demo
+	./scripts/seed-demo.sh
 
 test:
-	go test ./...
+	GOCACHE=$${GOCACHE:-/tmp/onixggr-go-build} go test ./...
 
 fmt:
 	gofmt -w $(shell find apps internal -name '*.go' -type f)

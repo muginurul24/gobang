@@ -9,11 +9,11 @@
     "npm": ">=11.0.0"
   },
   "scripts": {
-    "dev:api": "go run ./apps/api",
-    "dev:worker": "go run ./apps/worker",
-    "dev:scheduler": "go run ./apps/scheduler",
-    "test:go": "go test ./...",
-    "dev:web": "npm --workspace @onixggr/web run dev",
+    "dev:api": "GOCACHE=/tmp/onixggr-go-build go run ./apps/api",
+    "dev:worker": "GOCACHE=/tmp/onixggr-go-build go run ./apps/worker",
+    "dev:scheduler": "GOCACHE=/tmp/onixggr-go-build go run ./apps/scheduler",
+    "test:go": "GOCACHE=/tmp/onixggr-go-build go test ./...",
+    "dev:web": "npm --workspace @onixggr/web run dev --",
     "build:web": "npm --workspace @onixggr/web run build",
     "check:web": "npm --workspace @onixggr/web run check",
     "lint:web": "npm --workspace @onixggr/web run lint",

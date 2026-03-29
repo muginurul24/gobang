@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+set -eu
+
+GOCACHE="${GOCACHE:-/tmp/onixggr-go-build}" go run ./apps/manage "$@"

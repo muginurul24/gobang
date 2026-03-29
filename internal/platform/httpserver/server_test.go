@@ -3,6 +3,8 @@ package httpserver
 import (
 	"context"
 	"errors"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -22,6 +24,7 @@ func TestHealthzReturnsOK(t *testing.T) {
 		},
 		Dependencies{
 			Health: health.New("onixggr", "test", time.Second),
+			Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 		},
 	)
 
@@ -55,6 +58,7 @@ func TestReadyzReturnsServiceUnavailableWhenDependencyFails(t *testing.T) {
 					},
 				},
 			),
+			Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 		},
 	)
 
@@ -65,5 +69,29 @@ func TestReadyzReturnsServiceUnavailableWhenDependencyFails(t *testing.T) {
 
 	if recorder.Code != http.StatusServiceUnavailable {
 		t.Fatalf("Code = %d, want 503", recorder.Code)
+	}
+}
+
+func TestRequestIDHeaderIsAdded(t *testing.T) {
+	handler := NewHandler(
+		config.Config{
+			App: config.AppConfig{
+				Name: "onixggr",
+				Env:  "test",
+			},
+		},
+		Dependencies{
+			Health: health.New("onixggr", "test", time.Second),
+			Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		},
+	)
+
+	request := httptest.NewRequest(http.MethodGet, "/health/live", nil)
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Header().Get("X-Request-ID") == "" {
+		t.Fatal("X-Request-ID header is empty")
 	}
 }

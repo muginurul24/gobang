@@ -1,32 +1,98 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Manrope', 'Inter', sans-serif;
+  --font-display: 'Space Grotesk', 'Manrope', sans-serif;
+
+  --color-canvas-50: #f4f7f2;
+  --color-canvas-100: #ecf4ee;
+  --color-canvas-200: #dae8e0;
+  --color-canvas-800: #173225;
+  --color-canvas-900: #0d1f16;
+
+  --color-ink-50: #f4f7f6;
+  --color-ink-100: #d6e0dc;
+  --color-ink-300: #81968e;
+  --color-ink-700: #243b32;
+  --color-ink-900: #10221a;
+
+  --color-brand-100: #d7fbdf;
+  --color-brand-300: #8be6a0;
+  --color-brand-500: #21a05b;
+  --color-brand-700: #14653a;
+
+  --color-accent-100: #d9f1ff;
+  --color-accent-300: #7fc8ff;
+  --color-accent-500: #2284f5;
+  --color-accent-700: #114d9d;
+
+  --shadow-panel: 0 18px 50px rgba(16, 34, 26, 0.08);
+}
+
 :root {
   color-scheme: light;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background:
+  --page-background:
     radial-gradient(
       circle at top left,
-      rgba(5, 150, 105, 0.16),
+      rgba(33, 160, 91, 0.16),
       transparent 28%
     ),
     radial-gradient(
       circle at top right,
-      rgba(14, 116, 144, 0.18),
+      rgba(34, 132, 245, 0.16),
       transparent 24%
     ),
-    #f4f7f5;
-  color: #10221a;
+    linear-gradient(180deg, #f8fbf8 0%, #f0f5f2 100%);
 }
 
-* {
-  box-sizing: border-box;
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    @apply bg-canvas-50 text-ink-900 antialiased;
+  }
+
+  body {
+    @apply min-h-screen bg-canvas-50 font-sans text-ink-900;
+    margin: 0;
+    background: var(--page-background);
+  }
+
+  a {
+    color: inherit;
+  }
 }
 
-body {
-  margin: 0;
-  min-height: 100vh;
-  background: inherit;
-  color: inherit;
+@layer utilities {
+  .glass-panel {
+    @apply border border-white/60 bg-white/80 backdrop-blur-xl;
+    box-shadow: var(--shadow-panel);
+  }
+
+  .shell-width {
+    width: min(1180px, calc(100% - 2rem));
+  }
+
+  .hero-grid {
+    background-image:
+      linear-gradient(rgba(16, 34, 26, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(16, 34, 26, 0.05) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
 }
 
-a {
-  color: inherit;
+@keyframes loading-bar {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  50% {
+    transform: translateX(-10%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
 }

@@ -129,10 +129,10 @@ Menyiapkan fondasi workspace yang tidak berubah-ubah lagi.
 - struktur folder final terkunci
 
 ### Checklist
-- [ ] `apps/web` bisa start
-- [ ] `apps/api` bisa start
-- [ ] `.env.example` ada
-- [ ] command dasar ada
+- [x] `apps/web` bisa start
+- [x] `apps/api` bisa start
+- [x] `.env.example` ada
+- [x] command dasar ada
 
 ---
 
@@ -161,10 +161,10 @@ Membuat shell UI final.
 - arah visual sudah terkunci
 
 ### Checklist
-- [ ] Tailwind aktif
-- [ ] shadcn-svelte aktif
-- [ ] layout terpisah
-- [ ] loading bar ada
+- [x] Tailwind aktif
+- [x] shadcn-svelte aktif
+- [x] layout terpisah
+- [x] loading bar ada
 
 ---
 
@@ -187,10 +187,10 @@ Menyiapkan runtime API yang benar dari awal.
 - API server siap jadi fondasi
 
 ### Checklist
-- [ ] health endpoints
-- [ ] structured logging
-- [ ] config from env
-- [ ] request id
+- [x] health endpoints
+- [x] structured logging
+- [x] config from env
+- [x] request id
 
 ---
 
@@ -220,10 +220,10 @@ Menyatukan dependency lokal.
 - environment dev lokal stabil
 
 ### Checklist
-- [ ] postgres hidup
-- [ ] redis hidup
-- [ ] migration jalan
-- [ ] seed jalan
+- [x] postgres hidup
+- [x] redis hidup
+- [x] migration jalan
+- [x] seed jalan
 
 ---
 
@@ -246,10 +246,10 @@ Buat tabel:
 - fondasi auth/store/audit siap
 
 ### Checklist
-- [ ] unique email global
-- [ ] unique username global
-- [ ] FK benar
-- [ ] soft delete store siap
+- [x] unique email global
+- [x] unique username global
+- [x] FK benar
+- [x] soft delete store siap
 
 ---
 

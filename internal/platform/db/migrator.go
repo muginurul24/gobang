@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -94,6 +95,57 @@ func (m Migrator) Fresh(ctx context.Context) (int, error) {
 	return m.Up(ctx)
 }
 
+func (m Migrator) Down(ctx context.Context) (int, error) {
+	if err := m.ensureSchemaMigrations(ctx); err != nil {
+		return 0, err
+	}
+
+	lastApplied, ok, err := m.lastApplied(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if !ok {
+		return 0, nil
+	}
+
+	migrations, err := collectMigrations(m.dir)
+	if err != nil {
+		return 0, err
+	}
+
+	var target Migration
+	found := false
+	for _, migration := range migrations {
+		if migration.Version == lastApplied.Version {
+			target = migration
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return 0, fmt.Errorf("migration %s not found on disk", lastApplied.Version)
+	}
+
+	if target.DownPath == "" {
+		return 0, fmt.Errorf("migration %s does not define a .down.sql file", target.Version)
+	}
+
+	statements, err := readSQLStatements(target.DownPath)
+	if err != nil {
+		return 0, fmt.Errorf("read migration %s: %w", target.DownPath, err)
+	}
+
+	if err := runStatementsTx(ctx, m.pool, statements, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `DELETE FROM schema_migrations WHERE version = $1`, target.Version)
+		return err
+	}); err != nil {
+		return 0, fmt.Errorf("rollback migration %s: %w", target.DownPath, err)
+	}
+
+	return 1, nil
+}
+
 func (m Migrator) ensureSchemaMigrations(ctx context.Context) error {
 	_, err := m.pool.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -131,6 +183,24 @@ func (m Migrator) appliedVersions(ctx context.Context) (map[string]struct{}, err
 	}
 
 	return applied, nil
+}
+
+func (m Migrator) lastApplied(ctx context.Context) (Migration, bool, error) {
+	row := m.pool.QueryRow(
+		ctx,
+		`SELECT version, name FROM schema_migrations ORDER BY version DESC LIMIT 1`,
+	)
+
+	var migration Migration
+	if err := row.Scan(&migration.Version, &migration.Name); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Migration{}, false, nil
+		}
+
+		return Migration{}, false, fmt.Errorf("query last schema migration: %w", err)
+	}
+
+	return migration, true, nil
 }
 
 func ApplySQLDir(ctx context.Context, pool *pgxpool.Pool, dir string) (int, error) {

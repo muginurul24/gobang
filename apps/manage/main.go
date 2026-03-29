@@ -46,6 +46,17 @@ func runMigrate(args []string) error {
 			log.Printf("migrate up complete: %d migration(s) applied", applied)
 			return nil
 		})
+	case "down":
+		return withDatabase(func(ctx context.Context, pool *db.Pool) error {
+			migrator := db.NewMigrator(pool, "migrations")
+			applied, err := migrator.Down(ctx)
+			if err != nil {
+				return err
+			}
+
+			log.Printf("migrate down complete: %d migration(s) rolled back", applied)
+			return nil
+		})
 	case "fresh":
 		seedAfter := len(args) > 1 && args[1] == "--seed"
 		return withDatabase(func(ctx context.Context, pool *db.Pool) error {
@@ -108,5 +119,5 @@ func withDatabase(callback func(context.Context, *db.Pool) error) error {
 }
 
 func usageError() error {
-	return errors.New("usage: go run ./apps/manage migrate <up|fresh [--seed]> | go run ./apps/manage seed demo")
+	return errors.New("usage: go run ./apps/manage migrate <up|down|fresh [--seed]> | go run ./apps/manage seed demo")
 }

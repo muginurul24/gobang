@@ -2,14 +2,17 @@ package httpserver
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"github.com/mugiew/onixggr/internal/platform/config"
 	"github.com/mugiew/onixggr/internal/platform/health"
+	"github.com/mugiew/onixggr/internal/platform/middleware"
 )
 
 type Dependencies struct {
 	Health health.Service
+	Logger *slog.Logger
 }
 
 type infoResponse struct {
@@ -26,7 +29,21 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 		writeJSON(w, http.StatusOK, deps.Health.Liveness())
 	})
 
+	mux.HandleFunc("GET /health/live", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, deps.Health.Liveness())
+	})
+
 	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
+		report := deps.Health.Readiness(r.Context())
+		status := http.StatusOK
+		if report.Status != "ready" {
+			status = http.StatusServiceUnavailable
+		}
+
+		writeJSON(w, status, report)
+	})
+
+	mux.HandleFunc("GET /health/ready", func(w http.ResponseWriter, r *http.Request) {
 		report := deps.Health.Readiness(r.Context())
 		status := http.StatusOK
 		if report.Status != "ready" {
@@ -51,7 +68,7 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 		})
 	})
 
-	return mux
+	return middleware.RequestID(middleware.Logging(deps.Logger, mux))
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {
