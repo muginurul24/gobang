@@ -1,0 +1,22 @@
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Go
+bin/
+dist/
+coverage.out
+*.test
+
+# Node / SvelteKit
+node_modules/
+apps/web/.svelte-kit/
+apps/web/build/
+apps/web/dist/
+apps/web/node_modules/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/

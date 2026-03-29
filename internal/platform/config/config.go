@@ -1,0 +1,236 @@
+package config
+
+import (
+	"fmt"
+	"os"
+	"strconv"
+	"time"
+)
+
+type Config struct {
+	App           AppConfig
+	HTTP          HTTPConfig
+	Database      DatabaseConfig
+	Redis         RedisConfig
+	Auth          AuthConfig
+	Business      BusinessConfig
+	QRIS          QRISConfig
+	NexusGGR      NexusGGRConfig
+	Realtime      RealtimeConfig
+	Observability ObservabilityConfig
+}
+
+type AppConfig struct {
+	Name     string
+	Env      string
+	URL      string
+	Timezone string
+	LogLevel string
+}
+
+type HTTPConfig struct {
+	Address string
+}
+
+type DatabaseConfig struct {
+	URL             string
+	MaxOpenConns    int
+	MaxIdleConns    int
+	ConnMaxLifetime time.Duration
+}
+
+type RedisConfig struct {
+	URL      string
+	Password string
+	DB       int
+}
+
+type AuthConfig struct {
+	JWTAccessSecret string
+	JWTAccessTTL    time.Duration
+	SessionTTL      time.Duration
+	BcryptCost      int
+}
+
+type BusinessConfig struct {
+	MinTransactionAmount        int64
+	StoreLowBalanceThreshold    int64
+	MemberPaymentPlatformFeePct float64
+	StoreWithdrawPlatformFeePct float64
+}
+
+type QRISConfig struct {
+	BaseURL              string
+	Client               string
+	ClientKey            string
+	GlobalUUID           string
+	DefaultExpireSeconds int
+	WebhookSharedSecret  string
+}
+
+type NexusGGRConfig struct {
+	BaseURL    string
+	AgentCode  string
+	AgentToken string
+}
+
+type RealtimeConfig struct {
+	HeartbeatSeconds int
+}
+
+type ObservabilityConfig struct {
+	MetricsEnabled bool
+	PrometheusPort int
+}
+
+func Load() (Config, error) {
+	databaseConnMaxLifetime, err := envDuration("DATABASE_CONN_MAX_LIFETIME", 15*time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
+
+	jwtAccessTTL, err := envDuration("JWT_ACCESS_TTL", time.Hour)
+	if err != nil {
+		return Config{}, err
+	}
+
+	sessionTTL, err := envDuration("SESSION_TTL", 168*time.Hour)
+	if err != nil {
+		return Config{}, err
+	}
+
+	return Config{
+		App: AppConfig{
+			Name:     envString("APP_NAME", "onixggr"),
+			Env:      envString("APP_ENV", "development"),
+			URL:      envString("APP_URL", "http://localhost:5173"),
+			Timezone: envString("APP_TIMEZONE", "Asia/Jakarta"),
+			LogLevel: envString("APP_LOG_LEVEL", "debug"),
+		},
+		HTTP: HTTPConfig{
+			Address: envString("HTTP_ADDRESS", ":8080"),
+		},
+		Database: DatabaseConfig{
+			URL:             envString("DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:15432/onixggr?sslmode=disable"),
+			MaxOpenConns:    envInt("DATABASE_MAX_OPEN_CONNS", 25),
+			MaxIdleConns:    envInt("DATABASE_MAX_IDLE_CONNS", 25),
+			ConnMaxLifetime: databaseConnMaxLifetime,
+		},
+		Redis: RedisConfig{
+			URL:      envString("REDIS_URL", "redis://127.0.0.1:16379"),
+			Password: envString("REDIS_PASSWORD", ""),
+			DB:       envInt("REDIS_DB", 0),
+		},
+		Auth: AuthConfig{
+			JWTAccessSecret: envString("JWT_ACCESS_SECRET", "change-me"),
+			JWTAccessTTL:    jwtAccessTTL,
+			SessionTTL:      sessionTTL,
+			BcryptCost:      envInt("PASSWORD_BCRYPT_COST", 12),
+		},
+		Business: BusinessConfig{
+			MinTransactionAmount:        envInt64("MIN_TRANSACTION_AMOUNT", 5000),
+			StoreLowBalanceThreshold:    envInt64("STORE_LOW_BALANCE_THRESHOLD", 100000),
+			MemberPaymentPlatformFeePct: envFloat64("MEMBER_PAYMENT_PLATFORM_FEE_PERCENT", 3),
+			StoreWithdrawPlatformFeePct: envFloat64("STORE_WITHDRAW_PLATFORM_FEE_PERCENT", 12),
+		},
+		QRIS: QRISConfig{
+			BaseURL:              envString("QRIS_BASE_URL", "https://example-qris.local"),
+			Client:               envString("QRIS_CLIENT", ""),
+			ClientKey:            envString("QRIS_CLIENT_KEY", ""),
+			GlobalUUID:           envString("QRIS_GLOBAL_UUID", "GLOBAL_QRIS_UUID"),
+			DefaultExpireSeconds: envInt("QRIS_DEFAULT_EXPIRE_SECONDS", 300),
+			WebhookSharedSecret:  envString("QRIS_WEBHOOK_SHARED_SECRET", ""),
+		},
+		NexusGGR: NexusGGRConfig{
+			BaseURL:    envString("NEXUSGGR_BASE_URL", "https://api.nexusggr.com"),
+			AgentCode:  envString("NEXUSGGR_AGENT_CODE", ""),
+			AgentToken: envString("NEXUSGGR_AGENT_TOKEN", ""),
+		},
+		Realtime: RealtimeConfig{
+			HeartbeatSeconds: envInt("WS_HEARTBEAT_SECONDS", 30),
+		},
+		Observability: ObservabilityConfig{
+			MetricsEnabled: envBool("METRICS_ENABLED", true),
+			PrometheusPort: envInt("PROMETHEUS_PORT", 9090),
+		},
+	}, nil
+}
+
+func envString(key string, fallback string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+
+	return value
+}
+
+func envInt(key string, fallback int) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return fallback
+	}
+
+	return parsed
+}
+
+func envInt64(key string, fallback int64) int64 {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return fallback
+	}
+
+	return parsed
+}
+
+func envFloat64(key string, fallback float64) float64 {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return fallback
+	}
+
+	return parsed
+}
+
+func envBool(key string, fallback bool) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return fallback
+	}
+
+	return parsed
+}
+
+func envDuration(key string, fallback time.Duration) (time.Duration, error) {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback, nil
+	}
+
+	parsed, err := time.ParseDuration(value)
+	if err != nil {
+		return 0, fmt.Errorf("parse %s: %w", key, err)
+	}
+
+	return parsed, nil
+}

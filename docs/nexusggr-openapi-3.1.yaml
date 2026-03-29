@@ -1,0 +1,1345 @@
+openapi: 3.1.0
+info:
+  title: NexusGGR API
+  version: 1.0.0
+  summary: OpenAPI 3.1 specification for the NexusGGR single-endpoint JSON API.
+  description: |
+    Accurate OpenAPI 3.1 model for the upstream NexusGGR API.
+
+    Important implementation detail:
+    - The upstream API exposes a single HTTP endpoint: POST /
+    - Each action is selected by the JSON body field `method`
+    - Because of that transport design, this spec models the API as one POST operation
+      with a request-body discriminator on `method`
+
+    Practical consequence:
+    - This document is accurate to the real server behavior
+    - Swagger UI and Postman can import it directly
+    - Code generation will usually create a single operation that accepts a discriminated request body
+
+    Notes on source inconsistencies preserved in descriptions:
+    - Some failures return `msg`, others return `error`
+    - Message casing is not consistent
+    - `call_type` is a string in `call_list`, but numeric in `call_apply`
+servers:
+  - url: https://api.nexusggr.com
+    description: Production
+tags:
+  - name: root
+    description: |
+      All operations are sent to POST / with a JSON body containing `method`.
+paths:
+  /:
+    post:
+      tags: [root]
+      operationId: invokeNexusGgrMethod
+      summary: Invoke a NexusGGR API method
+      description: |
+        Sends a JSON request to the single upstream endpoint. The operation executed by the
+        server is chosen by the `method` field in the request body.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/ProviderListRequest'
+                - $ref: '#/components/schemas/GameListRequest'
+                - $ref: '#/components/schemas/GameListV2Request'
+                - $ref: '#/components/schemas/GameLaunchRequest'
+                - $ref: '#/components/schemas/MoneyInfoRequest'
+                - $ref: '#/components/schemas/GetGameLogRequest'
+                - $ref: '#/components/schemas/UserCreateRequest'
+                - $ref: '#/components/schemas/UserDepositRequest'
+                - $ref: '#/components/schemas/UserWithdrawRequest'
+                - $ref: '#/components/schemas/UserWithdrawResetRequest'
+                - $ref: '#/components/schemas/TransferStatusRequest'
+                - $ref: '#/components/schemas/CallPlayersRequest'
+                - $ref: '#/components/schemas/CallListRequest'
+                - $ref: '#/components/schemas/CallApplyRequest'
+                - $ref: '#/components/schemas/CallHistoryRequest'
+                - $ref: '#/components/schemas/CallCancelRequest'
+                - $ref: '#/components/schemas/ControlRtpRequest'
+                - $ref: '#/components/schemas/ControlUsersRtpRequest'
+              discriminator:
+                propertyName: method
+                mapping:
+                  provider_list: '#/components/schemas/ProviderListRequest'
+                  game_list: '#/components/schemas/GameListRequest'
+                  game_list_v2: '#/components/schemas/GameListV2Request'
+                  game_launch: '#/components/schemas/GameLaunchRequest'
+                  money_info: '#/components/schemas/MoneyInfoRequest'
+                  get_game_log: '#/components/schemas/GetGameLogRequest'
+                  user_create: '#/components/schemas/UserCreateRequest'
+                  user_deposit: '#/components/schemas/UserDepositRequest'
+                  user_withdraw: '#/components/schemas/UserWithdrawRequest'
+                  user_withdraw_reset: '#/components/schemas/UserWithdrawResetRequest'
+                  transfer_status: '#/components/schemas/TransferStatusRequest'
+                  call_players: '#/components/schemas/CallPlayersRequest'
+                  call_list: '#/components/schemas/CallListRequest'
+                  call_apply: '#/components/schemas/CallApplyRequest'
+                  call_history: '#/components/schemas/CallHistoryRequest'
+                  call_cancel: '#/components/schemas/CallCancelRequest'
+                  control_rtp: '#/components/schemas/ControlRtpRequest'
+                  control_users_rtp: '#/components/schemas/ControlUsersRtpRequest'
+            examples:
+              provider_list:
+                summary: Get provider list
+                value:
+                  method: provider_list
+                  agent_code: irsena
+                  agent_token: ed20035420498ce32a9e19c4d363ffbe
+              game_launch:
+                summary: Launch game
+                value:
+                  method: game_launch
+                  agent_code: irsena
+                  agent_token: ed20035420498ce32a9e19c4d363ffbe
+                  user_code: test
+                  provider_code: PRAGMATIC
+                  game_code: vs20doghouse
+                  lang: en
+              money_info_user:
+                summary: Get balance for one user
+                value:
+                  method: money_info
+                  agent_code: irsena
+                  agent_token: ed20035420498ce32a9e19c4d363ffbe
+                  user_code: test
+              call_apply:
+                summary: Apply call
+                value:
+                  method: call_apply
+                  agent_code: irsena
+                  agent_token: ed20035420498ce32a9e19c4d363ffbe
+                  provider_code: PRAGMATIC
+                  game_code: vs20doghouse
+                  user_code: test
+                  call_rtp: 45010
+                  call_type: 1
+      responses:
+        '200':
+          description: |
+            The upstream API commonly returns HTTP 200 for both success and business-level failure.
+            Inspect the JSON body fields such as `status`, `msg`, and sometimes `error`.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ProviderListResponse'
+                  - $ref: '#/components/schemas/GameListResponse'
+                  - $ref: '#/components/schemas/GameListV2Response'
+                  - $ref: '#/components/schemas/GameLaunchResponse'
+                  - $ref: '#/components/schemas/MoneyInfoAgentResponse'
+                  - $ref: '#/components/schemas/MoneyInfoUserResponse'
+                  - $ref: '#/components/schemas/MoneyInfoAllUsersResponse'
+                  - $ref: '#/components/schemas/GetGameLogResponse'
+                  - $ref: '#/components/schemas/UserCreateResponse'
+                  - $ref: '#/components/schemas/UserDepositResponse'
+                  - $ref: '#/components/schemas/UserWithdrawResponse'
+                  - $ref: '#/components/schemas/UserWithdrawResetUserResponse'
+                  - $ref: '#/components/schemas/UserWithdrawResetAllUsersResponse'
+                  - $ref: '#/components/schemas/TransferStatusResponse'
+                  - $ref: '#/components/schemas/CallPlayersResponse'
+                  - $ref: '#/components/schemas/CallListResponse'
+                  - $ref: '#/components/schemas/CallApplyResponse'
+                  - $ref: '#/components/schemas/CallHistoryResponse'
+                  - $ref: '#/components/schemas/CallCancelResponse'
+                  - $ref: '#/components/schemas/ControlRtpResponse'
+                  - $ref: '#/components/schemas/ControlUsersRtpResponse'
+                  - $ref: '#/components/schemas/ErrorResponseMsg'
+                  - $ref: '#/components/schemas/ErrorResponseError'
+              examples:
+                success_provider_list:
+                  summary: Success - provider list
+                  value:
+                    status: 1
+                    msg: SUCCESS
+                    providers:
+                      - code: PRAGMATIC
+                        name: Pragmatic Play
+                        status: 1
+                failure_invalid_provider:
+                  summary: Failure - invalid provider
+                  value:
+                    status: 0
+                    msg: INVALID_PROVIDER
+                failure_invalid_parameter_error_field:
+                  summary: Failure - uses error field instead of msg
+                  value:
+                    status: 0
+                    error: INVALID_PARAMETER
+components:
+  schemas:
+    AgentCredentials:
+      type: object
+      additionalProperties: false
+      required:
+        - agent_code
+        - agent_token
+      properties:
+        agent_code:
+          type: string
+          description: Agent code assigned by the provider.
+        agent_token:
+          type: string
+          description: Agent token assigned by the provider.
+
+    BaseRequest:
+      allOf:
+        - $ref: '#/components/schemas/AgentCredentials'
+        - type: object
+          required:
+            - method
+          properties:
+            method:
+              type: string
+              description: Operation selector used by the upstream single-endpoint API.
+
+    StatusMessageBase:
+      type: object
+      additionalProperties: true
+      required:
+        - status
+      properties:
+        status:
+          type: integer
+          enum: [0, 1]
+          description: Business status. `1` means success, `0` means failure.
+        msg:
+          type: string
+          description: Status or error message when the upstream API uses `msg`.
+
+    ErrorResponseMsg:
+      type: object
+      additionalProperties: true
+      required:
+        - status
+        - msg
+      properties:
+        status:
+          type: integer
+          enum: [0]
+        msg:
+          type: string
+          description: Error message or error code from upstream.
+          enum:
+            - INVALID_METHOD
+            - INVALID_PARAMETER
+            - INVALID_AGENT
+            - INVALID_AGENT_ROLE
+            - BLOCKED_AGENT
+            - INVALID_USER
+            - INSUFFICIENT_AGENT_FUNDS
+            - INSUFFICIENT_USER_FUNDS
+            - DUPLICATED_USER
+            - INVALID_PROVIDER
+            - INTERNAL_ERROR
+            - EXTERNAL_ERROR
+            - API_CHECKING
+            - AGENT_SEAMLESS
+            - NOT FOUND
+            - Invalid Agent.
+            - External Error
+            - Processing call is existed.
+            - There is no waiting call.
+            - Invalid Parameter.
+            - Invalid JSON
+
+    ErrorResponseError:
+      type: object
+      additionalProperties: true
+      required:
+        - status
+        - error
+      properties:
+        status:
+          type: integer
+          enum: [0]
+        error:
+          type: string
+          description: Error message or error code from upstream when `error` is used instead of `msg`.
+          enum:
+            - INVALID_PARAMETER
+
+    Provider:
+      type: object
+      additionalProperties: true
+      required:
+        - code
+        - name
+        - status
+      properties:
+        code:
+          type: string
+          example: PRAGMATIC
+        name:
+          type: string
+          example: Pragmatic Play
+        status:
+          type: integer
+          enum: [0, 1]
+          description: 1 = open, 0 = maintenance
+
+    GameV1:
+      type: object
+      additionalProperties: true
+      required:
+        - game_code
+        - game_name
+        - banner
+        - status
+      properties:
+        game_code:
+          type: string
+          example: vs243mwarrior
+        game_name:
+          type: string
+          example: Monkey Warrior
+        banner:
+          type: string
+          format: uri
+        status:
+          type: integer
+          enum: [0, 1]
+
+    LocalizedGameName:
+      type: object
+      additionalProperties:
+        type: string
+      description: |
+        Localized game-name map from language tag to translated title.
+        The upstream examples include keys such as `hi`, `vi`, `ko`, `th`,
+        `zh-hant`, and `zh-hans`.
+      examples:
+        - hi: मंकी वारियर™
+          vi: Chiến Binh Khỉ
+          ko: 몽키 워리어
+          th: นักรบลิง
+          zh-hant: 酷猴戰士
+          zh-hans: 酷猴战士
+
+    GameV2:
+      type: object
+      additionalProperties: true
+      required:
+        - id
+        - game_code
+        - game_name
+      properties:
+        id:
+          type: integer
+        game_code:
+          type: string
+        game_name:
+          $ref: '#/components/schemas/LocalizedGameName'
+
+    AgentBalance:
+      type: object
+      additionalProperties: true
+      required:
+        - agent_code
+        - balance
+      properties:
+        agent_code:
+          type: string
+        balance:
+          type: number
+
+    UserBalance:
+      type: object
+      additionalProperties: true
+      required:
+        - user_code
+        - balance
+      properties:
+        user_code:
+          type: string
+        balance:
+          type: number
+
+    GameLogEntry:
+      type: object
+      additionalProperties: true
+      required:
+        - history_id
+        - agent_code
+        - user_code
+        - provider_code
+        - game_code
+        - type
+        - bet_money
+        - win_money
+        - txn_id
+        - txn_type
+        - user_start_balance
+        - user_end_balance
+        - agent_start_balance
+        - agent_end_balance
+        - created_at
+      properties:
+        history_id:
+          type: integer
+        agent_code:
+          type: string
+        user_code:
+          type: string
+        provider_code:
+          type: string
+        game_code:
+          type: string
+        type:
+          type: string
+          example: BASE
+        bet_money:
+          type: number
+        win_money:
+          type: number
+        txn_id:
+          type: string
+        txn_type:
+          type: string
+          enum: [debit, credit, debit_credit]
+        user_start_balance:
+          type: number
+        user_end_balance:
+          type: number
+        agent_start_balance:
+          type: number
+        agent_end_balance:
+          type: number
+        created_at:
+          type: string
+          format: date-time
+
+    CallPlayer:
+      type: object
+      additionalProperties: true
+      required:
+        - user_code
+        - provider_code
+        - game_code
+        - bet
+        - balance
+        - total_debit
+        - total_credit
+        - target_rtp
+        - real_rtp
+      properties:
+        user_code:
+          type: string
+        provider_code:
+          type: string
+        game_code:
+          type: string
+        bet:
+          type: number
+        balance:
+          type: number
+        total_debit:
+          type: number
+        total_credit:
+          type: number
+        target_rtp:
+          type: number
+        real_rtp:
+          type: number
+
+    CallListItem:
+      type: object
+      additionalProperties: true
+      required:
+        - rtp
+        - call_type
+      properties:
+        rtp:
+          type: integer
+        call_type:
+          type: string
+          example: Free
+
+    CallHistoryItem:
+      type: object
+      additionalProperties: true
+      required:
+        - id
+        - agent_code
+        - user_code
+        - provider_code
+        - game_code
+        - bet
+        - agent_prev
+        - agent_after
+        - expect
+        - missed
+        - real
+        - rtp
+        - type
+        - status
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+        agent_code:
+          type: string
+        user_code:
+          type: string
+        provider_code:
+          type: string
+        game_code:
+          type: string
+        bet:
+          type: number
+        user_prev:
+          type:
+            - number
+            - 'null'
+        user_after:
+          type:
+            - number
+            - 'null'
+        agent_prev:
+          type: number
+        agent_after:
+          type: number
+        expect:
+          type: number
+          description: Expected amount from the call.
+        missed:
+          type: number
+          description: Amount not realized and returned to admin.
+        real:
+          type: number
+          description: Actual amount received by the user.
+        rtp:
+          type: number
+        type:
+          type: string
+          description: Example values in source include `common`.
+        status:
+          type: integer
+          enum: [0, 1, 2, 3, 4]
+          description: |
+            0 = Waiting
+            1 = Processing
+            2 = Finished
+            3 = Rejected By GameServer (bet amount changed)
+            4 = Canceled By Cancel API or cancel button
+        msg:
+          type:
+            - string
+            - 'null'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ProviderListRequest:
+      allOf:
+        - $ref: '#/components/schemas/BaseRequest'
+        - type: object
+          additionalProperties: false
+          properties:
+            method:
+              type: string
+              enum: [provider_list]
+          required:
+            - method
+            - agent_code
+            - agent_token
+
+    GameListRequest:
+      allOf:
+        - $ref: '#/components/schemas/BaseRequest'
+        - type: object
+          additionalProperties: false
+          properties:
+            method:
+              type: string
+              enum: [game_list]
+            provider_code:
+              type: string
+              description: |
+                Provider code. Source examples list:
+                PRAGMATIC, PGSOFT, REELKINGDOM, FATPANDA, HABANERO, BOOONGO,
+                PLAYSON, CQ9, EVOPLAY, TOPTREND, DREAMTECH, PRAGMATICLIVE,
+                EVOLUTION, EZUGI.
+          required:
+            - method
+            - agent_code
+            - agent_token
+            - provider_code
+
+    GameListV2Request:
+      allOf:
+        - $ref: '#/components/schemas/BaseRequest'
+        - type: object
+          additionalProperties: false
+          properties:
+            method:
+              type: string
+              enum: [game_list_v2]
+            provider_code:
+              type: string
+              description: |
+                Supported by source examples for:
+                PRAGMATIC, PGSOFT, REELKINGDOM, FATPANDA, HABANERO, CQ9.
+          required:
+            - method
+            - agent_code
+            - agent_token
+            - provider_code
+
+    GameLaunchRequest:
+      allOf:
+        - $ref: '#/components/schemas/BaseRequest'
+        - type: object
+          additionalProperties: false
+          properties:
+            method:
+              type: string
+              enum: [game_launch]
+            user_code:
+              type: string
+            provider_code:
+              type: string
+            game_code:
+              type: string
+              description: |
+                Game code to launch. For EVOLUTION, source notes this may be empty to return
+                a lobby URL instead of a specific game URL.
+            lang:
+              type: string
+              example: en
+          required:
+            - method
+            - agent_code
+            - agent_token
+            - user_code
+            - provider_code
+            - lang
+
+    MoneyInfoRequest:
+      allOf:
+        - $ref: '#/components/schemas/BaseRequest'
+        - type: object
+          additionalProperties: false
+          properties:
+            method:
+              type: string
+              enum: [money_info]
+            user_code:
+              type: string
+              description: Optional when requesting a single user balance.
+            all_users:
+              type: boolean
+              description: Set to true to retrieve balances for all users.
+          required:
+            - method
+            - agent_code
+            - agent_token
+
+    GetGameLogRequest:
+      allOf:
+        - $ref: '#/components/schemas/BaseRequest'
+        - type: object
+          additionalProperties: false
+          properties:
+            method:
+              type: string
+              enum: [get_game_log]
+            user_code:
+              type: string
+            game_type:
+              type: string
+              example: slot
+            start:
+              type: string
+              description: Start datetime as provided by source, example `2022-09-29 00:00:00`.
+            end:
+              type: string
+              description: End datetime as provided by source, example `2022-09-30 23:59:00`.
+            page:
+              type: integer
+              minimum: 0
+            perPage:
+              type: integer
+              minimum: 1
+          required:
+            - method
+            - agent_code
+            - agent_token
+            - user_code
+            - game_type
+            - start
+            - end
+            - page
+            - perPage
+
+    UserCreateRequest:
+      allOf:
+        - $ref: '#/components/schemas/BaseRequest'
+        - type: object
+          additionalProperties: false
+          properties:
+            method:
+              type: string
+              enum: [user_create]
+            user_code:
+              type: string
+          required:
+            - method
+            - agent_code
+            - agent_token
+            - user_code
+
+    UserDepositRequest:
+      allOf:
+        - $ref: '#/components/schemas/BaseRequest'
+        - type: object
+          additionalProperties: false
+          properties:
+            method:
+              type: string
+              enum: [user_deposit]
+            user_code:
+              type: string
+            amount:
+              type: number
+              exclusiveMinimum: 0
+            agent_sign:
+              type: string
+              description: Optional unique value intended to prevent duplicate transfers.
+          required:
+            - method
+            - agent_code
+            - agent_token
+            - user_code
+            - amount
+
+    UserWithdrawRequest:
+      allOf:
+        - $ref: '#/components/schemas/BaseRequest'
+        - type: object
+          additionalProperties: false
+          properties:
+            method:
+              type: string
+              enum: [user_withdraw]
+            user_code:
+              type: string
+            amount:
+              type: number
+              exclusiveMinimum: 0
+            agent_sign:
+              type: string
+              description: Optional unique value intended to prevent duplicate transfers.
+          required:
+            - method
+            - agent_code
+            - agent_token
+            - user_code
+            - amount
+
+    UserWithdrawResetRequest:
+      allOf:
+        - $ref: '#/components/schemas/BaseRequest'
+        - type: object
+          additionalProperties: false
+          properties:
+            method:
+              type: string
+              enum: [user_withdraw_reset]
+            user_code:
+              type: string
+            all_users:
+              type: boolean
+          required:
+            - method
+            - agent_code
+            - agent_token
+
+    TransferStatusRequest:
+      allOf:
+        - $ref: '#/components/schemas/BaseRequest'
+        - type: object
+          additionalProperties: false
+          properties:
+            method:
+              type: string
+              enum: [transfer_status]
+            user_code:
+              type: string
+            agent_sign:
+              type: string
+              description: Required by source spec for transfer lookup.
+          required:
+            - method
+            - agent_code
+            - agent_token
+            - user_code
+            - agent_sign
+
+    CallPlayersRequest:
+      allOf:
+        - $ref: '#/components/schemas/BaseRequest'
+        - type: object
+          additionalProperties: false
+          properties:
+            method:
+              type: string
+              enum: [call_players]
+          required:
+            - method
+            - agent_code
+            - agent_token
+
+    CallListRequest:
+      allOf:
+        - $ref: '#/components/schemas/BaseRequest'
+        - type: object
+          additionalProperties: false
+          properties:
+            method:
+              type: string
+              enum: [call_list]
+            provider_code:
+              type: string
+            game_code:
+              type: string
+          required:
+            - method
+            - agent_code
+            - agent_token
+            - provider_code
+            - game_code
+
+    CallApplyRequest:
+      allOf:
+        - $ref: '#/components/schemas/BaseRequest'
+        - type: object
+          additionalProperties: false
+          properties:
+            method:
+              type: string
+              enum: [call_apply]
+            provider_code:
+              type: string
+            game_code:
+              type: string
+            user_code:
+              type: string
+            call_rtp:
+              type: integer
+              description: Value obtained from `call_list`.
+            call_type:
+              type: integer
+              enum: [1, 2]
+              description: 1 = Common Free, 2 = Buy Bonus Free
+          required:
+            - method
+            - agent_code
+            - agent_token
+            - provider_code
+            - game_code
+            - user_code
+            - call_rtp
+            - call_type
+
+    CallHistoryRequest:
+      allOf:
+        - $ref: '#/components/schemas/BaseRequest'
+        - type: object
+          additionalProperties: false
+          properties:
+            method:
+              type: string
+              enum: [call_history]
+            offset:
+              type: integer
+              minimum: 0
+            limit:
+              type: integer
+              minimum: 1
+          required:
+            - method
+            - agent_code
+            - agent_token
+            - offset
+            - limit
+
+    CallCancelRequest:
+      allOf:
+        - $ref: '#/components/schemas/BaseRequest'
+        - type: object
+          additionalProperties: false
+          properties:
+            method:
+              type: string
+              enum: [call_cancel]
+            call_id:
+              type: integer
+              description: Value returned by `call_history`.
+          required:
+            - method
+            - agent_code
+            - agent_token
+            - call_id
+
+    ControlRtpRequest:
+      allOf:
+        - $ref: '#/components/schemas/BaseRequest'
+        - type: object
+          additionalProperties: false
+          properties:
+            method:
+              type: string
+              enum: [control_rtp]
+            provider_code:
+              type: string
+            user_code:
+              type: string
+            rtp:
+              type: number
+              description: Source failure example indicates maximum allowed value is 95.
+          required:
+            - method
+            - agent_code
+            - agent_token
+            - provider_code
+            - user_code
+            - rtp
+
+    ControlUsersRtpRequest:
+      allOf:
+        - $ref: '#/components/schemas/BaseRequest'
+        - type: object
+          additionalProperties: false
+          properties:
+            method:
+              type: string
+              enum: [control_users_rtp]
+            user_codes:
+              type: string
+              description: |
+                Stringified JSON array of user codes, for example:
+                "[\"test1\",\"test2\"]"
+            rtp:
+              type: number
+          required:
+            - method
+            - agent_code
+            - agent_token
+            - user_codes
+            - rtp
+
+    ProviderListResponse:
+      type: object
+      additionalProperties: true
+      required:
+        - status
+        - msg
+        - providers
+      properties:
+        status:
+          type: integer
+          enum: [1]
+        msg:
+          type: string
+          enum: [SUCCESS]
+        providers:
+          type: array
+          items:
+            $ref: '#/components/schemas/Provider'
+
+    GameListResponse:
+      type: object
+      additionalProperties: true
+      required:
+        - status
+        - msg
+        - games
+      properties:
+        status:
+          type: integer
+          enum: [1]
+        msg:
+          type: string
+          enum: [SUCCESS]
+        games:
+          type: array
+          items:
+            $ref: '#/components/schemas/GameV1'
+
+    GameListV2Response:
+      type: object
+      additionalProperties: true
+      required:
+        - status
+        - msg
+        - games
+      properties:
+        status:
+          type: integer
+          enum: [1]
+        msg:
+          type: string
+          enum: [SUCCESS]
+        games:
+          type: array
+          items:
+            $ref: '#/components/schemas/GameV2'
+
+    GameLaunchResponse:
+      type: object
+      additionalProperties: true
+      required:
+        - status
+        - msg
+        - launch_url
+      properties:
+        status:
+          type: integer
+          enum: [1]
+        msg:
+          type: string
+          enum: [SUCCESS]
+        launch_url:
+          type: string
+          format: uri
+
+    MoneyInfoAgentResponse:
+      type: object
+      additionalProperties: true
+      required:
+        - status
+        - msg
+        - agent
+      properties:
+        status:
+          type: integer
+          enum: [1]
+        msg:
+          type: string
+          enum: [SUCCESS]
+        agent:
+          $ref: '#/components/schemas/AgentBalance'
+
+    MoneyInfoUserResponse:
+      type: object
+      additionalProperties: true
+      required:
+        - status
+        - msg
+        - agent
+        - user
+      properties:
+        status:
+          type: integer
+          enum: [1]
+        msg:
+          type: string
+          enum: [SUCCESS]
+        agent:
+          $ref: '#/components/schemas/AgentBalance'
+        user:
+          $ref: '#/components/schemas/UserBalance'
+
+    MoneyInfoAllUsersResponse:
+      type: object
+      additionalProperties: true
+      required:
+        - status
+        - msg
+        - agent
+        - user_list
+      properties:
+        status:
+          type: integer
+          enum: [1]
+        msg:
+          type: string
+          enum: [SUCCESS]
+        agent:
+          $ref: '#/components/schemas/AgentBalance'
+        user_list:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserBalance'
+
+    GetGameLogResponse:
+      type: object
+      additionalProperties: true
+      required:
+        - status
+        - total_count
+        - page
+        - perPage
+        - slot
+      properties:
+        status:
+          type: integer
+          enum: [1]
+        total_count:
+          type: integer
+        page:
+          type: integer
+        perPage:
+          type: integer
+        slot:
+          type: array
+          items:
+            $ref: '#/components/schemas/GameLogEntry'
+
+    UserCreateResponse:
+      type: object
+      additionalProperties: true
+      required:
+        - status
+        - msg
+        - user_code
+        - user_balance
+      properties:
+        status:
+          type: integer
+          enum: [1]
+        msg:
+          type: string
+          enum: [SUCCESS]
+        user_code:
+          type: string
+        user_balance:
+          type: number
+
+    UserDepositResponse:
+      type: object
+      additionalProperties: true
+      required:
+        - status
+        - msg
+        - agent_balance
+        - user_balance
+      properties:
+        status:
+          type: integer
+          enum: [1]
+        msg:
+          type: string
+          enum: [SUCCESS]
+        agent_balance:
+          type: number
+        user_balance:
+          type: number
+
+    UserWithdrawResponse:
+      type: object
+      additionalProperties: true
+      required:
+        - status
+        - msg
+        - agent_balance
+        - user_balance
+      properties:
+        status:
+          type: integer
+          enum: [1]
+        msg:
+          type: string
+          enum: [SUCCESS]
+        agent_balance:
+          type: number
+        user_balance:
+          type: number
+
+    UserWithdrawResetUser:
+      type: object
+      additionalProperties: true
+      required:
+        - user_code
+        - withdraw_amount
+        - balance
+      properties:
+        user_code:
+          type: string
+        withdraw_amount:
+          type: number
+        balance:
+          type: number
+
+    UserWithdrawResetUserResponse:
+      type: object
+      additionalProperties: true
+      required:
+        - status
+        - msg
+        - agent
+        - user
+      properties:
+        status:
+          type: integer
+          enum: [1]
+        msg:
+          type: string
+          enum: [SUCCESS]
+        agent:
+          $ref: '#/components/schemas/AgentBalance'
+        user:
+          $ref: '#/components/schemas/UserWithdrawResetUser'
+
+    UserWithdrawResetAllUsersResponse:
+      type: object
+      additionalProperties: true
+      required:
+        - status
+        - msg
+        - agent
+        - user_list
+      properties:
+        status:
+          type: integer
+          enum: [1]
+        msg:
+          type: string
+          enum: [SUCCESS]
+        agent:
+          $ref: '#/components/schemas/AgentBalance'
+        user_list:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserWithdrawResetUser'
+
+    TransferStatusResponse:
+      type: object
+      additionalProperties: true
+      required:
+        - status
+        - msg
+        - amount
+        - agent_balance
+        - user_balance
+        - type
+      properties:
+        status:
+          type: integer
+          enum: [1]
+        msg:
+          type: string
+          enum: [SUCCESS]
+        amount:
+          type: number
+        agent_balance:
+          type: number
+        user_balance:
+          type: number
+        type:
+          type: string
+          example: user_deposit
+
+    CallPlayersResponse:
+      type: object
+      additionalProperties: true
+      required:
+        - status
+        - data
+      properties:
+        status:
+          type: integer
+          enum: [1]
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CallPlayer'
+
+    CallListResponse:
+      type: object
+      additionalProperties: true
+      required:
+        - status
+        - calls
+      properties:
+        status:
+          type: integer
+          enum: [1]
+        calls:
+          type: array
+          items:
+            $ref: '#/components/schemas/CallListItem'
+
+    CallApplyResponse:
+      type: object
+      additionalProperties: true
+      required:
+        - status
+        - called_money
+        - msg
+      properties:
+        status:
+          type: integer
+          enum: [1]
+        called_money:
+          type: number
+          description: Source formula example is `bet * (rtp / 100)`.
+        msg:
+          type: string
+          enum: [SUCCESS]
+
+    CallHistoryResponse:
+      type: object
+      additionalProperties: true
+      required:
+        - status
+        - data
+      properties:
+        status:
+          type: integer
+          enum: [1]
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CallHistoryItem'
+
+    CallCancelResponse:
+      type: object
+      additionalProperties: true
+      required:
+        - status
+        - canceled_money
+        - msg
+      properties:
+        status:
+          type: integer
+          enum: [1]
+        canceled_money:
+          type: number
+        msg:
+          type: string
+          enum: [SUCCESS]
+
+    ControlRtpResponse:
+      type: object
+      additionalProperties: true
+      required:
+        - status
+        - changed_rtp
+      properties:
+        status:
+          type: integer
+          enum: [1]
+        changed_rtp:
+          type: number
+
+    ControlUsersRtpResponse:
+      type: object
+      additionalProperties: true
+      required:
+        - status
+        - changed_rtp
+      properties:
+        status:
+          type: integer
+          enum: [1]
+        changed_rtp:
+          type: number

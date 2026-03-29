@@ -1,0 +1,12 @@
+#!/usr/bin/env sh
+set -eu
+
+echo "Running Go test suite..."
+GOCACHE="${GOCACHE:-/tmp/onixggr-go-build}" go test ./...
+
+if [ -d "node_modules" ] || [ -d "apps/web/node_modules" ]; then
+  echo "Running web checks..."
+  npm run lint:web
+else
+  echo "Skipping web checks because dependencies are not installed yet."
+fi

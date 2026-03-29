@@ -1,0 +1,12 @@
+#!/usr/bin/env sh
+set -eu
+
+message_file="$1"
+pattern='^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9._-]+\))?: .+'
+
+if grep -Eq "$pattern" "$message_file"; then
+  exit 0
+fi
+
+echo "Commit message must follow Conventional Commits, for example: feat(api): add health endpoint" >&2
+exit 1

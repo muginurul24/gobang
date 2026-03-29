@@ -1,0 +1,2201 @@
+{
+  "info": {
+    "_postman_id": "3b82a968-3415-4df0-818b-27ee1712ce55",
+    "name": "API Qris & VA V3",
+    "description": "To use the API must have access to our panel like [https://panel.automatic.vip/[group]](https://panel.automatic.vip/%5Bgroup%5D) then login to the panel like below\n\n<img src=\"https://content.pstmn.io/a2888c68-a0e0-40ef-961d-7ac515c4179b/MS5wbmc=\">\n\n1. Go to Menu \"Toko\".\n    \n2. Click button Bell in the right.\n    \n3. You will get \"merchant UID\" in number one in picture above.\n    \n4. Set url Callback notification in field number two in picture above.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "37175294"
+  },
+  "item": [
+    {
+      "name": "Get Merchant Active",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"client\": \"test\",\r\n    \"label\": \"test\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://rest.otomatis.vip/api/merchant_active",
+          "protocol": "https",
+          "host": [
+            "rest",
+            "otomatis",
+            "vip"
+          ],
+          "path": [
+            "api",
+            "merchant_active"
+          ]
+        },
+        "description": "This API is used for auto rolling qris. Before hit Generate QRIS API, if you want your qris to be automatic roll to another QRIS when current QRIS has reached its limit, please hit this API first.\n\nRequest :\n\n- client: you can get your client name from panel.otomatis.vip/\\[client\\]\n- label: when you activate autorolling at our panel, you will input label, and pick some QRIS for 1 label. This is the label you should fill to the label key.\n    \n\nPlease note, if you are running out of QRIS, this API will return uuid of empty string like example below\n\n``` json\n{\n    \"status\": true,\n    \"data\": {\n        \"client\": \"clientname\",\n        \"label\": \"yourlabel\",\n        \"uuid\": \"youruuid\"\n    }\n}\n\n ```"
+      },
+      "response": [
+        {
+          "name": "Get Merchant Active Succes",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"client\": \"clientname\",\r\n    \"label\": \"yourlabel\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://qris.otomatis.vip/api/merchant_active",
+              "protocol": "https",
+              "host": [
+                "qris",
+                "otomatis",
+                "vip"
+              ],
+              "path": [
+                "api",
+                "merchant_active"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Date",
+              "value": "Tue, 05 Mar 2024 10:36:57 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            },
+            {
+              "key": "Transfer-Encoding",
+              "value": "chunked"
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive"
+            },
+            {
+              "key": "vary",
+              "value": "Accept-Encoding"
+            },
+            {
+              "key": "vary",
+              "value": "Origin"
+            },
+            {
+              "key": "x-powered-by",
+              "value": "Express"
+            },
+            {
+              "key": "access-control-allow-credentials",
+              "value": "true"
+            },
+            {
+              "key": "etag",
+              "value": "W/\"6b-fRcPKk8SSiixj8SzLb4ynrqABsI\""
+            },
+            {
+              "key": "CF-Cache-Status",
+              "value": "DYNAMIC"
+            },
+            {
+              "key": "Report-To",
+              "value": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=ordhVGxM0ArangWIIbGATpEGq4XrtE%2F2MGdwaBeKzlVS2vN3KgWG6rm%2B%2BGIShzmkEehfDJTHoPUYtHdXQsT1JuVzfldSfM1cFemNzlXHODgP7KLxwXpAwMCwiJd20neMnBp8\"}],\"group\":\"cf-nel\",\"max_age\":604800}"
+            },
+            {
+              "key": "NEL",
+              "value": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}"
+            },
+            {
+              "key": "Server",
+              "value": "cloudflare"
+            },
+            {
+              "key": "CF-RAY",
+              "value": "85f977cdbc803e30-SIN"
+            },
+            {
+              "key": "Content-Encoding",
+              "value": "br"
+            },
+            {
+              "key": "alt-svc",
+              "value": "h3=\":443\"; ma=86400"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"status\": true,\n    \"data\": {\n        \"client\": \"clientname\",\n        \"label\": \"yourlabel\",\n        \"uuid\": \"youruuid\"\n    }\n}"
+        }
+      ]
+    },
+    {
+      "name": "Generate QRIS / VA",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"username\": \"test\",\r\n    \"amount\": 1000,\r\n    \"uuid\": \"986e2614-ea25-4f7e-abfb-36408d9a3a79\",\r\n    \"expire\": 1200,\r\n    \"custom_ref\": \"customsatu\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://rest.otomatis.vip/api/generate",
+          "protocol": "https",
+          "host": [
+            "rest",
+            "otomatis",
+            "vip"
+          ],
+          "path": [
+            "api",
+            "generate"
+          ]
+        },
+        "description": "This API is used to create a qris with request data json:\n\n**username** : this is key for username player in website or identifier you will get in notification callback\n\n**amount** : this is integer you want pay minimum Rp 10.000,- and max Rp 10.000,000\n\n**uuid** : this is \"merchant UID\" from above.\n\nexpire: this is optional. By default its value is 1200 seconds (20 minutes)\n\ncustom_ref: this is optional. For your custom needs. (max 36 length aplhanumeric)\n\nAnd you will get response JSON :\n\n**status** : you will get two value \"true\" and \"false\". if you get value true QRIS success generated\n\n**data**: value of QRIS you must manualy create QRIS Image with this value\n\n**trx_id:** this is unique ID from us for you keep, if you want statuc check for this trasaction you need use this ID\n\nQris expired in 24 hours"
+      },
+      "response": [
+        {
+          "name": "Generate QRIS Success",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"username\": \"test\",\r\n    \"amount\": 1000,\r\n    \"uuid\": \"29678b4b-ae06-4124-8793-beb1593dbe01\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://qris.otomatis.vip/api/generate",
+              "protocol": "https",
+              "host": [
+                "qris",
+                "otomatis",
+                "vip"
+              ],
+              "path": [
+                "api",
+                "generate"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Date",
+              "value": "Mon, 31 Jul 2023 11:12:31 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            },
+            {
+              "key": "Transfer-Encoding",
+              "value": "chunked"
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive"
+            },
+            {
+              "key": "vary",
+              "value": "Accept-Encoding"
+            },
+            {
+              "key": "vary",
+              "value": "Origin"
+            },
+            {
+              "key": "x-powered-by",
+              "value": "Express"
+            },
+            {
+              "key": "access-control-allow-credentials",
+              "value": "true"
+            },
+            {
+              "key": "etag",
+              "value": "W/\"159-TH1IQJU4U265PpvRH42ysCq6tEA\""
+            },
+            {
+              "key": "CF-Cache-Status",
+              "value": "DYNAMIC"
+            },
+            {
+              "key": "Report-To",
+              "value": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=GqRFDqHA%2Bs73MVtc1PbZVmQN5bpIUUstVe3nUyXZEPwQVK95OL9jOI6DhFLotwwzDJpXu2DheyhlqfxcqcyAx8eOgayR6Y3dmNUNtVWwxL%2B8UPMEJkmsgehNuHlYVCYSQZi5Zw%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}"
+            },
+            {
+              "key": "NEL",
+              "value": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}"
+            },
+            {
+              "key": "Server",
+              "value": "cloudflare"
+            },
+            {
+              "key": "CF-RAY",
+              "value": "7ef568147b248942-SIN"
+            },
+            {
+              "key": "Content-Encoding",
+              "value": "br"
+            },
+            {
+              "key": "alt-svc",
+              "value": "h3=\":443\"; ma=86400"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"status\": true,\n    \"data\": \"00020101021226670016COM.NOBUBANK.WWW01189360050300000850300214853272683545340303UME51440014ID.CO.QRIS.WWW0215ID20232660582880303UME520454995303360540410005802ID5922Sandi Sudirman Voucher6009Tangerang6105114706256011407310107285794061920230731449000405970703A010804POSP63044593\",\n    \"trx_id\": \"16e35a4232024030aa6fff608b08538e\"\n}"
+        },
+        {
+          "name": "Generate VA Success",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"username\": \"test\",\r\n    \"amount\": 10000,\r\n    \"uuid\": \"uuid\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://qris.otomatis.vip/api/generate",
+              "protocol": "https",
+              "host": [
+                "qris",
+                "otomatis",
+                "vip"
+              ],
+              "path": [
+                "api",
+                "generate"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Date",
+              "value": "Mon, 31 Jul 2023 11:12:31 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            },
+            {
+              "key": "Transfer-Encoding",
+              "value": "chunked"
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive"
+            },
+            {
+              "key": "vary",
+              "value": "Accept-Encoding"
+            },
+            {
+              "key": "vary",
+              "value": "Origin"
+            },
+            {
+              "key": "x-powered-by",
+              "value": "Express"
+            },
+            {
+              "key": "access-control-allow-credentials",
+              "value": "true"
+            },
+            {
+              "key": "etag",
+              "value": "W/\"159-TH1IQJU4U265PpvRH42ysCq6tEA\""
+            },
+            {
+              "key": "CF-Cache-Status",
+              "value": "DYNAMIC"
+            },
+            {
+              "key": "Report-To",
+              "value": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=GqRFDqHA%2Bs73MVtc1PbZVmQN5bpIUUstVe3nUyXZEPwQVK95OL9jOI6DhFLotwwzDJpXu2DheyhlqfxcqcyAx8eOgayR6Y3dmNUNtVWwxL%2B8UPMEJkmsgehNuHlYVCYSQZi5Zw%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}"
+            },
+            {
+              "key": "NEL",
+              "value": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}"
+            },
+            {
+              "key": "Server",
+              "value": "cloudflare"
+            },
+            {
+              "key": "CF-RAY",
+              "value": "7ef568147b248942-SIN"
+            },
+            {
+              "key": "Content-Encoding",
+              "value": "br"
+            },
+            {
+              "key": "alt-svc",
+              "value": "h3=\":443\"; ma=86400"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"status\": true,\n    \"data\": \"8999816711687135\",\n    \"trx_id\": \"oiqwnfkvhiuewkljvnkwjvvsdf\",\n    \"expired_at\": 1200\n}"
+        },
+        {
+          "name": "Generate QRIS Failed (User required)",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"username\": \"\",\r\n    \"amount\": 1000,\r\n    \"uuid\": \"uuid\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://qris.otomatis.vip/api/generate",
+              "protocol": "https",
+              "host": [
+                "qris",
+                "otomatis",
+                "vip"
+              ],
+              "path": [
+                "api",
+                "generate"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Date",
+              "value": "Mon, 31 Jul 2023 11:12:41 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            },
+            {
+              "key": "Transfer-Encoding",
+              "value": "chunked"
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive"
+            },
+            {
+              "key": "vary",
+              "value": "Accept-Encoding"
+            },
+            {
+              "key": "vary",
+              "value": "Origin"
+            },
+            {
+              "key": "x-powered-by",
+              "value": "Express"
+            },
+            {
+              "key": "access-control-allow-credentials",
+              "value": "true"
+            },
+            {
+              "key": "etag",
+              "value": "W/\"2c-C7Opnejo/z1z2mEt9uKndQeRCfE\""
+            },
+            {
+              "key": "CF-Cache-Status",
+              "value": "DYNAMIC"
+            },
+            {
+              "key": "Report-To",
+              "value": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=4p9wTWO3LSj5qaFR81S6PfMFiDPt5V2CNvzD5xyAGNpHRwEd5VDapLreGng2f3sRzLllH%2BZ7z3SDZMFQrs%2F15SiEoo01ct6GxzjEQnOehO93DjqfuxRSiasQP%2Fm%2B0zV6xmL%2B0w%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}"
+            },
+            {
+              "key": "NEL",
+              "value": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}"
+            },
+            {
+              "key": "Server",
+              "value": "cloudflare"
+            },
+            {
+              "key": "CF-RAY",
+              "value": "7ef56865382e8942-SIN"
+            },
+            {
+              "key": "Content-Encoding",
+              "value": "br"
+            },
+            {
+              "key": "alt-svc",
+              "value": "h3=\":443\"; ma=86400"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"status\": false,\n    \"error\": \"Username required\"\n}"
+        },
+        {
+          "name": "Generate QRIS Failed (Amount required)",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"username\": \"test\",\r\n    \"amount\": 0,\r\n    \"uuid\": \"uuid\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://qris.otomatis.vip/api/generate",
+              "protocol": "https",
+              "host": [
+                "qris",
+                "otomatis",
+                "vip"
+              ],
+              "path": [
+                "api",
+                "generate"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Date",
+              "value": "Mon, 31 Jul 2023 11:13:02 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            },
+            {
+              "key": "Transfer-Encoding",
+              "value": "chunked"
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive"
+            },
+            {
+              "key": "vary",
+              "value": "Accept-Encoding"
+            },
+            {
+              "key": "vary",
+              "value": "Origin"
+            },
+            {
+              "key": "x-powered-by",
+              "value": "Express"
+            },
+            {
+              "key": "access-control-allow-credentials",
+              "value": "true"
+            },
+            {
+              "key": "etag",
+              "value": "W/\"2a-RnNZ5/kZ5bnuY7c2VydIC6/ZbeE\""
+            },
+            {
+              "key": "CF-Cache-Status",
+              "value": "DYNAMIC"
+            },
+            {
+              "key": "Report-To",
+              "value": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=83z9IrgweDmsK7XplbazDbcs%2BjxU0L48H3SudFMmNDN0yrH5WNcpVn5TUvwR7iXXIQMW2jFa2sz2xm32uTCXX1uRbivgxn2Cj%2BpaS01qBcJG6WrWvcd75O5gtOgzmcuQ24ZM%2Bg%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}"
+            },
+            {
+              "key": "NEL",
+              "value": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}"
+            },
+            {
+              "key": "Server",
+              "value": "cloudflare"
+            },
+            {
+              "key": "CF-RAY",
+              "value": "7ef568e878f08942-SIN"
+            },
+            {
+              "key": "Content-Encoding",
+              "value": "br"
+            },
+            {
+              "key": "alt-svc",
+              "value": "h3=\":443\"; ma=86400"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"status\": false,\n    \"error\": \"Amount required\"\n}"
+        },
+        {
+          "name": "Generate QRIS Failed (Uuid required)",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"username\": \"test\",\r\n    \"amount\": 1000,\r\n    \"uuid\": \"\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://qris.otomatis.vip/api/generate",
+              "protocol": "https",
+              "host": [
+                "qris",
+                "otomatis",
+                "vip"
+              ],
+              "path": [
+                "api",
+                "generate"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Date",
+              "value": "Mon, 31 Jul 2023 11:13:18 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            },
+            {
+              "key": "Transfer-Encoding",
+              "value": "chunked"
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive"
+            },
+            {
+              "key": "vary",
+              "value": "Accept-Encoding"
+            },
+            {
+              "key": "vary",
+              "value": "Origin"
+            },
+            {
+              "key": "x-powered-by",
+              "value": "Express"
+            },
+            {
+              "key": "access-control-allow-credentials",
+              "value": "true"
+            },
+            {
+              "key": "etag",
+              "value": "W/\"28-mxmuF5b+zIZxjajB+ihKW0m/Z4o\""
+            },
+            {
+              "key": "CF-Cache-Status",
+              "value": "DYNAMIC"
+            },
+            {
+              "key": "Report-To",
+              "value": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=Ro3siw1gNibJh9CXCqzD4EP5JIU%2FpsrOgT%2F9uyT2RrIQdJLrUEFWpqnj68swuFy9x8S2ckxGQDsJJqv%2B4u%2FXPfFEYLe9dH2ipQH7Hgg917oiO1AkvZMuffrMqYLwJ8p%2BLyj6gw%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}"
+            },
+            {
+              "key": "NEL",
+              "value": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}"
+            },
+            {
+              "key": "Server",
+              "value": "cloudflare"
+            },
+            {
+              "key": "CF-RAY",
+              "value": "7ef5694c08da8942-SIN"
+            },
+            {
+              "key": "Content-Encoding",
+              "value": "br"
+            },
+            {
+              "key": "alt-svc",
+              "value": "h3=\":443\"; ma=86400"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"status\": false,\n    \"error\": \"Uuid required\"\n}"
+        },
+        {
+          "name": "Generate QRIS Failed (Toko not valid)",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"username\": \"test\",\r\n    \"amount\": 1000,\r\n    \"uuid\": \"29678b4b-ae06-4124-8793-beb1593dbe0a\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://qris.otomatis.vip/api/generate",
+              "protocol": "https",
+              "host": [
+                "qris",
+                "otomatis",
+                "vip"
+              ],
+              "path": [
+                "api",
+                "generate"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Date",
+              "value": "Mon, 31 Jul 2023 11:13:45 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            },
+            {
+              "key": "Transfer-Encoding",
+              "value": "chunked"
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive"
+            },
+            {
+              "key": "vary",
+              "value": "Accept-Encoding"
+            },
+            {
+              "key": "vary",
+              "value": "Origin"
+            },
+            {
+              "key": "x-powered-by",
+              "value": "Express"
+            },
+            {
+              "key": "access-control-allow-credentials",
+              "value": "true"
+            },
+            {
+              "key": "etag",
+              "value": "W/\"29-zxRokVphNy8fOnWDAhSZcTVyJcE\""
+            },
+            {
+              "key": "CF-Cache-Status",
+              "value": "DYNAMIC"
+            },
+            {
+              "key": "Report-To",
+              "value": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=F4CG76Lr3RSmcW83%2B5ggByNZ3sR2DcJuCwRBtbtF580XMAUQGRghOlI4KLaRkN460wVAYnUjc%2FSmcZuZqonXdQs9eHp%2BcOtOVVHVVx4RuDIIN7YEOOMmbyqCs0P9VUAuoh615Q%3D%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}"
+            },
+            {
+              "key": "NEL",
+              "value": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}"
+            },
+            {
+              "key": "Server",
+              "value": "cloudflare"
+            },
+            {
+              "key": "CF-RAY",
+              "value": "7ef569ddfb3a8942-SIN"
+            },
+            {
+              "key": "Content-Encoding",
+              "value": "br"
+            },
+            {
+              "key": "alt-svc",
+              "value": "h3=\":443\"; ma=86400"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"status\": false,\n    \"error\": \"Toko not valid\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Check Status V2",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"uuid\": \"986e2614-ea25-4f7e-abfb-36408d9a3a79\",\r\n    \"client\": \"dewifork\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://rest.otomatis.vip/api/checkstatus/v2/03C859ccc40bfdd4",
+          "protocol": "https",
+          "host": [
+            "rest",
+            "otomatis",
+            "vip"
+          ],
+          "path": [
+            "api",
+            "checkstatus",
+            "v2",
+            "03C859ccc40bfdd4"
+          ]
+        },
+        "description": "This APi for check status VERSION 2 to make sure if payment already paid, do not use this API more than 24 hours\n\nUsing method POST with BODY and replace \\[trx_id\\] in URL with trx_id you get from generate API response.\n\nyou will get response json :\n\n**status:** you will receive 2 value success / pending\n\nif status false you will get message in key **error** otherwise you will get key same as like webhook request body data\n\nNote: success trasaction only with status : \"success\""
+      },
+      "response": [
+        {
+          "name": "Check Status Success (Status Success)",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "name": "Content-Type",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"uuid\": \"uuid\",\r\n    \"client\": \"client\",\r\n    \"client_key\": \"clientkey\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://qris.otomatis.vip/api/checkstatus/v2/{trxid}",
+              "protocol": "https",
+              "host": [
+                "qris",
+                "otomatis",
+                "vip"
+              ],
+              "path": [
+                "api",
+                "checkstatus",
+                "v2",
+                "{trxid}"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Date",
+              "value": "Thu, 30 May 2024 04:33:53 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            },
+            {
+              "key": "Transfer-Encoding",
+              "value": "chunked"
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive"
+            },
+            {
+              "key": "vary",
+              "value": "Accept-Encoding"
+            },
+            {
+              "key": "vary",
+              "value": "Origin"
+            },
+            {
+              "key": "x-powered-by",
+              "value": "Express"
+            },
+            {
+              "key": "access-control-allow-credentials",
+              "value": "true"
+            },
+            {
+              "key": "etag",
+              "value": "W/\"a3-M35+omLlyJkOJ2iaAgexFhPSnG0\""
+            },
+            {
+              "key": "Content-Encoding",
+              "value": "gzip"
+            },
+            {
+              "key": "CF-Cache-Status",
+              "value": "DYNAMIC"
+            },
+            {
+              "key": "Report-To",
+              "value": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v4?s=HFToTVzBeeZz29TaJTIwp8%2FUg5VQuFrHKFAYEx6JXlN1bvMlh3jPdEZDN7z8ncWsmNKojXkpid3W1FzGfP9DwCs%2BDR1FJ08VxKYwRw%2Ffb1P7R9AoGzAMDfo02jtDpIGza8fYiDuObF%2B%2B9s8%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}"
+            },
+            {
+              "key": "NEL",
+              "value": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}"
+            },
+            {
+              "key": "Server",
+              "value": "cloudflare"
+            },
+            {
+              "key": "CF-RAY",
+              "value": "88bc0235cded604d-SIN"
+            },
+            {
+              "key": "alt-svc",
+              "value": "h3=\":443\"; ma=86400"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"amount\": 1000,\n    \"merchant_id\": \"uuid\",\n    \"trx_id\": \"trxid\",\n    \"rrn\": \"rrn\",\n    \"status\": \"success\",\n    \"created_at\": \"2024-05-06T09:35:44.000Z\",\n    \"finish_at\": \"2024-05-06T09:35:44.000Z\"\n}"
+        },
+        {
+          "name": "Check Status Success (Status Pending)",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "name": "Content-Type",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"uuid\": \"uuid\",\r\n    \"client\": \"client\",\r\n    \"client_key\": \"clientkey\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://qris.otomatis.vip/api/checkstatus/v2/123123",
+              "protocol": "https",
+              "host": [
+                "qris",
+                "otomatis",
+                "vip"
+              ],
+              "path": [
+                "api",
+                "checkstatus",
+                "v2",
+                "123123"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Date",
+              "value": "Thu, 30 May 2024 04:34:41 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            },
+            {
+              "key": "Transfer-Encoding",
+              "value": "chunked"
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive"
+            },
+            {
+              "key": "vary",
+              "value": "Accept-Encoding"
+            },
+            {
+              "key": "vary",
+              "value": "Origin"
+            },
+            {
+              "key": "x-powered-by",
+              "value": "Express"
+            },
+            {
+              "key": "access-control-allow-credentials",
+              "value": "true"
+            },
+            {
+              "key": "etag",
+              "value": "W/\"97-YY98qOESurHIVWCiLggWFVmTjjc\""
+            },
+            {
+              "key": "Content-Encoding",
+              "value": "gzip"
+            },
+            {
+              "key": "CF-Cache-Status",
+              "value": "DYNAMIC"
+            },
+            {
+              "key": "Report-To",
+              "value": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v4?s=PWHSIS5v1ctyU4%2FuOqscxlK1RwMReCUxXIaM%2FY1GdbZpx7ohAdLf1NDpkjm7ikU1Am9qacqo7GeMK2BVHiDPUDT7LUYBAJAaSG2MCt%2Fi4C5G1QH9L%2BCeWGHnPlOZqbcan0dZWNWMxLo0veU%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}"
+            },
+            {
+              "key": "NEL",
+              "value": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}"
+            },
+            {
+              "key": "Server",
+              "value": "cloudflare"
+            },
+            {
+              "key": "CF-RAY",
+              "value": "88bc035ef8ec604d-SIN"
+            },
+            {
+              "key": "alt-svc",
+              "value": "h3=\":443\"; ma=86400"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"amount\": 1000,\n    \"merchant_id\": \"uuid\",\n    \"trx_id\": \"trxid\",\n    \"status\": \"pending\",\n    \"created_at\": \"2024-05-06T09:35:44.000Z\",\n    \"finish_at\": \"2024-05-06T09:35:44.000Z\"\n}"
+        },
+        {
+          "name": "Check Status Failed (Transaction Not Found)",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "name": "Content-Type",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"uuid\": \"uuid\",\r\n    \"client\": \"client\",\r\n    \"client_key\": \"clientkey\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://qris.otomatis.vip/api/checkstatus/v2/123123",
+              "protocol": "https",
+              "host": [
+                "qris",
+                "otomatis",
+                "vip"
+              ],
+              "path": [
+                "api",
+                "checkstatus",
+                "v2",
+                "123123"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Date",
+              "value": "Thu, 30 May 2024 04:35:45 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            },
+            {
+              "key": "Transfer-Encoding",
+              "value": "chunked"
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive"
+            },
+            {
+              "key": "vary",
+              "value": "Accept-Encoding"
+            },
+            {
+              "key": "vary",
+              "value": "Origin"
+            },
+            {
+              "key": "x-powered-by",
+              "value": "Express"
+            },
+            {
+              "key": "access-control-allow-credentials",
+              "value": "true"
+            },
+            {
+              "key": "etag",
+              "value": "W/\"30-iRQzq8J4U5etr3vJ0GyO/Hk+C7Q\""
+            },
+            {
+              "key": "Content-Encoding",
+              "value": "gzip"
+            },
+            {
+              "key": "CF-Cache-Status",
+              "value": "DYNAMIC"
+            },
+            {
+              "key": "Report-To",
+              "value": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v4?s=e8kRykFbaZTJN4cieZmhjBh3TJmRSuKEE7z5CYPU2Vp9lQV2GIKc%2Ftw81lMBkUXiC%2FjWMad5nuwz7zFvqxTDqaTMnhdtf29YsCLUygZnGnH0nbn7VfQcHNcnxqsT92z8oKIn8EsotJhwAt0%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}"
+            },
+            {
+              "key": "NEL",
+              "value": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}"
+            },
+            {
+              "key": "Server",
+              "value": "cloudflare"
+            },
+            {
+              "key": "CF-RAY",
+              "value": "88bc04f37d9c604d-SIN"
+            },
+            {
+              "key": "alt-svc",
+              "value": "h3=\":443\"; ma=86400"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"status\": false,\n    \"error\": \"Transaction not found\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Inquiry Transfer Fund",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"client\": \"dewifork\",\r\n    \"client_key\": \"UxP6qGML9poZowuU8rFOsb7H0mTnfRLQ6Fuoz55BLaXBOm7XTEJzs0O7nez6O758\",\r\n    \"uuid\": \"986e2614-ea25-4f7e-abfb-36408d9a3a79\",\r\n    \"amount\": 700000,\r\n    \"bank_code\": \"542\",\r\n    \"account_number\": \"100009689749\",\r\n    \"type\": 2\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://rest.otomatis.vip/api/inquiry",
+          "protocol": "https",
+          "host": [
+            "rest",
+            "otomatis",
+            "vip"
+          ],
+          "path": [
+            "api",
+            "inquiry"
+          ]
+        },
+        "description": "This is the API for inquiry transfer fund. You can only use this API when we provide you a \"client key\"\n\nExplanation Request :\n\n- client: fill this with your panel name (eg: panel.otomatis.vip/asdasd, the value is \"asdasd\")\n    \n- client_key: fill this with client key we give you\n    \n- uuid: fill this with qris uuid (you can see this at \"Toko Menu\" in panel.otomatis.vip/asdasd\n    \n- amount: amount to transfer\n    \n- bank_code: your bank destination (we will give you the list of banks)\n    \n- account_number: your account destination\n    \n- type: default 1 for BI FAST, 2 for RTOL (RTOL still in sandbox environment)\n    \n- note: this is optional. For your transaction note (max 64 length aplhanumeric)\n    \n- client_ref_id: this is optional. For your custom needs. (max 64 length aplhanumeric)\n    \n\n**Note: This API only checks if a transfer** _**can**_ **be processed — it does not send funds yet.**\n\n**You must call the Transfer Fund API to perform the actual disbursement**"
+      },
+      "response": [
+        {
+          "name": "Inquiry Transfer Fund Success",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"client\": \"asdasd\",\r\n    \"client_key\": \"yourapikey\",\r\n    \"uuid\": \"asdasdasd-weer-ertr-erert-qweqwe\",\r\n    \"amount\": 700000,\r\n    \"bank_code\": \"542\",\r\n    \"account_number\": \"11221213\",\r\n    \"type\": 1\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://qris.otomatis.vip/api/inquiry",
+              "protocol": "https",
+              "host": [
+                "qris",
+                "otomatis",
+                "vip"
+              ],
+              "path": [
+                "api",
+                "inquiry"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Date",
+              "value": "Mon, 12 Feb 2024 07:15:11 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            },
+            {
+              "key": "Transfer-Encoding",
+              "value": "chunked"
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive"
+            },
+            {
+              "key": "vary",
+              "value": "Accept-Encoding"
+            },
+            {
+              "key": "vary",
+              "value": "Origin"
+            },
+            {
+              "key": "x-powered-by",
+              "value": "Express"
+            },
+            {
+              "key": "access-control-allow-credentials",
+              "value": "true"
+            },
+            {
+              "key": "etag",
+              "value": "W/\"13c-KojD5bXQL8th9Z19A6QpC+NhJis\""
+            },
+            {
+              "key": "CF-Cache-Status",
+              "value": "DYNAMIC"
+            },
+            {
+              "key": "Report-To",
+              "value": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=Z%2Btsx%2BSURs23RhLuen616ZH%2ByiN1fYsXIkp2C7yDWGlZctXTEiSiRTakvi%2FVw1MMMu%2Bmp081BcST%2B05rupzi3%2BgNcbPcXdi9Zy9at5sc%2B1jrgixOfIynX%2BesAoovkjrN3xI%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}"
+            },
+            {
+              "key": "NEL",
+              "value": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}"
+            },
+            {
+              "key": "Server",
+              "value": "cloudflare"
+            },
+            {
+              "key": "CF-RAY",
+              "value": "854309f1493f1955-HKG"
+            },
+            {
+              "key": "Content-Encoding",
+              "value": "br"
+            },
+            {
+              "key": "alt-svc",
+              "value": "h3=\":443\"; ma=86400"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"status\": true,\n    \"data\": {\n        \"account_number\": \"100009689749\",\n        \"account_name\": \"SISKA DAMAYANTI\",\n        \"bank_code\": \"542\",\n        \"bank_name\": \"PT. BANK ARTOS INDONESIA (Bank Jago)\",\n        \"partner_ref_no\": \"03ce198c0d2561c8f558da5b422ad7b455c4db2c7cc5ec0\",\n        \"vendor_ref_no\": \"\",\n        \"amount\": 700000,\n        \"fee\": 1800,\n        \"inquiry_id\": 2949850\n    }\n} "
+        },
+        {
+          "name": "Inquiry Transfer Fund Failed",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"client\": \"asdasd\",\r\n    \"client_key\": \"yourapikey\",\r\n    \"uuid\": \"asdasdasd-weer-ertr-erert-qweqwe\",\r\n    \"amount\": 10000,\r\n    \"bank_code\": \"542\",\r\n    \"account_number\": \"11221213\",\r\n    \"type\": 1\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://qris.otomatis.vip/api/inquiry",
+              "protocol": "https",
+              "host": [
+                "qris",
+                "otomatis",
+                "vip"
+              ],
+              "path": [
+                "api",
+                "inquiry"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Date",
+              "value": "Mon, 12 Feb 2024 06:48:55 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            },
+            {
+              "key": "Transfer-Encoding",
+              "value": "chunked"
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive"
+            },
+            {
+              "key": "vary",
+              "value": "Accept-Encoding"
+            },
+            {
+              "key": "vary",
+              "value": "Origin"
+            },
+            {
+              "key": "x-powered-by",
+              "value": "Express"
+            },
+            {
+              "key": "access-control-allow-credentials",
+              "value": "true"
+            },
+            {
+              "key": "etag",
+              "value": "W/\"29-sm5acIBlD1E1DJdQMUwbOrmg18U\""
+            },
+            {
+              "key": "CF-Cache-Status",
+              "value": "DYNAMIC"
+            },
+            {
+              "key": "Report-To",
+              "value": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=pvsQ%2BLAJ2y4qi%2FlP70QGe%2Bi1UIT9GWOY64HpAafp%2BvsQ24w6niektsO6qkIzwamX%2FKlMS45LmefSrNrN3WlChIghwyVbxugslPhX8PNLyo64WZMukPO%2FkCY%2FGOsFV7ZK%2FRU%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}"
+            },
+            {
+              "key": "NEL",
+              "value": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}"
+            },
+            {
+              "key": "Server",
+              "value": "cloudflare"
+            },
+            {
+              "key": "CF-RAY",
+              "value": "8542e37fb9770f08-HKG"
+            },
+            {
+              "key": "Content-Encoding",
+              "value": "br"
+            },
+            {
+              "key": "alt-svc",
+              "value": "h3=\":443\"; ma=86400"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"status\": false,\n    \"error\": \"Invalid client\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Transfer Fund",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"client\": \"panel-name\",\r\n    \"client_key\": \"client-key\",\r\n    \"uuid\": \"uuid-toko\",\r\n    \"amount\": 25000,\r\n    \"bank_code\": \"014\",\r\n    \"account_number\": \"0234567\",\r\n    \"type\": 2,\r\n    \"inquiry_id\": 1\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://rest.otomatis.vip/api/transfer",
+          "protocol": "https",
+          "host": [
+            "rest",
+            "otomatis",
+            "vip"
+          ],
+          "path": [
+            "api",
+            "transfer"
+          ]
+        },
+        "description": "This API is used to execute the actual fund disbursement (money transfer) after a successful Inquiry request.  \n  \nYou can only use this API if we have provided you with a valid client key.  \nYou must also include the inquiry_id obtained from the Inquiry API response.\n\nExplanation Request :\n\n- client: fill this with your panel name (eg: panel.otomatis.vip/asdasd, the value is \"asdasd\")\n    \n- client_key: fill this with client key we give you\n    \n- uuid: fill this with qris uuid (you can see this at \"Toko Menu\" in panel.otomatis.vip/asdasd\n    \n- amount: amount to transfer\n    \n- bank_code: your bank destination (we will give you the list of banks)\n    \n- account_number: your account destination\n    \n- type: default 1 for BI FAST, 2 for RTOL (Real Time Transfer Online)\n    \n- inquiry_id: id you get from inquiry response\n    \n\nFor disbursement with ewallet destination you can use this  \naccount_number: account number of ewallet destination e.g: 08XXXXX  \nbank_code: OVO, GOPAY, DANA, SHOPEEPAY for now we only support this e-wallet"
+      },
+      "response": [
+        {
+          "name": "Transfer Fund Success",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"client\": \"asdasd\",\r\n    \"client_key\": \"yourapikey\",\r\n    \"uuid\": \"asdasdasd-weer-ertr-erert-qweqwe\",\r\n    \"amount\": 10000,\r\n    \"bank_code\": \"BNIAIDJD\",\r\n    \"account_number\": \"11221213\",\r\n    \"type\": 1,\r\n    \"inquiry_id\": 1\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://qris.otomatis.vip/api/transfer",
+              "protocol": "https",
+              "host": [
+                "qris",
+                "otomatis",
+                "vip"
+              ],
+              "path": [
+                "api",
+                "transfer"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Date",
+              "value": "Mon, 12 Feb 2024 06:48:27 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            },
+            {
+              "key": "Content-Length",
+              "value": "15"
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive"
+            },
+            {
+              "key": "x-powered-by",
+              "value": "Express"
+            },
+            {
+              "key": "vary",
+              "value": "Origin"
+            },
+            {
+              "key": "access-control-allow-credentials",
+              "value": "true"
+            },
+            {
+              "key": "etag",
+              "value": "W/\"f-NQVRlQfKHCoInEbhALgECMonhCE\""
+            },
+            {
+              "key": "CF-Cache-Status",
+              "value": "DYNAMIC"
+            },
+            {
+              "key": "Report-To",
+              "value": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=07FNvcaVGSJeLQeKaCJxaZGeGGOe5FrcwRnpFQk57Nr3TKlyMnbzQbgoFqVuy%2FcxMdQVmffgWJKnNNRMA6y5N4pJI%2BRVSyKege9UnD5roLGQKQgOG2Ej7q9dwTqI3vZROeA%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}"
+            },
+            {
+              "key": "NEL",
+              "value": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}"
+            },
+            {
+              "key": "Server",
+              "value": "cloudflare"
+            },
+            {
+              "key": "CF-RAY",
+              "value": "8542e2c45ad30f08-HKG"
+            },
+            {
+              "key": "alt-svc",
+              "value": "h3=\":443\"; ma=86400"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"status\": true\n}"
+        },
+        {
+          "name": "Transfer Fund Failed",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"client\": \"asdasdasd\",\r\n    \"client_key\": \"ubxmlw0k7g1uyHaqYgV9MZ7zthgSbAbrdcfUDCYWNTltMUzwUxbBnOSHOwrgBFTp\",\r\n    \"uuid\": \"92b37010-5341-440d-9029-06401f8381bb\",\r\n    \"amount\": 10000,\r\n    \"bank_code\": \"BNIAIDJA\",\r\n    \"account_number\": \"707482999100\",\r\n    \"type\": 1\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://qris.otomatis.vip/api/transfer",
+              "protocol": "https",
+              "host": [
+                "qris",
+                "otomatis",
+                "vip"
+              ],
+              "path": [
+                "api",
+                "transfer"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Date",
+              "value": "Mon, 12 Feb 2024 06:48:55 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            },
+            {
+              "key": "Transfer-Encoding",
+              "value": "chunked"
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive"
+            },
+            {
+              "key": "vary",
+              "value": "Accept-Encoding"
+            },
+            {
+              "key": "vary",
+              "value": "Origin"
+            },
+            {
+              "key": "x-powered-by",
+              "value": "Express"
+            },
+            {
+              "key": "access-control-allow-credentials",
+              "value": "true"
+            },
+            {
+              "key": "etag",
+              "value": "W/\"29-sm5acIBlD1E1DJdQMUwbOrmg18U\""
+            },
+            {
+              "key": "CF-Cache-Status",
+              "value": "DYNAMIC"
+            },
+            {
+              "key": "Report-To",
+              "value": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=pvsQ%2BLAJ2y4qi%2FlP70QGe%2Bi1UIT9GWOY64HpAafp%2BvsQ24w6niektsO6qkIzwamX%2FKlMS45LmefSrNrN3WlChIghwyVbxugslPhX8PNLyo64WZMukPO%2FkCY%2FGOsFV7ZK%2FRU%3D\"}],\"group\":\"cf-nel\",\"max_age\":604800}"
+            },
+            {
+              "key": "NEL",
+              "value": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}"
+            },
+            {
+              "key": "Server",
+              "value": "cloudflare"
+            },
+            {
+              "key": "CF-RAY",
+              "value": "8542e37fb9770f08-HKG"
+            },
+            {
+              "key": "Content-Encoding",
+              "value": "br"
+            },
+            {
+              "key": "alt-svc",
+              "value": "h3=\":443\"; ma=86400"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"status\": false,\n    \"error\": \"Invalid client\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Check Status Transfer Fund",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"client\": \"panel-name\",\n    \"uuid\": \"uuid-toko\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://rest.otomatis.vip/api/disbursement/check-status/{partner_ref_no}",
+          "protocol": "https",
+          "host": [
+            "rest",
+            "otomatis",
+            "vip"
+          ],
+          "path": [
+            "api",
+            "disbursement",
+            "check-status",
+            "{partner_ref_no}"
+          ]
+        },
+        "description": "This API checks the status of a fund transfer.\n\nUse `POST` method and replace `{partner_ref_no}` in the URL with the reference number from the Inquiry API response.\n\nIf the transaction exists, you’ll receive transaction details with a `status` of `\"success\"` or `\"failed\"`.\n\nIf the transaction cannot be found, you’ll receive a response with `\"status\": false` and an `error` message.\n\nNOTE:\n\n1. This API should only be called after the Transfer Fund API. Calling this API right after the Inquiry API will return **“Transaksi tidak ditemukan”** because no disbursement has been made yet.\n    \n2. If you receive the message **\"Transaction data not found\"**, it means the transaction record was not confirmed by the vendor. Please provide the transaction details and contact our Customer Support team for further verification before taking any action."
+      },
+      "response": [
+        {
+          "name": "Transaction not found",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"client\": \"panel-name\",\n    \"uuid\": \"uuid-toko\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://rest.otomatis.vip/api/disbursement/check-status/12344",
+              "protocol": "https",
+              "host": [
+                "rest",
+                "otomatis",
+                "vip"
+              ],
+              "path": [
+                "api",
+                "disbursement",
+                "check-status",
+                "12344"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "Text",
+          "header": [
+            {
+              "key": "Date",
+              "value": "Wed, 12 Nov 2025 05:31:59 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            },
+            {
+              "key": "Transfer-Encoding",
+              "value": "chunked"
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive"
+            },
+            {
+              "key": "CF-RAY",
+              "value": "99d3a56ebb38ced2-CGK"
+            },
+            {
+              "key": "vary",
+              "value": "Accept-Encoding"
+            },
+            {
+              "key": "vary",
+              "value": "Origin"
+            },
+            {
+              "key": "x-powered-by",
+              "value": "Express"
+            },
+            {
+              "key": "access-control-allow-credentials",
+              "value": "true"
+            },
+            {
+              "key": "etag",
+              "value": "W/\"34-9tVTMJiQsBiFVwB5M4m3/l9h07w\""
+            },
+            {
+              "key": "Content-Encoding",
+              "value": "gzip"
+            },
+            {
+              "key": "cf-cache-status",
+              "value": "DYNAMIC"
+            },
+            {
+              "key": "Server",
+              "value": "cloudflare"
+            },
+            {
+              "key": "alt-svc",
+              "value": "h3=\":443\"; ma=86400"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"status\": false,\n    \"error\": \"Transaksi tidak ditemukan\"\n}"
+        },
+        {
+          "name": "Transaction Found succes",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"client\": \"panel-name\",\n    \"uuid\": \"uuid-toko\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://rest.otomatis.vip/api/disbursement/check-status/123444",
+              "protocol": "https",
+              "host": [
+                "rest",
+                "otomatis",
+                "vip"
+              ],
+              "path": [
+                "api",
+                "disbursement",
+                "check-status",
+                "123444"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "Text",
+          "header": [
+            {
+              "key": "Date",
+              "value": "Wed, 12 Nov 2025 05:38:22 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            },
+            {
+              "key": "Transfer-Encoding",
+              "value": "chunked"
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive"
+            },
+            {
+              "key": "CF-RAY",
+              "value": "99d3aec67a62cec3-CGK"
+            },
+            {
+              "key": "vary",
+              "value": "Accept-Encoding"
+            },
+            {
+              "key": "vary",
+              "value": "Origin"
+            },
+            {
+              "key": "x-powered-by",
+              "value": "Express"
+            },
+            {
+              "key": "access-control-allow-credentials",
+              "value": "true"
+            },
+            {
+              "key": "etag",
+              "value": "W/\"a6-YVd2pkmcRsqpqEj1sRZ0QGC9HnM\""
+            },
+            {
+              "key": "Content-Encoding",
+              "value": "gzip"
+            },
+            {
+              "key": "cf-cache-status",
+              "value": "DYNAMIC"
+            },
+            {
+              "key": "Server",
+              "value": "cloudflare"
+            },
+            {
+              "key": "alt-svc",
+              "value": "h3=\":443\"; ma=86400"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"amount\": 25000,\n    \"fee\": 1800,\n    \"partner_ref_no\": \"123444\",\n    \"merchant_uuid\": \"uuid-toko\",\n    \"status\": \"success\"\n}"
+        },
+        {
+          "name": "Transaction Failed",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"client\": \"panel-name\",\n    \"uuid\": \"uuid-toko\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://rest.otomatis.vip/api/disbursement/check-status/123444",
+              "protocol": "https",
+              "host": [
+                "rest",
+                "otomatis",
+                "vip"
+              ],
+              "path": [
+                "api",
+                "disbursement",
+                "check-status",
+                "123444"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "Text",
+          "header": [
+            {
+              "key": "Date",
+              "value": "Wed, 12 Nov 2025 05:46:19 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            },
+            {
+              "key": "Transfer-Encoding",
+              "value": "chunked"
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive"
+            },
+            {
+              "key": "CF-RAY",
+              "value": "99d3ba6b28e7cec3-CGK"
+            },
+            {
+              "key": "vary",
+              "value": "Accept-Encoding"
+            },
+            {
+              "key": "vary",
+              "value": "Origin"
+            },
+            {
+              "key": "x-powered-by",
+              "value": "Express"
+            },
+            {
+              "key": "access-control-allow-credentials",
+              "value": "true"
+            },
+            {
+              "key": "etag",
+              "value": "W/\"a8-glmm8JTm0AENZPMn2HeG9VQc0ac\""
+            },
+            {
+              "key": "Content-Encoding",
+              "value": "gzip"
+            },
+            {
+              "key": "cf-cache-status",
+              "value": "DYNAMIC"
+            },
+            {
+              "key": "Server",
+              "value": "cloudflare"
+            },
+            {
+              "key": "alt-svc",
+              "value": "h3=\":443\"; ma=86400"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"amount\": 25000,\n    \"fee\": 1800,\n    \"partner_ref_no\": \"123444\",\n    \"merchant_uuid\": \"uuid-toko\",\n    \"status\": \"failed\"\n}"
+        },
+        {
+          "name": "Vendor Transaction not found",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"client\": \"panel-name\",\n    \"uuid\": \"uuid-toko\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://rest.otomatis.vip/api/disbursement/check-status/123444",
+              "protocol": "https",
+              "host": [
+                "rest",
+                "otomatis",
+                "vip"
+              ],
+              "path": [
+                "api",
+                "disbursement",
+                "check-status",
+                "123444"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "Text",
+          "header": [
+            {
+              "key": "Date",
+              "value": "Wed, 12 Nov 2025 06:04:39 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            },
+            {
+              "key": "Transfer-Encoding",
+              "value": "chunked"
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive"
+            },
+            {
+              "key": "CF-RAY",
+              "value": "99d3d5432d7cced3-CGK"
+            },
+            {
+              "key": "vary",
+              "value": "Accept-Encoding"
+            },
+            {
+              "key": "vary",
+              "value": "Origin"
+            },
+            {
+              "key": "x-powered-by",
+              "value": "Express"
+            },
+            {
+              "key": "access-control-allow-credentials",
+              "value": "true"
+            },
+            {
+              "key": "etag",
+              "value": "W/\"35-PsCEYG1Nyq+VhQMiQaNNfTfxRjg\""
+            },
+            {
+              "key": "Content-Encoding",
+              "value": "gzip"
+            },
+            {
+              "key": "cf-cache-status",
+              "value": "DYNAMIC"
+            },
+            {
+              "key": "Server",
+              "value": "cloudflare"
+            },
+            {
+              "key": "alt-svc",
+              "value": "h3=\":443\"; ma=86400"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"status\": false,\n    \"error\": \"Transaction data not found\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Request Callback QRIS",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"amount\": 1000,\r\n  \"terminal_id\": \"test\",\r\n  \"merchant_id\": \"uuid\",\r\n  \"trx_id\": \"qweqweqweqwe\",\r\n  \"rrn\": \"112233445566\",\r\n  \"custom_ref\": \"\",\r\n  \"vendor\": \"NOBU\",\r\n  \"status\": \"success\",\r\n  \"created_at\": \"2023-07-31T10:49:37\",\r\n  \"finish_at\": \"2023-07-31T08:49:56\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "url",
+          "host": [
+            "url"
+          ]
+        },
+        "description": "This is webhook notification when you set URL above in \"Toko\" you will recieve this notification when Qris already payed.\n\nexplanation request:\n\n**amount**: Amount user paid in QRIS\n\n**terminal_id**: this value is username from request \"genertate\" using key \"username\"\n\n**trx_id:** this value same as key trx_id from response generate QRIS\n\n**rrn**: unique ID bank payment\n\ncustom_ref: if you send custom_ref when generate QRIS, it will be added in this key\n\n**vendor**: Name of vendor\n\n**status**: this value always \"success\"\n\n**create_at**: Time generate QRIS\n\n**finish_at**: TIme QRIS already paid"
+      },
+      "response": []
+    },
+    {
+      "name": "Request Callback Transfer Fund",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"amount\": 25000,\r\n    \"partner_ref_no\": \"partner_ref_no\",\r\n    \"status\": \"success\",\r\n    \"transaction_date\": \"2026-02-11T12:45:42.000Z\",\r\n    \"merchant_id\": \"uuid toko\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "url",
+          "host": [
+            "url"
+          ]
+        },
+        "description": "This webhook notification will be sent to the callback URL that you configure in **“Toko”**.\n\nYou will receive this notification **after the fund transfer has been processed**, either successfully or unsuccessfully.\n\n---\n\n## When will you receive this callback?\n\nThe callback is triggered **once the transfer process is completed** with one of the following results:\n\n- **success** → the fund transfer was completed successfully\n    \n- **failed** → the fund transfer failed\n    \n\n## Callback Request Parameters\n\n| Field | Description |\n| --- | --- |\n| **amount** | The amount of funds transferred. |\n| **partner_ref_no** | Transaction reference number. This value is the **same** `partner_ref_no` **returned in the inquiry transfer response** and should be used to identify the transaction. |\n| **status** | Transaction status:  <br>• `success` – transfer completed successfully  <br>• `failed` – transfer failed |\n| **transaction_date** | The date and time when the fund transfer was processed. |"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Balance",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"client\": \"dewifork\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://rest.otomatis.vip/api/balance/986e2614-ea25-4f7e-abfb-36408d9a3a79",
+          "protocol": "https",
+          "host": [
+            "rest",
+            "otomatis",
+            "vip"
+          ],
+          "path": [
+            "api",
+            "balance",
+            "986e2614-ea25-4f7e-abfb-36408d9a3a79"
+          ]
+        },
+        "description": "This API is used to get balance :\n\n- in the url parameter use uuid merchant\n- in the body section, client name (eg: panel.otomatis.vip/abcd), then its value is abcd"
+      },
+      "response": [
+        {
+          "name": "Get Balance Pending Success",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"client\": \"client\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://rest.otomatis.vip/api/balance/{uuid}",
+              "protocol": "https",
+              "host": [
+                "rest",
+                "otomatis",
+                "vip"
+              ],
+              "path": [
+                "api",
+                "balance",
+                "{uuid}"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Date",
+              "value": "Wed, 20 Sep 2023 03:26:49 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            },
+            {
+              "key": "Transfer-Encoding",
+              "value": "chunked"
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive"
+            },
+            {
+              "key": "vary",
+              "value": "Accept-Encoding"
+            },
+            {
+              "key": "vary",
+              "value": "Origin"
+            },
+            {
+              "key": "x-powered-by",
+              "value": "Express"
+            },
+            {
+              "key": "access-control-allow-credentials",
+              "value": "true"
+            },
+            {
+              "key": "etag",
+              "value": "W/\"46-8x35L14m9y2RBl8mICkLGXYD0xg\""
+            },
+            {
+              "key": "strict-transport-security",
+              "value": "max-age=15724800; includeSubDomains"
+            },
+            {
+              "key": "access-control-allow-methods",
+              "value": "PUT, GET, PATCH, DELETE, POST, OPTIONS"
+            },
+            {
+              "key": "access-control-allow-headers",
+              "value": "x-auth-token, x-uuid, Overwrite, Destination, Content-Type, Depth, User-Agent, Translate, Range, Content-Range, Timeout, X-File-Size, X-Requested-With, X-Follow-User, If-Modified-Since, X-File-Name, Cache-Control, Location, Lock-Token, If, auth, logout, Authorization,Keep-Alive, x-client"
+            },
+            {
+              "key": "CF-Cache-Status",
+              "value": "DYNAMIC"
+            },
+            {
+              "key": "Report-To",
+              "value": "{\"endpoints\":[{\"url\":\"https:\\/\\/a.nel.cloudflare.com\\/report\\/v3?s=%2BBca99tjxfu5QPT%2FuZm2uNmy1G4CvvqTg1BQcwygbjjm1P4KpHonzZADbY3zldyN3HV13mMuDYQGxK0edMVDvcMsPXcmvsNgTS1YVssBy66UaTuE2fpiKoyedINLZ05R77T6\"}],\"group\":\"cf-nel\",\"max_age\":604800}"
+            },
+            {
+              "key": "NEL",
+              "value": "{\"success_fraction\":0,\"report_to\":\"cf-nel\",\"max_age\":604800}"
+            },
+            {
+              "key": "Server",
+              "value": "cloudflare"
+            },
+            {
+              "key": "CF-RAY",
+              "value": "8096f801b91c40eb-SIN"
+            },
+            {
+              "key": "Content-Encoding",
+              "value": "br"
+            },
+            {
+              "key": "alt-svc",
+              "value": "h3=\":443\"; ma=86400"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"status\": \"success\",\n    \"pending_balance\": 57726953,\n    \"settle_balance\": 78407\n}"
+        }
+      ]
+    }
+  ]
+}
