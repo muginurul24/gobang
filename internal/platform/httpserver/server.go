@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mugiew/onixggr/internal/modules/auth"
 	"github.com/mugiew/onixggr/internal/platform/config"
+	"github.com/mugiew/onixggr/internal/platform/crypto"
 	"github.com/mugiew/onixggr/internal/platform/health"
 	"github.com/mugiew/onixggr/internal/platform/middleware"
 	"github.com/mugiew/onixggr/internal/platform/security"
@@ -33,11 +34,16 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 
 	if deps.DB != nil && deps.Redis != nil {
 		authService := auth.NewService(auth.Options{
-			Repository: auth.NewRepository(deps.DB),
-			Sessions:   auth.NewRedisSessionStore(deps.Redis),
-			Passwords:  security.NewPasswordHasher(cfg.Auth.BcryptCost),
-			Tokens:     security.NewAccessTokenManager(cfg.Auth.JWTAccessSecret, cfg.Auth.JWTAccessTTL, cfg.App.Name, nil),
-			SessionTTL: cfg.Auth.SessionTTL,
+			Repository:        auth.NewRepository(deps.DB),
+			Sessions:          auth.NewRedisSessionStore(deps.Redis),
+			Enrollments:       auth.NewRedisEnrollmentStore(deps.Redis),
+			Limiter:           auth.NewRedisLoginLimiter(deps.Redis, cfg.Auth.LoginAttemptWindow, cfg.Auth.LoginMaxAttemptsPerIP, cfg.Auth.LoginMaxAttemptsPerIdentifier),
+			Passwords:         security.NewPasswordHasher(cfg.Auth.BcryptCost),
+			Tokens:            security.NewAccessTokenManager(cfg.Auth.JWTAccessSecret, cfg.Auth.JWTAccessTTL, cfg.App.Name, nil),
+			Sealer:            crypto.NewSealer(cfg.Auth.EncryptionKey),
+			TwoFactor:         security.NewTOTPManager(cfg.App.Name),
+			SessionTTL:        cfg.Auth.SessionTTL,
+			TOTPEnrollmentTTL: cfg.Auth.TOTPEnrollmentTTL,
 		})
 
 		auth.NewHandler(authService).Register(mux)

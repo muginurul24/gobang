@@ -46,10 +46,15 @@ type RedisConfig struct {
 }
 
 type AuthConfig struct {
-	JWTAccessSecret string
-	JWTAccessTTL    time.Duration
-	SessionTTL      time.Duration
-	BcryptCost      int
+	JWTAccessSecret               string
+	JWTAccessTTL                  time.Duration
+	SessionTTL                    time.Duration
+	BcryptCost                    int
+	EncryptionKey                 string
+	TOTPEnrollmentTTL             time.Duration
+	LoginAttemptWindow            time.Duration
+	LoginMaxAttemptsPerIP         int
+	LoginMaxAttemptsPerIdentifier int
 }
 
 type BusinessConfig struct {
@@ -99,6 +104,16 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	totpEnrollmentTTL, err := envDuration("TOTP_ENROLLMENT_TTL", 10*time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
+
+	loginAttemptWindow, err := envDuration("LOGIN_ATTEMPT_WINDOW", 15*time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
+
 	return Config{
 		App: AppConfig{
 			Name:     envString("APP_NAME", "onixggr"),
@@ -122,10 +137,15 @@ func Load() (Config, error) {
 			DB:       envInt("REDIS_DB", 0),
 		},
 		Auth: AuthConfig{
-			JWTAccessSecret: envString("JWT_ACCESS_SECRET", "change-me"),
-			JWTAccessTTL:    jwtAccessTTL,
-			SessionTTL:      sessionTTL,
-			BcryptCost:      envInt("PASSWORD_BCRYPT_COST", 12),
+			JWTAccessSecret:               envString("JWT_ACCESS_SECRET", "change-me"),
+			JWTAccessTTL:                  jwtAccessTTL,
+			SessionTTL:                    sessionTTL,
+			BcryptCost:                    envInt("PASSWORD_BCRYPT_COST", 12),
+			EncryptionKey:                 envString("AUTH_ENCRYPTION_KEY", "change-me-auth-encryption-key"),
+			TOTPEnrollmentTTL:             totpEnrollmentTTL,
+			LoginAttemptWindow:            loginAttemptWindow,
+			LoginMaxAttemptsPerIP:         envInt("LOGIN_MAX_ATTEMPTS_PER_IP", 20),
+			LoginMaxAttemptsPerIdentifier: envInt("LOGIN_MAX_ATTEMPTS_PER_IDENTIFIER", 5),
 		},
 		Business: BusinessConfig{
 			MinTransactionAmount:        envInt64("MIN_TRANSACTION_AMOUNT", 5000),

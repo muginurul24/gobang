@@ -43,6 +43,11 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `GET /v1/auth/me`: read the current dashboard user with `Authorization: Bearer <access_token>`.
 - `POST /v1/auth/logout`: revoke the current session.
 - `POST /v1/auth/logout-all`: revoke every active session for the current account.
+- `GET /v1/auth/security`: read current `totp_enabled` and `ip_allowlist`.
+- `POST /v1/auth/2fa/enroll`: create a pending TOTP enrollment and return the `otpauth_url`.
+- `POST /v1/auth/2fa/enable`: verify the authenticator code and return recovery codes once.
+- `POST /v1/auth/2fa/disable`: disable 2FA with a valid TOTP code or recovery code.
+- `PUT /v1/auth/ip-allowlist`: set or clear the single-IP dashboard allowlist.
 
 ## Notes
 
@@ -53,3 +58,5 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - Demo dashboard credentials after `./appctl migrate fresh --seed`:
 - `dev@example.com` or `dev-demo` with password `DevDemo123!`
 - `owner@example.com` or `owner-demo` with password `OwnerDemo123!`
+- `apps/web` now contains a working login page plus `/app/security` for TOTP enrollment, recovery code handoff, and dashboard IP allowlist management.
+- Set `PUBLIC_API_BASE_URL` only when the web shell should talk to a different API origin; otherwise dev mode proxies `/v1` to `http://127.0.0.1:8080`.

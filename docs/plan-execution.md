@@ -270,10 +270,10 @@ Menyelesaikan login tanpa 2FA dulu.
 - login dasar jalan end-to-end
 
 ### Checklist
-- [ ] login via email
-- [ ] login via username
-- [ ] session Redis jalan
-- [ ] login baru kill session lama
+- [x] login via email
+- [x] login via username
+- [x] session Redis jalan
+- [x] login baru kill session lama
 
 ---
 
@@ -294,10 +294,10 @@ Menutup keamanan auth.
 - 2FA usable
 
 ### Checklist
-- [ ] QR / secret enrollment
-- [ ] verify code
-- [ ] recovery code sekali pakai
-- [ ] disable flow
+- [x] QR / secret enrollment
+- [x] verify code
+- [x] recovery code sekali pakai
+- [x] disable flow
 
 ---
 
@@ -317,9 +317,9 @@ Menutup hardening login.
 - login hardening baseline siap
 
 ### Checklist
-- [ ] IP allowlist jalan
-- [ ] rate limit jalan
-- [ ] login audit jalan
+- [x] IP allowlist jalan
+- [x] rate limit jalan
+- [x] login audit jalan
 
 ---
 

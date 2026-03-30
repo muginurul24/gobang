@@ -20,7 +20,7 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 
 func (r *Repository) FindUserByLogin(ctx context.Context, login string) (User, error) {
 	const query = `
-		SELECT id, email, username, password_hash, role, is_active, last_login_at
+		SELECT id, email, username, password_hash, role, is_active, totp_enabled, COALESCE(totp_secret_encrypted, ''), host(ip_allowlist), last_login_at
 		FROM users
 		WHERE email = $1 OR username = $1
 		LIMIT 1
@@ -34,6 +34,9 @@ func (r *Repository) FindUserByLogin(ctx context.Context, login string) (User, e
 		&user.PasswordHash,
 		&user.Role,
 		&user.IsActive,
+		&user.TOTPEnabled,
+		&user.TOTPSecretEncrypted,
+		&user.IPAllowlist,
 		&user.LastLoginAt,
 	)
 	if err != nil {
@@ -49,7 +52,7 @@ func (r *Repository) FindUserByLogin(ctx context.Context, login string) (User, e
 
 func (r *Repository) FindUserByID(ctx context.Context, userID string) (User, error) {
 	const query = `
-		SELECT id, email, username, password_hash, role, is_active, last_login_at
+		SELECT id, email, username, password_hash, role, is_active, totp_enabled, COALESCE(totp_secret_encrypted, ''), host(ip_allowlist), last_login_at
 		FROM users
 		WHERE id = $1
 		LIMIT 1
@@ -63,6 +66,9 @@ func (r *Repository) FindUserByID(ctx context.Context, userID string) (User, err
 		&user.PasswordHash,
 		&user.Role,
 		&user.IsActive,
+		&user.TOTPEnabled,
+		&user.TOTPSecretEncrypted,
+		&user.IPAllowlist,
 		&user.LastLoginAt,
 	)
 	if err != nil {
@@ -206,6 +212,9 @@ func (r *Repository) GetSessionForRefresh(ctx context.Context, sessionJTI string
 			u.password_hash,
 			u.role,
 			u.is_active,
+			u.totp_enabled,
+			COALESCE(u.totp_secret_encrypted, ''),
+			host(u.ip_allowlist),
 			u.last_login_at
 		FROM user_sessions s
 		JOIN users u ON u.id = s.user_id
@@ -229,6 +238,9 @@ func (r *Repository) GetSessionForRefresh(ctx context.Context, sessionJTI string
 		&result.User.PasswordHash,
 		&result.User.Role,
 		&result.User.IsActive,
+		&result.User.TOTPEnabled,
+		&result.User.TOTPSecretEncrypted,
+		&result.User.IPAllowlist,
 		&result.User.LastLoginAt,
 	)
 	if err != nil {
