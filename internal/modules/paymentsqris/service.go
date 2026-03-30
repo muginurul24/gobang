@@ -55,6 +55,10 @@ type CallbackContract interface {
 	EnqueueMemberPaymentSuccess(ctx context.Context, qrisTransactionID string) error
 }
 
+type TransferWebhookHandler interface {
+	HandleTransferWebhook(ctx context.Context, payload qris.TransferWebhook, metadata auth.RequestMetadata) (WebhookDispatchResult, error)
+}
+
 type Service interface {
 	ListStoreTopups(ctx context.Context, subject auth.Subject, storeID string) ([]QRISTransaction, error)
 	CreateStoreTopup(ctx context.Context, subject auth.Subject, storeID string, input CreateStoreTopupInput, metadata auth.RequestMetadata) (QRISTransaction, error)
@@ -71,6 +75,7 @@ type Options struct {
 	Clock                clock.Clock
 	DefaultExpireSeconds int
 	MemberPaymentFeePct  float64
+	TransferWebhooks     TransferWebhookHandler
 }
 
 type service struct {
@@ -83,6 +88,7 @@ type service struct {
 	memberPaymentFactory func() (string, error)
 	defaultExpireSeconds int
 	memberPaymentFeePct  float64
+	transferWebhooks     TransferWebhookHandler
 }
 
 func NewService(options Options) Service {
@@ -103,6 +109,10 @@ func NewService(options Options) Service {
 	if callbackService == nil {
 		callbackService = noopCallbacks{}
 	}
+	transferWebhooks := options.TransferWebhooks
+	if transferWebhooks == nil {
+		transferWebhooks = noopTransferWebhookHandler{}
+	}
 	memberPaymentFeePct := options.MemberPaymentFeePct
 	if memberPaymentFeePct <= 0 {
 		memberPaymentFeePct = 3
@@ -118,6 +128,7 @@ func NewService(options Options) Service {
 		memberPaymentFactory: newMemberPaymentRef,
 		defaultExpireSeconds: options.DefaultExpireSeconds,
 		memberPaymentFeePct:  memberPaymentFeePct,
+		transferWebhooks:     transferWebhooks,
 	}
 }
 
@@ -466,12 +477,8 @@ func (s *service) HandlePaymentWebhook(ctx context.Context, payload qris.Payment
 	return result, nil
 }
 
-func (s *service) HandleTransferWebhook(_ context.Context, payload qris.TransferWebhook, _ auth.RequestMetadata) (WebhookDispatchResult, error) {
-	return WebhookDispatchResult{
-		Kind:      WebhookKindWithdrawalStatus,
-		Processed: false,
-		Reference: strings.TrimSpace(payload.PartnerRefNo),
-	}, nil
+func (s *service) HandleTransferWebhook(ctx context.Context, payload qris.TransferWebhook, metadata auth.RequestMetadata) (WebhookDispatchResult, error) {
+	return s.transferWebhooks.HandleTransferWebhook(ctx, payload, metadata)
 }
 
 func (s *service) resolveGenerateError(ctx context.Context, transaction QRISTransaction, err error, occurredAt time.Time) (QRISTransaction, error) {
@@ -678,6 +685,16 @@ type noopCallbacks struct{}
 
 func (noopCallbacks) EnqueueMemberPaymentSuccess(context.Context, string) error {
 	return nil
+}
+
+type noopTransferWebhookHandler struct{}
+
+func (noopTransferWebhookHandler) HandleTransferWebhook(_ context.Context, payload qris.TransferWebhook, _ auth.RequestMetadata) (WebhookDispatchResult, error) {
+	return WebhookDispatchResult{
+		Kind:      WebhookKindWithdrawalStatus,
+		Processed: false,
+		Reference: strings.TrimSpace(payload.PartnerRefNo),
+	}, nil
 }
 
 func entryTypeForTransaction(transactionType TransactionType) ledger.EntryType {

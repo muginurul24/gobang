@@ -33,11 +33,11 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `./appctl migrate fresh --seed`: recreate the public schema, apply migrations, then run demo seeds.
 - `./appctl seed demo`: apply SQL seed files from `seeds/demo/`.
 - `./appctl sync providers`: pull provider list and game list from NexusGGR, then upsert the local catalog tables.
-- `./appctl worker run`: start the background worker and process game reconcile backlog, QRIS check-status reconcile, and outbound callback retries.
+- `./appctl worker run`: start the background worker and process game reconcile backlog, QRIS check-status reconcile, withdraw status checks, and outbound callback retries.
 - `./appctl scheduler run`: start the scheduler and periodically refresh the provider catalog.
 - `./scripts/podman-up.sh`: start PostgreSQL, Redis, API, and web in one command via Podman Compose.
 - `go run ./apps/api`: starts the API and exposes `/health/live` plus `/health/ready`.
-- `go run ./apps/worker`: starts the background worker and periodically resolves game transactions in `pending_reconcile`, QRIS pending transactions, plus outbound callback retries.
+- `go run ./apps/worker`: starts the background worker and periodically resolves game transactions in `pending_reconcile`, QRIS pending transactions, store withdraw status checks, plus outbound callback retries.
 - `go run ./apps/scheduler`: starts the scheduler and periodically refreshes the local provider catalog.
 - `npm run dev:web`: starts the SvelteKit shell with public, auth, and app layouts.
 
@@ -135,7 +135,9 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 
 - Dashboard withdraw now uses one `idempotency_key` per intent. The first request is persisted in `store_withdrawals`, and duplicate requests with the same key return the existing row instead of making a second inquiry or transfer.
 - The request path follows the blueprint: inquiry first, compute `platform_fee_amount` at 12% of the requested net amount, add provider `external_fee_amount`, check available balance, reserve `total_store_debit`, then call transfer.
-- Immediate provider transfer failures release the reservation and mark the row `failed`; ambiguous provider failures stay `pending` for the later webhook/check-status milestone.
+- `POST /v1/webhooks/qris` now also finalizes withdraw transfer callbacks by `provider_partner_ref_no`, commits the reservation on `success`, and releases it on `failed`.
+- Pending withdraw rows with `provider_partner_ref_no` are scanned by the worker every 30 seconds through provider disbursement `check-status`, with every attempt recorded in `withdrawal_status_checks`.
+- Final withdraw success is idempotent: duplicate webhook/check-status callbacks reuse the same `store_withdrawal` reference, so the ledger reservation cannot be committed twice.
 
 ## Outbound Callbacks
 

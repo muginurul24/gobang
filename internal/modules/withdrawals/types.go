@@ -100,6 +100,44 @@ type UpdateStoreWithdrawalParams struct {
 	OccurredAt           time.Time
 }
 
+type TransferWebhookResult struct {
+	Processed    bool              `json:"processed"`
+	Reference    string            `json:"reference"`
+	WithdrawalID *string           `json:"withdrawal_id,omitempty"`
+	Status       *WithdrawalStatus `json:"status,omitempty"`
+}
+
+type StatusCheckCandidate struct {
+	Withdrawal    StoreWithdrawal
+	AttemptNo     int
+	LastAttemptAt *time.Time
+}
+
+type RecordStatusCheckParams struct {
+	WithdrawalID   string
+	AttemptNo      int
+	Status         string
+	ResponseMasked map[string]any
+	OccurredAt     time.Time
+}
+
+type StatusCheckOutcome string
+
+const (
+	StatusCheckOutcomeFinalizedSuccess StatusCheckOutcome = "finalized_success"
+	StatusCheckOutcomeFinalizedFailed  StatusCheckOutcome = "finalized_failed"
+	StatusCheckOutcomeStillPending     StatusCheckOutcome = "still_pending"
+	StatusCheckOutcomeSkipped          StatusCheckOutcome = "skipped"
+)
+
+type StatusCheckRunSummary struct {
+	Scanned          int `json:"scanned"`
+	FinalizedSuccess int `json:"finalized_success"`
+	FinalizedFailed  int `json:"finalized_failed"`
+	StillPending     int `json:"still_pending"`
+	Skipped          int `json:"skipped"`
+}
+
 type ProviderInquiryInput struct {
 	Amount         int64
 	BankCode       string
@@ -125,4 +163,16 @@ type ProviderTransferInput struct {
 
 type ProviderTransferResult struct {
 	Accepted bool
+}
+
+type ProviderStatusCheckInput struct {
+	PartnerRefNo string
+}
+
+type ProviderStatusCheckResult struct {
+	Amount       int64
+	ExternalFee  int64
+	PartnerRefNo string
+	MerchantID   string
+	Status       string
 }

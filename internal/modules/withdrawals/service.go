@@ -10,6 +10,7 @@ import (
 	"github.com/mugiew/onixggr/internal/modules/auth"
 	"github.com/mugiew/onixggr/internal/modules/ledger"
 	"github.com/mugiew/onixggr/internal/platform/clock"
+	"github.com/mugiew/onixggr/internal/platform/qris"
 )
 
 const ledgerReferenceType = "store_withdrawal"
@@ -18,10 +19,15 @@ type RepositoryContract interface {
 	GetStoreScope(ctx context.Context, storeID string) (StoreScope, error)
 	GetStoreBankAccount(ctx context.Context, storeID string, bankAccountID string) (StoreBankAccount, error)
 	FindByIdempotencyKey(ctx context.Context, storeID string, idempotencyKey string) (StoreWithdrawal, error)
+	FindByPartnerRefNo(ctx context.Context, partnerRefNo string) (StoreWithdrawal, error)
 	GetByID(ctx context.Context, withdrawalID string) (StoreWithdrawal, error)
 	ListStoreWithdrawals(ctx context.Context, storeID string) ([]StoreWithdrawal, error)
 	CreateStoreWithdrawal(ctx context.Context, params CreateStoreWithdrawalParams) (StoreWithdrawal, error)
 	UpdateStoreWithdrawal(ctx context.Context, params UpdateStoreWithdrawalParams) (StoreWithdrawal, error)
+	AcquireProcessingLock(ctx context.Context, withdrawalID string) (ProcessingLock, bool, error)
+	NextStatusCheckAttemptNo(ctx context.Context, withdrawalID string) (int, error)
+	ListDueStatusCheckWithdrawals(ctx context.Context, cutoff time.Time, limit int) ([]StatusCheckCandidate, error)
+	RecordStatusCheck(ctx context.Context, params RecordStatusCheckParams) error
 	InsertAuditLog(
 		ctx context.Context,
 		actorUserID *string,
@@ -39,7 +45,9 @@ type RepositoryContract interface {
 
 type LedgerContract interface {
 	GetBalance(ctx context.Context, storeID string) (ledger.BalanceSnapshot, error)
+	HasReferenceEntries(ctx context.Context, referenceType string, referenceID string) (bool, error)
 	Reserve(ctx context.Context, storeID string, input ledger.ReserveInput) (ledger.ReservationResult, error)
+	CommitReservation(ctx context.Context, storeID string, input ledger.CommitReservationInput) (ledger.CommitReservationResult, error)
 	ReleaseReservation(ctx context.Context, storeID string, input ledger.ReleaseReservationInput) (ledger.ReservationResult, error)
 }
 
@@ -50,24 +58,28 @@ type AccountOpener interface {
 type Service interface {
 	ListStoreWithdrawals(ctx context.Context, subject auth.Subject, storeID string) ([]StoreWithdrawal, error)
 	CreateStoreWithdrawal(ctx context.Context, subject auth.Subject, storeID string, input CreateWithdrawInput, metadata auth.RequestMetadata) (StoreWithdrawal, bool, error)
+	HandleTransferWebhook(ctx context.Context, payload qris.TransferWebhook, metadata auth.RequestMetadata) (TransferWebhookResult, error)
+	RunPendingChecks(ctx context.Context, limit int) (StatusCheckRunSummary, error)
 }
 
 type Options struct {
-	Repository         RepositoryContract
-	Provider           Provider
-	Ledger             LedgerContract
-	AccountOpener      AccountOpener
-	Clock              clock.Clock
-	PlatformFeePercent float64
+	Repository          RepositoryContract
+	Provider            Provider
+	Ledger              LedgerContract
+	AccountOpener       AccountOpener
+	Clock               clock.Clock
+	PlatformFeePercent  float64
+	StatusCheckInterval time.Duration
 }
 
 type service struct {
-	repository         RepositoryContract
-	provider           Provider
-	ledger             LedgerContract
-	opener             AccountOpener
-	clock              clock.Clock
-	platformFeePercent float64
+	repository          RepositoryContract
+	provider            Provider
+	ledger              LedgerContract
+	opener              AccountOpener
+	clock               clock.Clock
+	platformFeePercent  float64
+	statusCheckInterval time.Duration
 }
 
 func NewService(options Options) Service {
@@ -81,13 +93,19 @@ func NewService(options Options) Service {
 		feePercent = 12
 	}
 
+	statusCheckInterval := options.StatusCheckInterval
+	if statusCheckInterval <= 0 {
+		statusCheckInterval = 30 * time.Second
+	}
+
 	return &service{
-		repository:         options.Repository,
-		provider:           options.Provider,
-		ledger:             options.Ledger,
-		opener:             options.AccountOpener,
-		clock:              now,
-		platformFeePercent: feePercent,
+		repository:          options.Repository,
+		provider:            options.Provider,
+		ledger:              options.Ledger,
+		opener:              options.AccountOpener,
+		clock:               now,
+		platformFeePercent:  feePercent,
+		statusCheckInterval: statusCheckInterval,
 	}
 }
 

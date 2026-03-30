@@ -95,12 +95,14 @@ type ProviderCatalogConfig struct {
 }
 
 type WorkerConfig struct {
-	GameReconcileInterval  time.Duration
-	GameReconcileBatchSize int
-	QRISReconcileInterval  time.Duration
-	QRISReconcileBatchSize int
-	CallbackRetryInterval  time.Duration
-	CallbackRetryBatchSize int
+	GameReconcileInterval      time.Duration
+	GameReconcileBatchSize     int
+	QRISReconcileInterval      time.Duration
+	QRISReconcileBatchSize     int
+	WithdrawReconcileInterval  time.Duration
+	WithdrawReconcileBatchSize int
+	CallbackRetryInterval      time.Duration
+	CallbackRetryBatchSize     int
 }
 
 type RealtimeConfig struct {
@@ -159,6 +161,11 @@ func Load() (Config, error) {
 	}
 
 	qrisReconcileInterval, err := envDuration("QRIS_RECONCILE_INTERVAL", 30*time.Second)
+	if err != nil {
+		return Config{}, err
+	}
+
+	withdrawReconcileInterval, err := envDuration("WITHDRAW_RECONCILE_INTERVAL", 30*time.Second)
 	if err != nil {
 		return Config{}, err
 	}
@@ -231,12 +238,14 @@ func Load() (Config, error) {
 			SyncInterval: providerCatalogSyncInterval,
 		},
 		Worker: WorkerConfig{
-			GameReconcileInterval:  gameReconcileInterval,
-			GameReconcileBatchSize: envInt("GAME_RECONCILE_BATCH_SIZE", 50),
-			QRISReconcileInterval:  qrisReconcileInterval,
-			QRISReconcileBatchSize: envInt("QRIS_RECONCILE_BATCH_SIZE", 50),
-			CallbackRetryInterval:  callbackRetryInterval,
-			CallbackRetryBatchSize: envInt("CALLBACK_RETRY_BATCH_SIZE", 50),
+			GameReconcileInterval:      gameReconcileInterval,
+			GameReconcileBatchSize:     envInt("GAME_RECONCILE_BATCH_SIZE", 50),
+			QRISReconcileInterval:      qrisReconcileInterval,
+			QRISReconcileBatchSize:     envInt("QRIS_RECONCILE_BATCH_SIZE", 50),
+			WithdrawReconcileInterval:  withdrawReconcileInterval,
+			WithdrawReconcileBatchSize: envInt("WITHDRAW_RECONCILE_BATCH_SIZE", 50),
+			CallbackRetryInterval:      callbackRetryInterval,
+			CallbackRetryBatchSize:     envInt("CALLBACK_RETRY_BATCH_SIZE", 50),
 		},
 		Realtime: RealtimeConfig{
 			HeartbeatSeconds: envInt("WS_HEARTBEAT_SECONDS", 30),

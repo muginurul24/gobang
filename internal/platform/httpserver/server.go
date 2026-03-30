@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -40,6 +41,23 @@ type infoResponse struct {
 	Apps  []string `json:"apps"`
 	Docs  []string `json:"docs"`
 	Ready bool     `json:"ready"`
+}
+
+type withdrawalTransferWebhookAdapter struct {
+	service withdrawals.Service
+}
+
+func (a withdrawalTransferWebhookAdapter) HandleTransferWebhook(ctx context.Context, payload qris.TransferWebhook, metadata auth.RequestMetadata) (paymentsqris.WebhookDispatchResult, error) {
+	result, err := a.service.HandleTransferWebhook(ctx, payload, metadata)
+	if err != nil {
+		return paymentsqris.WebhookDispatchResult{}, err
+	}
+
+	return paymentsqris.WebhookDispatchResult{
+		Kind:      paymentsqris.WebhookKindWithdrawalStatus,
+		Processed: result.Processed,
+		Reference: result.Reference,
+	}, nil
 }
 
 func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
@@ -107,22 +125,21 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 			),
 			authService,
 		).Register(mux)
-		withdrawals.NewHandler(
-			withdrawals.NewService(withdrawals.Options{
-				Repository: withdrawals.NewRepository(deps.DB),
-				Provider: withdrawals.NewProvider(withdrawals.ProviderConfig{
-					BaseURL:      cfg.QRIS.BaseURL,
-					Client:       cfg.QRIS.Client,
-					ClientKey:    cfg.QRIS.ClientKey,
-					GlobalUUID:   cfg.QRIS.GlobalUUID,
-					TransferType: cfg.QRIS.BankInquiryType,
-				}, banks),
-				Ledger:             ledgerService,
-				AccountOpener:      sealer,
-				PlatformFeePercent: cfg.Business.StoreWithdrawPlatformFeePct,
-			}),
-			authService,
-		).Register(mux)
+		withdrawalService := withdrawals.NewService(withdrawals.Options{
+			Repository: withdrawals.NewRepository(deps.DB),
+			Provider: withdrawals.NewProvider(withdrawals.ProviderConfig{
+				BaseURL:      cfg.QRIS.BaseURL,
+				Client:       cfg.QRIS.Client,
+				ClientKey:    cfg.QRIS.ClientKey,
+				GlobalUUID:   cfg.QRIS.GlobalUUID,
+				TransferType: cfg.QRIS.BankInquiryType,
+			}, banks),
+			Ledger:              ledgerService,
+			AccountOpener:       sealer,
+			PlatformFeePercent:  cfg.Business.StoreWithdrawPlatformFeePct,
+			StatusCheckInterval: cfg.Worker.WithdrawReconcileInterval,
+		})
+		withdrawals.NewHandler(withdrawalService, authService).Register(mux)
 		storemembers.NewHandler(
 			storemembers.NewService(storemembers.NewRepository(deps.DB), nil),
 			authService,
@@ -142,6 +159,7 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 				Callbacks:            callbackService,
 				DefaultExpireSeconds: cfg.QRIS.DefaultExpireSeconds,
 				MemberPaymentFeePct:  cfg.Business.MemberPaymentPlatformFeePct,
+				TransferWebhooks:     withdrawalTransferWebhookAdapter{service: withdrawalService},
 			}),
 			authService,
 		).Register(mux)

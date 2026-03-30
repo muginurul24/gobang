@@ -47,6 +47,8 @@ func TestLoadDefaults(t *testing.T) {
 		"GAME_RECONCILE_BATCH_SIZE",
 		"QRIS_RECONCILE_INTERVAL",
 		"QRIS_RECONCILE_BATCH_SIZE",
+		"WITHDRAW_RECONCILE_INTERVAL",
+		"WITHDRAW_RECONCILE_BATCH_SIZE",
 		"CALLBACK_RETRY_INTERVAL",
 		"CALLBACK_RETRY_BATCH_SIZE",
 		"WS_HEARTBEAT_SECONDS",
@@ -95,6 +97,8 @@ func TestLoadOverrides(t *testing.T) {
 	t.Setenv("GAME_RECONCILE_BATCH_SIZE", "77")
 	t.Setenv("QRIS_RECONCILE_INTERVAL", "35s")
 	t.Setenv("QRIS_RECONCILE_BATCH_SIZE", "21")
+	t.Setenv("WITHDRAW_RECONCILE_INTERVAL", "40s")
+	t.Setenv("WITHDRAW_RECONCILE_BATCH_SIZE", "17")
 	t.Setenv("CALLBACK_RETRY_INTERVAL", "20s")
 	t.Setenv("CALLBACK_RETRY_BATCH_SIZE", "31")
 	t.Setenv("METRICS_ENABLED", "false")
@@ -150,6 +154,14 @@ func TestLoadOverrides(t *testing.T) {
 
 	if cfg.Worker.QRISReconcileBatchSize != 21 {
 		t.Fatalf("Worker.QRISReconcileBatchSize = %d, want 21", cfg.Worker.QRISReconcileBatchSize)
+	}
+
+	if cfg.Worker.WithdrawReconcileInterval != 40*time.Second {
+		t.Fatalf("Worker.WithdrawReconcileInterval = %v, want 40s", cfg.Worker.WithdrawReconcileInterval)
+	}
+
+	if cfg.Worker.WithdrawReconcileBatchSize != 17 {
+		t.Fatalf("Worker.WithdrawReconcileBatchSize = %d, want 17", cfg.Worker.WithdrawReconcileBatchSize)
 	}
 
 	if cfg.Worker.CallbackRetryInterval != 20*time.Second {

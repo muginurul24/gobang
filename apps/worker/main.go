@@ -12,6 +12,7 @@ import (
 	"github.com/mugiew/onixggr/internal/modules/game"
 	"github.com/mugiew/onixggr/internal/modules/ledger"
 	"github.com/mugiew/onixggr/internal/modules/paymentsqris"
+	"github.com/mugiew/onixggr/internal/modules/withdrawals"
 	"github.com/mugiew/onixggr/internal/platform/config"
 	"github.com/mugiew/onixggr/internal/platform/db"
 	"github.com/mugiew/onixggr/internal/platform/nexusggr"
@@ -69,6 +70,19 @@ func main() {
 		Upstream:   qrisClient,
 		Finalizer:  qrisPaymentService,
 	})
+	withdrawalService := withdrawals.NewService(withdrawals.Options{
+		Repository: withdrawals.NewRepository(pool),
+		Provider: withdrawals.NewProvider(withdrawals.ProviderConfig{
+			BaseURL:      cfg.QRIS.BaseURL,
+			Client:       cfg.QRIS.Client,
+			ClientKey:    cfg.QRIS.ClientKey,
+			GlobalUUID:   cfg.QRIS.GlobalUUID,
+			TransferType: cfg.QRIS.BankInquiryType,
+		}, nil),
+		Ledger:              ledgerService,
+		PlatformFeePercent:  cfg.Business.StoreWithdrawPlatformFeePct,
+		StatusCheckInterval: cfg.Worker.WithdrawReconcileInterval,
+	})
 
 	interval := cfg.Worker.GameReconcileInterval
 	if interval <= 0 {
@@ -93,6 +107,18 @@ func main() {
 	}
 
 	go runQRISReconcileLoop(ctx, qrisReconcileService, qrisInterval, qrisBatchSize)
+
+	withdrawInterval := cfg.Worker.WithdrawReconcileInterval
+	if withdrawInterval <= 0 {
+		withdrawInterval = 30 * time.Second
+	}
+
+	withdrawBatchSize := cfg.Worker.WithdrawReconcileBatchSize
+	if withdrawBatchSize <= 0 {
+		withdrawBatchSize = 50
+	}
+
+	go runWithdrawalStatusCheckLoop(ctx, withdrawalService, withdrawInterval, withdrawBatchSize)
 
 	callbackInterval := cfg.Worker.CallbackRetryInterval
 	if callbackInterval <= 0 {
@@ -198,6 +224,42 @@ func runQRISReconcileLoop(ctx context.Context, service paymentsqris.ReconcileSer
 			summary.Scanned,
 			summary.FinalizedSuccess,
 			summary.FinalizedExpired,
+			summary.FinalizedFailed,
+			summary.StillPending,
+			summary.Skipped,
+		)
+	}
+
+	runOnce()
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			runOnce()
+		}
+	}
+}
+
+func runWithdrawalStatusCheckLoop(ctx context.Context, service withdrawals.Service, interval time.Duration, batchSize int) {
+	runOnce := func() {
+		summary, err := service.RunPendingChecks(ctx, batchSize)
+		if err != nil {
+			log.Printf("withdraw status check run failed: %v", err)
+		}
+
+		if summary.Scanned == 0 && summary.FinalizedSuccess == 0 && summary.FinalizedFailed == 0 && summary.StillPending == 0 && summary.Skipped == 0 {
+			return
+		}
+
+		log.Printf(
+			"withdraw status check run: scanned=%d success=%d failed=%d pending=%d skipped=%d",
+			summary.Scanned,
+			summary.FinalizedSuccess,
 			summary.FinalizedFailed,
 			summary.StillPending,
 			summary.Skipped,

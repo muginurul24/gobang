@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -249,6 +250,7 @@ type stubRepository struct {
 	withdrawals map[string]StoreWithdrawal
 	byID        map[string]StoreWithdrawal
 	audits      []string
+	checks      []RecordStatusCheckParams
 	now         time.Time
 }
 
@@ -298,6 +300,16 @@ func (r *stubRepository) FindByIdempotencyKey(_ context.Context, storeID string,
 	return withdrawal, nil
 }
 
+func (r *stubRepository) FindByPartnerRefNo(_ context.Context, partnerRefNo string) (StoreWithdrawal, error) {
+	for _, withdrawal := range r.byID {
+		if withdrawal.ProviderPartnerRefNo != nil && *withdrawal.ProviderPartnerRefNo == partnerRefNo {
+			return withdrawal, nil
+		}
+	}
+
+	return StoreWithdrawal{}, ErrNotFound
+}
+
 func (r *stubRepository) GetByID(_ context.Context, withdrawalID string) (StoreWithdrawal, error) {
 	withdrawal, ok := r.byID[withdrawalID]
 	if !ok {
@@ -309,6 +321,57 @@ func (r *stubRepository) GetByID(_ context.Context, withdrawalID string) (StoreW
 
 func (r *stubRepository) ListStoreWithdrawals(context.Context, string) ([]StoreWithdrawal, error) {
 	return nil, nil
+}
+
+func (r *stubRepository) AcquireProcessingLock(context.Context, string) (ProcessingLock, bool, error) {
+	return stubLock{}, true, nil
+}
+
+func (r *stubRepository) NextStatusCheckAttemptNo(_ context.Context, withdrawalID string) (int, error) {
+	attempt := 1
+	for _, item := range r.checks {
+		if item.WithdrawalID == withdrawalID && item.AttemptNo >= attempt {
+			attempt = item.AttemptNo + 1
+		}
+	}
+
+	return attempt, nil
+}
+
+func (r *stubRepository) ListDueStatusCheckWithdrawals(_ context.Context, cutoff time.Time, limit int) ([]StatusCheckCandidate, error) {
+	candidates := make([]StatusCheckCandidate, 0, len(r.byID))
+	for _, withdrawal := range r.byID {
+		if withdrawal.Status != WithdrawalStatusPending || withdrawal.ProviderPartnerRefNo == nil || strings.TrimSpace(*withdrawal.ProviderPartnerRefNo) == "" {
+			continue
+		}
+
+		var lastAttempt *time.Time
+		attemptNo := 0
+		for _, item := range r.checks {
+			if item.WithdrawalID != withdrawal.ID {
+				continue
+			}
+			if attemptNo == 0 || item.AttemptNo > attemptNo {
+				attemptNo = item.AttemptNo
+				occurredAt := item.OccurredAt
+				lastAttempt = &occurredAt
+			}
+		}
+		if lastAttempt != nil && lastAttempt.After(cutoff) {
+			continue
+		}
+
+		candidates = append(candidates, StatusCheckCandidate{
+			Withdrawal:    withdrawal,
+			AttemptNo:     attemptNo,
+			LastAttemptAt: lastAttempt,
+		})
+		if len(candidates) >= limit {
+			break
+		}
+	}
+
+	return candidates, nil
 }
 
 func (r *stubRepository) CreateStoreWithdrawal(_ context.Context, params CreateStoreWithdrawalParams) (StoreWithdrawal, error) {
@@ -367,12 +430,25 @@ func (r *stubRepository) InsertAuditLog(_ context.Context, _ *string, _ string, 
 	return nil
 }
 
+func (r *stubRepository) RecordStatusCheck(_ context.Context, params RecordStatusCheckParams) error {
+	r.checks = append(r.checks, params)
+	return nil
+}
+
+type stubLock struct{}
+
+func (stubLock) Unlock(context.Context) error {
+	return nil
+}
+
 type stubProvider struct {
-	inquiryResult  ProviderInquiryResult
-	inquiryErr     error
-	transferResult ProviderTransferResult
-	transferErr    error
-	calls          []string
+	inquiryResult     ProviderInquiryResult
+	inquiryErr        error
+	transferResult    ProviderTransferResult
+	transferErr       error
+	checkStatusResult ProviderStatusCheckResult
+	checkStatusErr    error
+	calls             []string
 }
 
 func (s *stubProvider) Inquiry(context.Context, ProviderInquiryInput) (ProviderInquiryResult, error) {
@@ -393,11 +469,23 @@ func (s *stubProvider) Transfer(context.Context, ProviderTransferInput) (Provide
 	return s.transferResult, nil
 }
 
+func (s *stubProvider) CheckStatus(context.Context, ProviderStatusCheckInput) (ProviderStatusCheckResult, error) {
+	s.calls = append(s.calls, "check_status")
+	if s.checkStatusErr != nil {
+		return ProviderStatusCheckResult{}, s.checkStatusErr
+	}
+
+	return s.checkStatusResult, nil
+}
+
 type stubLedger struct {
 	balance        ledger.BalanceSnapshot
 	calls          []string
 	reservedAmount string
 	released       bool
+	committed      bool
+	commitCount    int
+	hasEntries     bool
 }
 
 func (s *stubLedger) GetBalance(context.Context, string) (ledger.BalanceSnapshot, error) {
@@ -409,6 +497,19 @@ func (s *stubLedger) Reserve(_ context.Context, _ string, input ledger.ReserveIn
 	s.calls = append(s.calls, "reserve")
 	s.reservedAmount = input.Amount
 	return ledger.ReservationResult{}, nil
+}
+
+func (s *stubLedger) HasReferenceEntries(context.Context, string, string) (bool, error) {
+	s.calls = append(s.calls, "has_entries")
+	return s.hasEntries, nil
+}
+
+func (s *stubLedger) CommitReservation(_ context.Context, _ string, _ ledger.CommitReservationInput) (ledger.CommitReservationResult, error) {
+	s.calls = append(s.calls, "commit")
+	s.committed = true
+	s.commitCount++
+	s.hasEntries = true
+	return ledger.CommitReservationResult{}, nil
 }
 
 func (s *stubLedger) ReleaseReservation(_ context.Context, _ string, _ ledger.ReleaseReservationInput) (ledger.ReservationResult, error) {

@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS withdrawal_status_checks_store_withdrawal_id_attempt_no_idx;
+DROP TABLE IF EXISTS withdrawal_status_checks;

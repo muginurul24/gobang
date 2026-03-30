@@ -16,6 +16,12 @@ type Repository struct {
 	pool *pgxpool.Pool
 }
 
+const withdrawalProcessingLockNamespace = 31031
+
+type ProcessingLock interface {
+	Unlock(ctx context.Context) error
+}
+
 func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool}
 }
@@ -109,6 +115,33 @@ func (r *Repository) FindByIdempotencyKey(ctx context.Context, storeID string, i
 	`, strings.TrimSpace(storeID), strings.TrimSpace(idempotencyKey))
 }
 
+func (r *Repository) FindByPartnerRefNo(ctx context.Context, partnerRefNo string) (StoreWithdrawal, error) {
+	return r.getWithdrawal(ctx, `
+		SELECT
+			w.id,
+			w.store_id,
+			w.store_bank_account_id,
+			w.idempotency_key,
+			a.bank_code,
+			a.bank_name,
+			a.account_name,
+			a.account_number_masked,
+			w.net_requested_amount::text,
+			w.platform_fee_amount::text,
+			w.external_fee_amount::text,
+			w.total_store_debit::text,
+			w.provider_partner_ref_no,
+			w.provider_inquiry_id,
+			w.status,
+			w.created_at,
+			w.updated_at
+		FROM store_withdrawals w
+		INNER JOIN store_bank_accounts a ON a.id = w.store_bank_account_id
+		WHERE w.provider_partner_ref_no = $1
+		LIMIT 1
+	`, strings.TrimSpace(partnerRefNo))
+}
+
 func (r *Repository) GetByID(ctx context.Context, withdrawalID string) (StoreWithdrawal, error) {
 	return r.getWithdrawal(ctx, `
 		SELECT
@@ -134,6 +167,31 @@ func (r *Repository) GetByID(ctx context.Context, withdrawalID string) (StoreWit
 		WHERE w.id = $1
 		LIMIT 1
 	`, strings.TrimSpace(withdrawalID))
+}
+
+func (r *Repository) AcquireProcessingLock(ctx context.Context, withdrawalID string) (ProcessingLock, bool, error) {
+	conn, err := r.pool.Acquire(ctx)
+	if err != nil {
+		return nil, false, fmt.Errorf("acquire withdrawal processing connection: %w", err)
+	}
+
+	var locked bool
+	if err := conn.QueryRow(ctx, `
+		SELECT pg_try_advisory_lock($1, hashtext($2))
+	`, withdrawalProcessingLockNamespace, strings.TrimSpace(withdrawalID)).Scan(&locked); err != nil {
+		conn.Release()
+		return nil, false, fmt.Errorf("try withdrawal advisory lock: %w", err)
+	}
+
+	if !locked {
+		conn.Release()
+		return nil, false, nil
+	}
+
+	return &repositoryProcessingLock{
+		conn:         conn,
+		withdrawalID: strings.TrimSpace(withdrawalID),
+	}, true, nil
 }
 
 func (r *Repository) ListStoreWithdrawals(ctx context.Context, storeID string) ([]StoreWithdrawal, error) {
@@ -181,6 +239,101 @@ func (r *Repository) ListStoreWithdrawals(ctx context.Context, storeID string) (
 	}
 
 	return withdrawals, nil
+}
+
+func (r *Repository) NextStatusCheckAttemptNo(ctx context.Context, withdrawalID string) (int, error) {
+	var nextAttempt int
+	err := r.pool.QueryRow(ctx, `
+		SELECT COALESCE(MAX(attempt_no), 0) + 1
+		FROM withdrawal_status_checks
+		WHERE store_withdrawal_id = $1
+	`, strings.TrimSpace(withdrawalID)).Scan(&nextAttempt)
+	if err != nil {
+		return 0, fmt.Errorf("next withdrawal status check attempt no: %w", err)
+	}
+
+	return nextAttempt, nil
+}
+
+func (r *Repository) ListDueStatusCheckWithdrawals(ctx context.Context, cutoff time.Time, limit int) ([]StatusCheckCandidate, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT
+			w.id,
+			w.store_id,
+			w.store_bank_account_id,
+			w.idempotency_key,
+			a.bank_code,
+			a.bank_name,
+			a.account_name,
+			a.account_number_masked,
+			w.net_requested_amount::text,
+			w.platform_fee_amount::text,
+			w.external_fee_amount::text,
+			w.total_store_debit::text,
+			w.provider_partner_ref_no,
+			w.provider_inquiry_id,
+			w.status,
+			w.created_at,
+			w.updated_at,
+			COALESCE(last_attempt.attempt_no, 0) AS attempt_no,
+			last_attempt.created_at AS last_attempt_at
+		FROM store_withdrawals w
+		INNER JOIN stores s ON s.id = w.store_id
+		INNER JOIN store_bank_accounts a ON a.id = w.store_bank_account_id
+		LEFT JOIN LATERAL (
+			SELECT attempt_no, created_at
+			FROM withdrawal_status_checks
+			WHERE store_withdrawal_id = w.id
+			ORDER BY attempt_no DESC
+			LIMIT 1
+		) AS last_attempt ON TRUE
+		WHERE w.status = 'pending'
+			AND w.provider_partner_ref_no IS NOT NULL
+			AND s.deleted_at IS NULL
+			AND (last_attempt.created_at IS NULL OR last_attempt.created_at <= $1)
+		ORDER BY COALESCE(last_attempt.created_at, w.updated_at) ASC, w.created_at ASC
+		LIMIT $2
+	`, cutoff.UTC(), limit)
+	if err != nil {
+		return nil, fmt.Errorf("list due withdrawal status checks: %w", err)
+	}
+	defer rows.Close()
+
+	var candidates []StatusCheckCandidate
+	for rows.Next() {
+		var candidate StatusCheckCandidate
+		if err := rows.Scan(
+			&candidate.Withdrawal.ID,
+			&candidate.Withdrawal.StoreID,
+			&candidate.Withdrawal.StoreBankAccountID,
+			&candidate.Withdrawal.IdempotencyKey,
+			&candidate.Withdrawal.BankCode,
+			&candidate.Withdrawal.BankName,
+			&candidate.Withdrawal.AccountName,
+			&candidate.Withdrawal.AccountNumberMasked,
+			&candidate.Withdrawal.NetRequestedAmount,
+			&candidate.Withdrawal.PlatformFeeAmount,
+			&candidate.Withdrawal.ExternalFeeAmount,
+			&candidate.Withdrawal.TotalStoreDebit,
+			&candidate.Withdrawal.ProviderPartnerRefNo,
+			&candidate.Withdrawal.ProviderInquiryID,
+			&candidate.Withdrawal.Status,
+			&candidate.Withdrawal.CreatedAt,
+			&candidate.Withdrawal.UpdatedAt,
+			&candidate.AttemptNo,
+			&candidate.LastAttemptAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan withdrawal status check candidate: %w", err)
+		}
+
+		candidates = append(candidates, candidate)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate withdrawal status checks: %w", err)
+	}
+
+	return candidates, nil
 }
 
 func (r *Repository) CreateStoreWithdrawal(ctx context.Context, params CreateStoreWithdrawalParams) (StoreWithdrawal, error) {
@@ -237,6 +390,24 @@ func (r *Repository) UpdateStoreWithdrawal(ctx context.Context, params UpdateSto
 	}
 
 	return r.GetByID(ctx, params.WithdrawalID)
+}
+
+func (r *Repository) RecordStatusCheck(ctx context.Context, params RecordStatusCheckParams) error {
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO withdrawal_status_checks (
+			store_withdrawal_id,
+			attempt_no,
+			status,
+			response_masked,
+			created_at
+		)
+		VALUES ($1, $2, $3, $4::jsonb, $5)
+	`, strings.TrimSpace(params.WithdrawalID), params.AttemptNo, strings.TrimSpace(params.Status), toJSON(params.ResponseMasked), params.OccurredAt)
+	if err != nil {
+		return fmt.Errorf("record withdrawal status check: %w", err)
+	}
+
+	return nil
 }
 
 func (r *Repository) InsertAuditLog(
@@ -323,4 +494,30 @@ func scanWithdrawal(row scanner) (StoreWithdrawal, error) {
 	}
 
 	return withdrawal, nil
+}
+
+type repositoryProcessingLock struct {
+	conn         *pgxpool.Conn
+	withdrawalID string
+}
+
+func (l *repositoryProcessingLock) Unlock(ctx context.Context) error {
+	if l == nil || l.conn == nil {
+		return nil
+	}
+
+	var unlocked bool
+	err := l.conn.QueryRow(ctx, `
+		SELECT pg_advisory_unlock($1, hashtext($2))
+	`, withdrawalProcessingLockNamespace, l.withdrawalID).Scan(&unlocked)
+	l.conn.Release()
+	l.conn = nil
+	if err != nil {
+		return fmt.Errorf("unlock withdrawal advisory lock: %w", err)
+	}
+	if !unlocked {
+		return fmt.Errorf("unlock withdrawal advisory lock: lock not held")
+	}
+
+	return nil
 }

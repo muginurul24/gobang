@@ -24,6 +24,7 @@ type BankDirectory interface {
 type Provider interface {
 	Inquiry(ctx context.Context, input ProviderInquiryInput) (ProviderInquiryResult, error)
 	Transfer(ctx context.Context, input ProviderTransferInput) (ProviderTransferResult, error)
+	CheckStatus(ctx context.Context, input ProviderStatusCheckInput) (ProviderStatusCheckResult, error)
 }
 
 type ProviderConfig struct {
@@ -107,6 +108,23 @@ func (p *qrisProvider) Transfer(ctx context.Context, input ProviderTransferInput
 	return ProviderTransferResult{Accepted: result.Accepted}, nil
 }
 
+func (p *qrisProvider) CheckStatus(ctx context.Context, input ProviderStatusCheckInput) (ProviderStatusCheckResult, error) {
+	result, err := p.client.CheckDisbursementStatus(ctx, qris.CheckDisbursementStatusInput{
+		PartnerRefNo: strings.TrimSpace(input.PartnerRefNo),
+	})
+	if err != nil {
+		return ProviderStatusCheckResult{}, err
+	}
+
+	return ProviderStatusCheckResult{
+		Amount:       result.Amount,
+		ExternalFee:  result.Fee * 100,
+		PartnerRefNo: strings.TrimSpace(result.PartnerRefNo),
+		MerchantID:   strings.TrimSpace(result.MerchantUUID),
+		Status:       strings.TrimSpace(result.Status),
+	}, nil
+}
+
 type mockProvider struct {
 	directory BankDirectory
 }
@@ -140,6 +158,16 @@ func (p *mockProvider) Inquiry(_ context.Context, input ProviderInquiryInput) (P
 
 func (p *mockProvider) Transfer(context.Context, ProviderTransferInput) (ProviderTransferResult, error) {
 	return ProviderTransferResult{Accepted: true}, nil
+}
+
+func (p *mockProvider) CheckStatus(_ context.Context, input ProviderStatusCheckInput) (ProviderStatusCheckResult, error) {
+	return ProviderStatusCheckResult{
+		Amount:       25000,
+		ExternalFee:  1800 * 100,
+		PartnerRefNo: strings.TrimSpace(input.PartnerRefNo),
+		MerchantID:   "mock-merchant-id",
+		Status:       "success",
+	}, nil
 }
 
 func shouldUseMockProvider(cfg ProviderConfig) bool {

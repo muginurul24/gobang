@@ -892,9 +892,9 @@ Menutup finalisasi withdraw.
 - withdraw domain final
 
 ### Checklist
-- [ ] pending success failed works
-- [ ] reserve released on fail
-- [ ] final success idempotent
+- [x] pending success failed works
+- [x] reserve released on fail
+- [x] final success idempotent
 
 ---
 
