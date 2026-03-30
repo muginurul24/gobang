@@ -52,7 +52,7 @@
       return;
     }
 
-    stores = storesResponse.data;
+    stores = storesResponse.data ?? [];
     if (stores.length === 0) {
       selectedStoreID = '';
       bankAccounts = [];
@@ -87,7 +87,7 @@
       return;
     }
 
-    bankAccounts = response.data;
+    bankAccounts = response.data ?? [];
   }
 
   async function runBankSearch() {
@@ -102,7 +102,7 @@
       return;
     }
 
-    bankResults = response.data;
+    bankResults = response.data ?? [];
   }
 
   async function changeStore(storeID: string) {

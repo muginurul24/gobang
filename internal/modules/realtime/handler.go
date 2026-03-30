@@ -75,6 +75,7 @@ func (h *Handler) handleWebSocket() http.Handler {
 		defer subscription.Close()
 
 		connectionID := requestID(r)
+		conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 		if err := conn.WriteJSON(HelloFrame{
 			Kind:                     "hello",
 			ConnectionID:             connectionID,
@@ -149,6 +150,7 @@ func (h *Handler) writeLoop(conn *websocket.Conn, events <-chan platformrealtime
 				return
 			}
 
+			conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			if err := conn.WriteJSON(EventFrame{
 				Kind:  "event",
 				Event: event,
@@ -157,6 +159,7 @@ func (h *Handler) writeLoop(conn *websocket.Conn, events <-chan platformrealtime
 				return
 			}
 		case <-ticker.C:
+			conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			if err := conn.WriteJSON(HeartbeatFrame{
 				Kind:   "heartbeat",
 				SentAt: time.Now().UTC(),

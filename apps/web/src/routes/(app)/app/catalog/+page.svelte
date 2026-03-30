@@ -50,7 +50,7 @@
       return;
     }
 
-    providers = providersResponse.data;
+    providers = providersResponse.data ?? [];
     if (selectedProvider && !providers.some((provider) => provider.provider_code === selectedProvider)) {
       selectedProvider = '';
     }
@@ -75,7 +75,7 @@
       return;
     }
 
-    games = gamesResponse.data;
+    games = gamesResponse.data ?? [];
     loading = false;
   }
 

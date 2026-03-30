@@ -57,7 +57,7 @@
       return;
     }
 
-    stores = storesResponse.data;
+    stores = storesResponse.data ?? [];
     if (stores.length === 0) {
       selectedStoreID = '';
       topups = [];
@@ -93,7 +93,7 @@
       return;
     }
 
-    topups = response.data;
+    topups = response.data ?? [];
 
     if (preferredTopupID !== '' && topups.some((topup) => topup.id === preferredTopupID)) {
       selectedTopupID = preferredTopupID;
