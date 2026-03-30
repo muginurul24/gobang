@@ -68,8 +68,8 @@ func TestCreateNotificationSuccessAndPushesToRealtime(t *testing.T) {
 	if hub.lastChannel != "store:store-1" {
 		t.Fatalf("hub channel = %s, want store:store-1", hub.lastChannel)
 	}
-	if hub.lastType != "notification.game.deposit.success" {
-		t.Fatalf("hub event type = %s, want notification.game.deposit.success", hub.lastType)
+	if hub.lastType != "game.deposit.success" {
+		t.Fatalf("hub event type = %s, want game.deposit.success", hub.lastType)
 	}
 }
 
@@ -97,7 +97,11 @@ func TestMarkReadNotFoundReturnsError(t *testing.T) {
 		Repository: repo,
 	})
 
-	err := svc.MarkRead(context.Background(), "nonexistent")
+	err := svc.MarkRead(context.Background(), MarkReadParams{
+		ID:        "nonexistent",
+		ScopeType: ScopeStore,
+		ScopeID:   "store-1",
+	})
 	if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("error = %v, want ErrNotFound", err)
 	}
@@ -165,7 +169,7 @@ func (r *stubRepository) ListByScope(_ context.Context, _ ListParams) ([]Notific
 	return []Notification{}, nil
 }
 
-func (r *stubRepository) MarkRead(_ context.Context, _ string, _ time.Time) error {
+func (r *stubRepository) MarkRead(_ context.Context, _ MarkReadParams, _ time.Time) error {
 	return r.markReadErr
 }
 

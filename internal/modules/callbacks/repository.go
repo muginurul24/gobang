@@ -235,23 +235,6 @@ func (r *Repository) RecordAttempt(ctx context.Context, params RecordAttemptPara
 		return fmt.Errorf("update outbound callback status: %w", err)
 	}
 
-	if params.Notification != nil {
-		_, err = tx.Exec(ctx, `
-			INSERT INTO notifications (
-				scope_type,
-				scope_id,
-				event_type,
-				title,
-				body,
-				created_at
-			)
-			VALUES ('store', $1, $2, $3, $4, $5)
-		`, params.Notification.StoreID, params.Notification.EventType, params.Notification.Title, params.Notification.Body, params.OccurredAt)
-		if err != nil {
-			return fmt.Errorf("insert callback failure notification: %w", err)
-		}
-	}
-
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit record callback attempt tx: %w", err)
 	}

@@ -1,6 +1,7 @@
 package notifications
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -10,13 +11,23 @@ import (
 	"github.com/mugiew/onixggr/internal/modules/auth"
 )
 
-type Handler struct {
-	service     Service
-	authService auth.Service
+var (
+	errInvalidScope   = errors.New("invalid notification scope")
+	errForbiddenScope = errors.New("forbidden notification scope")
+)
+
+type AccessRepositoryContract interface {
+	HasStoreAccess(ctx context.Context, userID string, storeID string) (bool, error)
 }
 
-func NewHandler(service Service, authService auth.Service) *Handler {
-	return &Handler{service: service, authService: authService}
+type Handler struct {
+	service          Service
+	authService      auth.Service
+	accessRepository AccessRepositoryContract
+}
+
+func NewHandler(service Service, authService auth.Service, accessRepository AccessRepositoryContract) *Handler {
+	return &Handler{service: service, authService: authService, accessRepository: accessRepository}
 }
 
 func (h *Handler) Register(mux *http.ServeMux) {
@@ -32,9 +43,9 @@ func (h *Handler) handleList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	scopeType, scopeID, ok := resolveScope(r, subject)
-	if !ok {
-		writeEnvelope(w, http.StatusBadRequest, false, "INVALID_SCOPE", nil)
+	scopeType, scopeID, err := h.resolveScope(r, subject)
+	if err != nil {
+		h.writeScopeError(w, err)
 		return
 	}
 
@@ -66,7 +77,7 @@ func (h *Handler) handleList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleMarkRead(w http.ResponseWriter, r *http.Request) {
-	_, ok := auth.SubjectFromContext(r.Context())
+	subject, ok := auth.SubjectFromContext(r.Context())
 	if !ok {
 		writeEnvelope(w, http.StatusUnauthorized, false, "UNAUTHORIZED", nil)
 		return
@@ -78,7 +89,17 @@ func (h *Handler) handleMarkRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.service.MarkRead(r.Context(), id)
+	scopeType, scopeID, err := h.resolveScope(r, subject)
+	if err != nil {
+		h.writeScopeError(w, err)
+		return
+	}
+
+	err = h.service.MarkRead(r.Context(), MarkReadParams{
+		ID:        id,
+		ScopeType: scopeType,
+		ScopeID:   scopeID,
+	})
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			writeEnvelope(w, http.StatusNotFound, false, "NOT_FOUND", nil)
@@ -98,9 +119,9 @@ func (h *Handler) handleUnreadCount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	scopeType, scopeID, ok := resolveScope(r, subject)
-	if !ok {
-		writeEnvelope(w, http.StatusBadRequest, false, "INVALID_SCOPE", nil)
+	scopeType, scopeID, err := h.resolveScope(r, subject)
+	if err != nil {
+		h.writeScopeError(w, err)
 		return
 	}
 
@@ -113,24 +134,49 @@ func (h *Handler) handleUnreadCount(w http.ResponseWriter, r *http.Request) {
 	writeEnvelope(w, http.StatusOK, true, "SUCCESS", map[string]int{"unread_count": count})
 }
 
-func resolveScope(r *http.Request, subject auth.Subject) (ScopeType, string, bool) {
+func (h *Handler) resolveScope(r *http.Request, subject auth.Subject) (ScopeType, string, error) {
 	switch subject.Role {
 	case auth.RoleDev, auth.RoleSuperadmin:
-		scopeType := ScopeType(r.URL.Query().Get("scope_type"))
-		scopeID := r.URL.Query().Get("scope_id")
+		scopeType := ScopeType(strings.TrimSpace(r.URL.Query().Get("scope_type")))
+		scopeID := strings.TrimSpace(r.URL.Query().Get("scope_id"))
+		if (scopeType == "") != (scopeID == "") {
+			return "", "", errInvalidScope
+		}
 		if scopeType == "" || scopeID == "" {
 			scopeType = ScopeRole
 			scopeID = string(subject.Role)
 		}
-		return scopeType, scopeID, true
+		return scopeType, scopeID, nil
 	case auth.RoleOwner, auth.RoleKaryawan:
-		storeID := r.URL.Query().Get("store_id")
+		storeID := strings.TrimSpace(r.URL.Query().Get("store_id"))
 		if storeID == "" {
-			return "", "", false
+			return "", "", errInvalidScope
 		}
-		return ScopeStore, storeID, true
+		if h.accessRepository == nil {
+			return "", "", errForbiddenScope
+		}
+
+		allowed, err := h.accessRepository.HasStoreAccess(r.Context(), subject.UserID, storeID)
+		if err != nil {
+			return "", "", err
+		}
+		if !allowed {
+			return "", "", errForbiddenScope
+		}
+		return ScopeStore, storeID, nil
 	default:
-		return "", "", false
+		return "", "", errForbiddenScope
+	}
+}
+
+func (h *Handler) writeScopeError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, errInvalidScope):
+		writeEnvelope(w, http.StatusBadRequest, false, "INVALID_SCOPE", nil)
+	case errors.Is(err, errForbiddenScope):
+		writeEnvelope(w, http.StatusForbidden, false, "FORBIDDEN", nil)
+	default:
+		writeEnvelope(w, http.StatusInternalServerError, false, "INTERNAL_ERROR", nil)
 	}
 }
 

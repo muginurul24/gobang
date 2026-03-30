@@ -261,6 +261,7 @@ func (s *service) finalizeTransferStatusLocked(ctx context.Context, withdrawal S
 			"Withdraw berhasil",
 			fmt.Sprintf("Withdraw %s ke %s (%s) berhasil.", finalized.NetRequestedAmount, finalized.AccountName, finalized.BankName),
 		)
+		s.emitLowBalanceIfNeeded(ctx, finalized.StoreID)
 	case WithdrawalStatusFailed:
 		s.notifications.Emit(finalized.StoreID, "withdraw.failed",
 			"Withdraw gagal",

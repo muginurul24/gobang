@@ -11,7 +11,7 @@ import (
 type RepositoryContract interface {
 	Create(ctx context.Context, params CreateParams, createdAt time.Time) (Notification, error)
 	ListByScope(ctx context.Context, params ListParams) ([]Notification, error)
-	MarkRead(ctx context.Context, id string, readAt time.Time) error
+	MarkRead(ctx context.Context, params MarkReadParams, readAt time.Time) error
 	CountUnread(ctx context.Context, scopeType ScopeType, scopeID string) (int, error)
 }
 
@@ -73,10 +73,15 @@ func (r *Repository) ListByScope(ctx context.Context, params ListParams) ([]Noti
 	return notifications, nil
 }
 
-func (r *Repository) MarkRead(ctx context.Context, id string, readAt time.Time) error {
+func (r *Repository) MarkRead(ctx context.Context, params MarkReadParams, readAt time.Time) error {
 	tag, err := r.pool.Exec(ctx, `
-		UPDATE notifications SET read_at = $2 WHERE id = $1 AND read_at IS NULL
-	`, id, readAt)
+		UPDATE notifications
+		SET read_at = $4
+		WHERE id = $1
+			AND scope_type = $2
+			AND scope_id = $3
+			AND read_at IS NULL
+	`, params.ID, params.ScopeType, params.ScopeID, readAt)
 	if err != nil {
 		return fmt.Errorf("mark notification read: %w", err)
 	}

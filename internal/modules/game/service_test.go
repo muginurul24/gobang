@@ -312,6 +312,43 @@ func TestDepositSuccessDebitsLedger(t *testing.T) {
 	}
 }
 
+func TestDepositSuccessEmitsLowBalanceWhenThresholdReached(t *testing.T) {
+	repository := newFakeRepository(time.Date(2026, 3, 30, 21, 25, 0, 0, time.UTC))
+	threshold := "95000.00"
+	repository.store.LowBalanceThreshold = &threshold
+	upstream := &fakeUpstream{}
+	ledgerService := newFakeLedger("100000.00")
+	notifier := &stubNotificationEmitter{}
+
+	service := NewService(Options{
+		Repository:           repository,
+		Upstream:             upstream,
+		Ledger:               ledgerService,
+		Notifications:        notifier,
+		Clock:                fixedClock{now: repository.now},
+		MinTransactionAmount: 5000,
+	}).(*service)
+	service.agentSignFactory = func() (string, error) {
+		return "AGTLOWBALANCE001", nil
+	}
+
+	_, err := service.Deposit(context.Background(), "store_live_demo", CreateDepositInput{
+		Username: "member-demo",
+		Amount:   json.Number("5000"),
+		TrxID:    "trx-low-balance",
+	}, RequestMetadata{})
+	if err != nil {
+		t.Fatalf("Deposit returned error: %v", err)
+	}
+
+	if len(notifier.calls) != 2 {
+		t.Fatalf("notification calls = %d, want 2", len(notifier.calls))
+	}
+	if notifier.calls[1].eventType != "store.low_balance" {
+		t.Fatalf("notification event = %q, want store.low_balance", notifier.calls[1].eventType)
+	}
+}
+
 func TestDepositTimeoutMovesToPendingReconcile(t *testing.T) {
 	repository := newFakeRepository(time.Date(2026, 3, 30, 21, 30, 0, 0, time.UTC))
 	upstream := &fakeUpstream{depositErr: nexusggr.ErrTimeout}
@@ -667,6 +704,26 @@ type fakeRepository struct {
 	auditActions  []string
 	notifications []string
 	locked        map[string]bool
+}
+
+type stubNotificationEmitter struct {
+	calls []notificationCall
+}
+
+func (s *stubNotificationEmitter) Emit(storeID string, eventType string, title string, body string) {
+	s.calls = append(s.calls, notificationCall{
+		storeID:   storeID,
+		eventType: eventType,
+		title:     title,
+		body:      body,
+	})
+}
+
+type notificationCall struct {
+	storeID   string
+	eventType string
+	title     string
+	body      string
 }
 
 func newFakeRepository(now time.Time) *fakeRepository {

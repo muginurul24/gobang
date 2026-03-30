@@ -186,15 +186,12 @@ func (s *service) processCallback(ctx context.Context, callback DueOutboundCallb
 
 	nextRetry := nextRetryAt(now, attemptNo)
 	status := StatusRetrying
-	var notification *NotificationParams
+	var notificationTitle string
+	var notificationBody string
 	if nextRetry == nil {
 		status = StatusFailed
-		notification = &NotificationParams{
-			StoreID:   callback.StoreID,
-			EventType: "callback.delivery_failed",
-			Title:     "Callback delivery gagal",
-			Body:      fmt.Sprintf("Callback %s ke endpoint toko gagal setelah %d percobaan.", callback.EventType, attemptNo),
-		}
+		notificationTitle = "Callback delivery gagal"
+		notificationBody = fmt.Sprintf("Callback %s ke endpoint toko gagal setelah %d percobaan.", callback.EventType, attemptNo)
 	}
 
 	err := s.repository.RecordAttempt(ctx, RecordAttemptParams{
@@ -206,7 +203,6 @@ func (s *service) processCallback(ctx context.Context, callback DueOutboundCallb
 		NextRetryAt:        nextRetry,
 		CallbackStatus:     status,
 		OccurredAt:         now,
-		Notification:       notification,
 	})
 	if err != nil {
 		if errors.Is(err, ErrDuplicateAttempt) {
@@ -217,8 +213,8 @@ func (s *service) processCallback(ctx context.Context, callback DueOutboundCallb
 
 	if status == StatusFailed {
 		s.notifications.Emit(callback.StoreID, "callback.delivery_failed",
-			notification.Title,
-			notification.Body,
+			notificationTitle,
+			notificationBody,
 		)
 		summary.Failed++
 	} else {

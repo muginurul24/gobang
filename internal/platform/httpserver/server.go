@@ -116,7 +116,7 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 			Hub:        deps.Realtime,
 			Logger:     deps.Logger,
 		})
-		notifications.NewHandler(notificationService, authService).Register(mux)
+		notifications.NewHandler(notificationService, authService, notifications.NewAccessRepository(deps.DB)).Register(mux)
 		storeNotifier := notifications.NewStoreEmitter(
 			notifications.NewAsyncEmitter(notificationService, deps.Logger),
 		)

@@ -17,7 +17,7 @@ type HubContract interface {
 type Service interface {
 	Create(ctx context.Context, params CreateParams) (Notification, error)
 	ListByScope(ctx context.Context, params ListParams) ([]Notification, error)
-	MarkRead(ctx context.Context, id string) error
+	MarkRead(ctx context.Context, params MarkReadParams) error
 	CountUnread(ctx context.Context, scopeType ScopeType, scopeID string) (int, error)
 }
 
@@ -71,8 +71,8 @@ func (s *service) ListByScope(ctx context.Context, params ListParams) ([]Notific
 	return s.repository.ListByScope(ctx, params)
 }
 
-func (s *service) MarkRead(ctx context.Context, id string) error {
-	return s.repository.MarkRead(ctx, id, time.Now().UTC())
+func (s *service) MarkRead(ctx context.Context, params MarkReadParams) error {
+	return s.repository.MarkRead(ctx, params, time.Now().UTC())
 }
 
 func (s *service) CountUnread(ctx context.Context, scopeType ScopeType, scopeID string) (int, error) {
@@ -91,7 +91,7 @@ func (s *service) pushToRealtime(ctx context.Context, n Notification) {
 
 	err := s.hub.Publish(ctx, platformrealtime.Event{
 		Channel: channel,
-		Type:    "notification." + n.EventType,
+		Type:    n.EventType,
 		Payload: map[string]any{
 			"id":         n.ID,
 			"scope_type": string(n.ScopeType),

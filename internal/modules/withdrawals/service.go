@@ -492,6 +492,46 @@ func statusPtr(value WithdrawalStatus) *WithdrawalStatus {
 	return &result
 }
 
+func (s *service) emitLowBalanceIfNeeded(ctx context.Context, storeID string) {
+	store, err := s.repository.GetStoreScope(ctx, storeID)
+	if err != nil {
+		return
+	}
+
+	threshold, ok := parseLowBalanceThreshold(store.LowBalanceThreshold)
+	if !ok {
+		return
+	}
+
+	balance, err := s.ledger.GetBalance(ctx, storeID)
+	if err != nil {
+		return
+	}
+
+	available, err := parseMoneyString(balance.AvailableBalance)
+	if err != nil || available > threshold {
+		return
+	}
+
+	s.notifications.Emit(storeID, "store.low_balance",
+		"Saldo toko rendah",
+		fmt.Sprintf("Saldo tersedia toko %s tersisa %s dan sudah menyentuh threshold %s.", store.Name, formatAmount(available), formatAmount(threshold)),
+	)
+}
+
+func parseLowBalanceThreshold(raw *string) (money, bool) {
+	if raw == nil {
+		return 0, false
+	}
+
+	threshold, err := parseMoneyString(*raw)
+	if err != nil || threshold <= 0 {
+		return 0, false
+	}
+
+	return threshold, true
+}
+
 type noopNotificationEmitter struct{}
 
 func (noopNotificationEmitter) Emit(string, string, string, string) {}

@@ -23,12 +23,13 @@ const (
 )
 
 type StoreScope struct {
-	ID          string
-	OwnerUserID string
-	Name        string
-	Slug        string
-	Status      StoreStatus
-	DeletedAt   *time.Time
+	ID                  string
+	OwnerUserID         string
+	Name                string
+	Slug                string
+	Status              StoreStatus
+	LowBalanceThreshold *string
+	DeletedAt           *time.Time
 }
 
 type StoreBankAccount struct {

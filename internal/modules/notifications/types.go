@@ -30,6 +30,12 @@ type CreateParams struct {
 	Body      string
 }
 
+type MarkReadParams struct {
+	ID        string
+	ScopeType ScopeType
+	ScopeID   string
+}
+
 type ListParams struct {
 	ScopeType ScopeType
 	ScopeID   string

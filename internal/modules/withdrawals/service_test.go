@@ -254,6 +254,26 @@ type stubRepository struct {
 	now         time.Time
 }
 
+type stubNotificationEmitter struct {
+	calls []notificationCall
+}
+
+func (s *stubNotificationEmitter) Emit(storeID string, eventType string, title string, body string) {
+	s.calls = append(s.calls, notificationCall{
+		storeID:   storeID,
+		eventType: eventType,
+		title:     title,
+		body:      body,
+	})
+}
+
+type notificationCall struct {
+	storeID   string
+	eventType string
+	title     string
+	body      string
+}
+
 func newStubRepository(now time.Time) *stubRepository {
 	return &stubRepository{
 		store: StoreScope{

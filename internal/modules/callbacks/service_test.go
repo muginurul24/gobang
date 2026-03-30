@@ -81,9 +81,10 @@ func TestRunPendingMarksSuccess(t *testing.T) {
 	}
 
 	service := NewService(Options{
-		Repository: repository,
-		Dispatcher: dispatcher,
-		Clock:      fixedClock{now: now},
+		Repository:    repository,
+		Dispatcher:    dispatcher,
+		Notifications: repository,
+		Clock:         fixedClock{now: now},
 	})
 
 	summary, err := service.RunPending(context.Background(), 10)
@@ -131,9 +132,10 @@ func TestRunPendingSchedulesRetry(t *testing.T) {
 	}
 
 	service := NewService(Options{
-		Repository: repository,
-		Dispatcher: dispatcher,
-		Clock:      fixedClock{now: now},
+		Repository:    repository,
+		Dispatcher:    dispatcher,
+		Notifications: repository,
+		Clock:         fixedClock{now: now},
 	})
 
 	summary, err := service.RunPending(context.Background(), 10)
@@ -178,9 +180,10 @@ func TestRunPendingFinalFailureCreatesNotification(t *testing.T) {
 	dispatcher := &stubDispatcher{err: errors.New("timeout")}
 
 	service := NewService(Options{
-		Repository: repository,
-		Dispatcher: dispatcher,
-		Clock:      fixedClock{now: now},
+		Repository:    repository,
+		Dispatcher:    dispatcher,
+		Notifications: repository,
+		Clock:         fixedClock{now: now},
 	})
 
 	summary, err := service.RunPending(context.Background(), 10)
@@ -194,11 +197,11 @@ func TestRunPendingFinalFailureCreatesNotification(t *testing.T) {
 	if repository.lastRecord.CallbackStatus != StatusFailed {
 		t.Fatalf("callback status = %q, want failed", repository.lastRecord.CallbackStatus)
 	}
-	if repository.lastRecord.Notification == nil {
-		t.Fatal("Notification = nil, want value")
+	if repository.notifierCalls != 1 {
+		t.Fatalf("notifierCalls = %d, want 1", repository.notifierCalls)
 	}
-	if repository.lastRecord.Notification.EventType != "callback.delivery_failed" {
-		t.Fatalf("notification event = %q, want callback.delivery_failed", repository.lastRecord.Notification.EventType)
+	if repository.lastNotification.eventType != "callback.delivery_failed" {
+		t.Fatalf("notification event = %q, want callback.delivery_failed", repository.lastNotification.eventType)
 	}
 }
 
@@ -211,12 +214,14 @@ func (f fixedClock) Now() time.Time {
 }
 
 type stubRepository struct {
-	source       MemberPaymentCallbackSource
-	dueCallbacks []DueOutboundCallback
-	enqueueCalls int
-	recordCalls  int
-	lastEnqueue  EnqueueOutboundCallbackParams
-	lastRecord   RecordAttemptParams
+	source           MemberPaymentCallbackSource
+	dueCallbacks     []DueOutboundCallback
+	enqueueCalls     int
+	recordCalls      int
+	notifierCalls    int
+	lastEnqueue      EnqueueOutboundCallbackParams
+	lastRecord       RecordAttemptParams
+	lastNotification notificationCall
 }
 
 func (s *stubRepository) FindMemberPaymentCallbackSource(context.Context, string) (MemberPaymentCallbackSource, error) {
@@ -239,9 +244,26 @@ func (s *stubRepository) RecordAttempt(_ context.Context, params RecordAttemptPa
 	return nil
 }
 
+func (s *stubRepository) Emit(storeID string, eventType string, title string, body string) {
+	s.notifierCalls++
+	s.lastNotification = notificationCall{
+		storeID:   storeID,
+		eventType: eventType,
+		title:     title,
+		body:      body,
+	}
+}
+
 type stubDispatcher struct {
 	result DispatchResult
 	err    error
+}
+
+type notificationCall struct {
+	storeID   string
+	eventType string
+	title     string
+	body      string
 }
 
 func (s *stubDispatcher) Dispatch(context.Context, DueOutboundCallback) (DispatchResult, error) {

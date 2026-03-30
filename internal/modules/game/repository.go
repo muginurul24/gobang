@@ -30,6 +30,7 @@ func (r *Repository) AuthenticateStore(ctx context.Context, tokenHash string) (S
 			name,
 			slug,
 			status,
+			low_balance_threshold::text,
 			deleted_at
 		FROM stores
 		WHERE api_token_hash = $1
@@ -40,6 +41,7 @@ func (r *Repository) AuthenticateStore(ctx context.Context, tokenHash string) (S
 		&store.Name,
 		&store.Slug,
 		&store.Status,
+		&store.LowBalanceThreshold,
 		&store.DeletedAt,
 	)
 	if err != nil {

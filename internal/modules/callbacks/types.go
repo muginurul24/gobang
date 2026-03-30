@@ -95,14 +95,6 @@ type RecordAttemptParams struct {
 	NextRetryAt        *time.Time
 	CallbackStatus     Status
 	OccurredAt         time.Time
-	Notification       *NotificationParams
-}
-
-type NotificationParams struct {
-	StoreID   string
-	EventType string
-	Title     string
-	Body      string
 }
 
 type DispatchResult struct {

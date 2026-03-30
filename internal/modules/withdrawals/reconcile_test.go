@@ -6,21 +6,30 @@ import (
 	"time"
 
 	"github.com/mugiew/onixggr/internal/modules/auth"
+	"github.com/mugiew/onixggr/internal/modules/ledger"
 	"github.com/mugiew/onixggr/internal/platform/qris"
 )
 
 func TestHandleTransferWebhookSuccessCommitsReservation(t *testing.T) {
 	now := time.Date(2026, time.March, 30, 15, 0, 0, 0, time.UTC)
 	repository := newStubRepository(now)
+	threshold := "900000.00"
+	repository.store.LowBalanceThreshold = &threshold
 	withdrawal := seedPendingWithdrawal(now)
 	repository.byID[withdrawal.ID] = withdrawal
 	repository.withdrawals[withdrawal.StoreID+":"+withdrawal.IdempotencyKey] = withdrawal
-	ledgerService := &stubLedger{}
+	ledgerService := &stubLedger{
+		balance: ledger.BalanceSnapshot{
+			AvailableBalance: "878200.00",
+		},
+	}
+	notifier := &stubNotificationEmitter{}
 	service := NewService(Options{
-		Repository: repository,
-		Provider:   &stubProvider{},
-		Ledger:     ledgerService,
-		Clock:      fixedClock{now: now},
+		Repository:    repository,
+		Provider:      &stubProvider{},
+		Ledger:        ledgerService,
+		Notifications: notifier,
+		Clock:         fixedClock{now: now},
 	})
 
 	result, err := service.HandleTransferWebhook(context.Background(), qris.TransferWebhook{
@@ -47,6 +56,12 @@ func TestHandleTransferWebhookSuccessCommitsReservation(t *testing.T) {
 	}
 	if len(repository.audits) == 0 || repository.audits[len(repository.audits)-1] != "withdraw.success" {
 		t.Fatalf("audits = %#v, want withdraw.success", repository.audits)
+	}
+	if len(notifier.calls) != 2 {
+		t.Fatalf("notification calls = %d, want 2", len(notifier.calls))
+	}
+	if notifier.calls[1].eventType != "store.low_balance" {
+		t.Fatalf("notification event = %q, want store.low_balance", notifier.calls[1].eventType)
 	}
 }
 

@@ -29,7 +29,7 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 func (r *Repository) GetStoreScope(ctx context.Context, storeID string) (StoreScope, error) {
 	var store StoreScope
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, owner_user_id, name, slug, status, deleted_at
+		SELECT id, owner_user_id, name, slug, status, low_balance_threshold::text, deleted_at
 		FROM stores
 		WHERE id = $1
 		LIMIT 1
@@ -39,6 +39,7 @@ func (r *Repository) GetStoreScope(ctx context.Context, storeID string) (StoreSc
 		&store.Name,
 		&store.Slug,
 		&store.Status,
+		&store.LowBalanceThreshold,
 		&store.DeletedAt,
 	)
 	if err != nil {

@@ -174,7 +174,7 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `backend/` and `frontend/` are legacy placeholder directories; new work should go into `apps/`.
 - Use `make hooks` after the repository is initialized with Git to enable the local hooks in `.githooks/`.
 - API readiness is exposed at `/health/ready` and `/readyz`; liveness is exposed at `/health/live` and `/healthz`.
-- `notifications` now exists as a persistence table for worker-generated store notifications; realtime delivery is still scheduled for later milestones.
+- `notifications` now backs the realtime notification stream. Use `GET /v1/notifications`, `GET /v1/notifications/unread-count`, and `POST /v1/notifications/{id}/read` with the same scope rules as the dashboard role.
 - Demo seed rows create one `dev` user, one `owner` user, one `karyawan` user, one store, one demo member, one sample provider/game catalog row, one store-staff relation, and one audit log entry for local development.
 - Demo dashboard credentials after `./appctl migrate fresh --seed`:
 - `dev@example.com` or `dev-demo` with password `DevDemo123!`

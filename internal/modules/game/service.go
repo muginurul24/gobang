@@ -432,6 +432,7 @@ func (s *service) Deposit(ctx context.Context, storeToken string, input CreateDe
 			"Game deposit berhasil",
 			fmt.Sprintf("Deposit %s untuk %s berhasil (trx: %s)", amount.String(), member.RealUsername, transaction.TrxID),
 		)
+		s.emitLowBalanceIfNeeded(store, commitResult.Balance.AvailableBalance)
 
 		return DepositResult{
 			Transaction: transaction,
@@ -901,6 +902,36 @@ func (noopLedger) CommitReservation(context.Context, string, ledger.CommitReserv
 
 func (noopLedger) ReleaseReservation(context.Context, string, ledger.ReleaseReservationInput) (ledger.ReservationResult, error) {
 	return ledger.ReservationResult{}, ledger.ErrNotFound
+}
+
+func (s *service) emitLowBalanceIfNeeded(store StoreScope, availableBalance string) {
+	threshold, ok := parseLowBalanceThreshold(store.LowBalanceThreshold)
+	if !ok {
+		return
+	}
+
+	current, err := parseMoney(availableBalance)
+	if err != nil || current > threshold {
+		return
+	}
+
+	s.notifications.Emit(store.ID, "store.low_balance",
+		"Saldo toko rendah",
+		fmt.Sprintf("Saldo tersedia toko %s tersisa %s dan sudah menyentuh threshold %s.", store.Name, current.String(), threshold.String()),
+	)
+}
+
+func parseLowBalanceThreshold(raw *string) (money, bool) {
+	if raw == nil {
+		return 0, false
+	}
+
+	threshold, err := parseMoney(*raw)
+	if err != nil || threshold <= 0 {
+		return 0, false
+	}
+
+	return threshold, true
 }
 
 type noopNotificationEmitter struct{}
