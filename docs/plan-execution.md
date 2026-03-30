@@ -1385,9 +1385,9 @@ Mengukur bottleneck awal.
 
 ### Checklist
 
-- [ ] p95 noted
-- [ ] p99 noted
-- [ ] bottleneck documented
+- [x] p95 noted
+- [x] p99 noted
+- [x] bottleneck documented
 
 ---
 

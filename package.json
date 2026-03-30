@@ -17,6 +17,7 @@
     "build:web": "npm --workspace @onixggr/web run build",
     "check:web": "npm --workspace @onixggr/web run check",
     "lint:web": "npm --workspace @onixggr/web run lint",
-    "format:web": "npm --workspace @onixggr/web run format"
+    "format:web": "npm --workspace @onixggr/web run format",
+    "perf:k6": "./scripts/run-k6-baseline.sh"
   }
 }

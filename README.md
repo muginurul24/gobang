@@ -39,10 +39,18 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `./appctl worker run`: start the background worker and process game reconcile backlog, QRIS check-status reconcile, withdraw status checks, and outbound callback retries.
 - `./appctl scheduler run`: start the scheduler and periodically refresh the provider catalog.
 - `./scripts/podman-up.sh`: start PostgreSQL, Redis, API, and web in one command via Podman Compose.
+- `npm run perf:k6`: run the Hari 43 k6 baseline with local PostgreSQL, Redis, mock upstreams, and the API bound to `127.0.0.1`.
 - `go run ./apps/api`: starts the API and exposes `/health/live` plus `/health/ready`.
 - `go run ./apps/worker`: starts the background worker and periodically resolves game transactions in `pending_reconcile`, QRIS pending transactions, store withdraw status checks, plus outbound callback retries.
 - `go run ./apps/scheduler`: starts the scheduler and periodically refreshes the local provider catalog.
 - `npm run dev:web`: starts the SvelteKit shell with public, auth, and app layouts.
+
+## Performance Baseline
+
+- Hari 43 assets live under `deploy/performance/k6/`.
+- `scripts/mock-upstreams/main.go` provides a deterministic local NexusGGR + QRIS stub so perf runs do not depend on external provider credentials.
+- `scripts/run-k6-baseline.sh` bootstraps PostgreSQL and Redis only, starts the local mock upstream plus local API, then runs the baseline scenarios.
+- The current baseline notes and bottleneck summary are captured in [`deploy/performance/baseline.md`](deploy/performance/baseline.md).
 
 ## Auth Core
 
