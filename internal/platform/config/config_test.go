@@ -28,6 +28,8 @@ func TestLoadDefaults(t *testing.T) {
 		"STORE_LOW_BALANCE_THRESHOLD",
 		"MEMBER_PAYMENT_PLATFORM_FEE_PERCENT",
 		"STORE_WITHDRAW_PLATFORM_FEE_PERCENT",
+		"CALLBACK_SIGNING_SECRET",
+		"CALLBACK_DELIVERY_TIMEOUT",
 		"QRIS_BASE_URL",
 		"QRIS_CLIENT",
 		"QRIS_CLIENT_KEY",
@@ -43,6 +45,8 @@ func TestLoadDefaults(t *testing.T) {
 		"PROVIDER_CATALOG_SYNC_INTERVAL",
 		"GAME_RECONCILE_INTERVAL",
 		"GAME_RECONCILE_BATCH_SIZE",
+		"CALLBACK_RETRY_INTERVAL",
+		"CALLBACK_RETRY_BATCH_SIZE",
 		"WS_HEARTBEAT_SECONDS",
 		"METRICS_ENABLED",
 		"PROMETHEUS_PORT",
@@ -81,10 +85,14 @@ func TestLoadOverrides(t *testing.T) {
 	t.Setenv("HTTP_ADDRESS", ":9090")
 	t.Setenv("JWT_ACCESS_TTL", "2h")
 	t.Setenv("STORE_WITHDRAW_PLATFORM_FEE_PERCENT", "10.5")
+	t.Setenv("CALLBACK_SIGNING_SECRET", "callback-secret")
+	t.Setenv("CALLBACK_DELIVERY_TIMEOUT", "12s")
 	t.Setenv("NEXUSGGR_TIMEOUT", "25s")
 	t.Setenv("PROVIDER_CATALOG_SYNC_INTERVAL", "45m")
 	t.Setenv("GAME_RECONCILE_INTERVAL", "45s")
 	t.Setenv("GAME_RECONCILE_BATCH_SIZE", "77")
+	t.Setenv("CALLBACK_RETRY_INTERVAL", "20s")
+	t.Setenv("CALLBACK_RETRY_BATCH_SIZE", "31")
 	t.Setenv("METRICS_ENABLED", "false")
 
 	cfg, err := Load()
@@ -108,6 +116,14 @@ func TestLoadOverrides(t *testing.T) {
 		t.Fatalf("Business.StoreWithdrawPlatformFeePct = %v, want 10.5", cfg.Business.StoreWithdrawPlatformFeePct)
 	}
 
+	if cfg.Callback.SigningSecret != "callback-secret" {
+		t.Fatalf("Callback.SigningSecret = %q, want callback-secret", cfg.Callback.SigningSecret)
+	}
+
+	if cfg.Callback.DeliveryTimeout != 12*time.Second {
+		t.Fatalf("Callback.DeliveryTimeout = %v, want 12s", cfg.Callback.DeliveryTimeout)
+	}
+
 	if cfg.NexusGGR.Timeout != 25*time.Second {
 		t.Fatalf("NexusGGR.Timeout = %v, want 25s", cfg.NexusGGR.Timeout)
 	}
@@ -122,6 +138,14 @@ func TestLoadOverrides(t *testing.T) {
 
 	if cfg.Worker.GameReconcileBatchSize != 77 {
 		t.Fatalf("Worker.GameReconcileBatchSize = %d, want 77", cfg.Worker.GameReconcileBatchSize)
+	}
+
+	if cfg.Worker.CallbackRetryInterval != 20*time.Second {
+		t.Fatalf("Worker.CallbackRetryInterval = %v, want 20s", cfg.Worker.CallbackRetryInterval)
+	}
+
+	if cfg.Worker.CallbackRetryBatchSize != 31 {
+		t.Fatalf("Worker.CallbackRetryBatchSize = %d, want 31", cfg.Worker.CallbackRetryBatchSize)
 	}
 
 	if cfg.Observability.MetricsEnabled {

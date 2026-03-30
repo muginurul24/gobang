@@ -33,11 +33,11 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `./appctl migrate fresh --seed`: recreate the public schema, apply migrations, then run demo seeds.
 - `./appctl seed demo`: apply SQL seed files from `seeds/demo/`.
 - `./appctl sync providers`: pull provider list and game list from NexusGGR, then upsert the local catalog tables.
-- `./appctl worker run`: start the background worker and periodically resolve game reconcile backlog.
+- `./appctl worker run`: start the background worker and process both game reconcile backlog plus outbound callback retries.
 - `./appctl scheduler run`: start the scheduler and periodically refresh the provider catalog.
 - `./scripts/podman-up.sh`: start PostgreSQL, Redis, API, and web in one command via Podman Compose.
 - `go run ./apps/api`: starts the API and exposes `/health/live` plus `/health/ready`.
-- `go run ./apps/worker`: starts the background worker and periodically resolves game transactions in `pending_reconcile`.
+- `go run ./apps/worker`: starts the background worker and periodically resolves game transactions in `pending_reconcile` plus outbound callback retries.
 - `go run ./apps/scheduler`: starts the scheduler and periodically refreshes the local provider catalog.
 - `npm run dev:web`: starts the SvelteKit shell with public, auth, and app layouts.
 
@@ -121,6 +121,13 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - Payment webhooks correlate by `provider_trx_id` first and fall back to `custom_ref`, so pending rows created before provider confirmation can still be finalized safely.
 - `store_topup` success credits the full gross amount to the store ledger; `member_payment` success credits the net amount after the configured 3% platform fee and persists both `platform_fee_amount` and `store_credit_amount`.
 - Duplicate webhooks are safe: ledger posting uses the `qris_transaction` reference plus a unique ledger-entry guard, so retries do not double-credit the store balance.
+
+## Outbound Callbacks
+
+- `member_payment.success` now enqueues one durable callback row in `outbound_callbacks`, keyed by `event_type + reference_type + reference_id` so duplicate webhooks cannot duplicate callback delivery intent.
+- The worker reads due callback rows, signs the stored payload with `X-Onixggr-Signature`, then POSTs it to the store `callback_url` with `X-Onixggr-Event`, `X-Onixggr-Delivery-ID`, and reference headers.
+- Failed callback deliveries are logged in `outbound_callback_attempts` with masked response bodies and exponential backoff for 5 retries; the last failure creates a `callback.delivery_failed` notification for the store.
+- Local tuning uses `CALLBACK_SIGNING_SECRET`, `CALLBACK_DELIVERY_TIMEOUT`, `CALLBACK_RETRY_INTERVAL`, and `CALLBACK_RETRY_BATCH_SIZE`.
 
 ## Store API Game Flows
 

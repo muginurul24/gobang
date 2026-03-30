@@ -9,6 +9,7 @@ import (
 	"github.com/mugiew/onixggr/internal/modules/audit"
 	"github.com/mugiew/onixggr/internal/modules/auth"
 	"github.com/mugiew/onixggr/internal/modules/bankaccounts"
+	"github.com/mugiew/onixggr/internal/modules/callbacks"
 	"github.com/mugiew/onixggr/internal/modules/game"
 	"github.com/mugiew/onixggr/internal/modules/ledger"
 	"github.com/mugiew/onixggr/internal/modules/paymentsqris"
@@ -60,6 +61,10 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 		})
 		banks := bankdirectory.MustLoadDefault()
 		ledgerService := ledger.NewService(ledger.NewRepository(deps.DB))
+		callbackService := callbacks.NewService(callbacks.Options{
+			Repository:    callbacks.NewRepository(deps.DB),
+			SigningSecret: cfg.Callback.SigningSecret,
+		})
 		nexusClient := nexusggr.NewClient(nexusggr.Config{
 			BaseURL:    cfg.NexusGGR.BaseURL,
 			AgentCode:  cfg.NexusGGR.AgentCode,
@@ -117,6 +122,7 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 				Repository:           paymentsqris.NewRepository(deps.DB),
 				Upstream:             qrisClient,
 				Ledger:               ledgerService,
+				Callbacks:            callbackService,
 				DefaultExpireSeconds: cfg.QRIS.DefaultExpireSeconds,
 				MemberPaymentFeePct:  cfg.Business.MemberPaymentPlatformFeePct,
 			}),

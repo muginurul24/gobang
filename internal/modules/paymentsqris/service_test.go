@@ -317,10 +317,12 @@ func TestHandlePaymentWebhookStoreTopupCreditsFullAmount(t *testing.T) {
 		webhookTransaction: transaction,
 	}
 	ledgerService := newStubLedger()
+	callbacks := &stubCallbacks{}
 
 	service := NewService(Options{
 		Repository:          repository,
 		Ledger:              ledgerService,
+		Callbacks:           callbacks,
 		Clock:               fixedClock{now: now},
 		MemberPaymentFeePct: 3,
 	}).(*service)
@@ -362,6 +364,9 @@ func TestHandlePaymentWebhookStoreTopupCreditsFullAmount(t *testing.T) {
 	if repository.lastFinalize.StoreCreditAmount != "50000.00" {
 		t.Fatalf("store credit amount = %q, want 50000.00", repository.lastFinalize.StoreCreditAmount)
 	}
+	if callbacks.enqueueCalls != 0 {
+		t.Fatalf("enqueueCalls = %d, want 0", callbacks.enqueueCalls)
+	}
 }
 
 func TestHandlePaymentWebhookMemberPaymentCreditsNetAfterFee(t *testing.T) {
@@ -383,10 +388,12 @@ func TestHandlePaymentWebhookMemberPaymentCreditsNetAfterFee(t *testing.T) {
 		webhookTransaction: transaction,
 	}
 	ledgerService := newStubLedger()
+	callbacks := &stubCallbacks{}
 
 	service := NewService(Options{
 		Repository:          repository,
 		Ledger:              ledgerService,
+		Callbacks:           callbacks,
 		Clock:               fixedClock{now: now},
 		MemberPaymentFeePct: 3,
 	}).(*service)
@@ -421,6 +428,12 @@ func TestHandlePaymentWebhookMemberPaymentCreditsNetAfterFee(t *testing.T) {
 	}
 	if repository.lastFinalize.StoreCreditAmount != "24250.00" {
 		t.Fatalf("store credit amount = %q, want 24250.00", repository.lastFinalize.StoreCreditAmount)
+	}
+	if callbacks.enqueueCalls != 1 {
+		t.Fatalf("enqueueCalls = %d, want 1", callbacks.enqueueCalls)
+	}
+	if callbacks.lastTransactionID != "qris-member-1" {
+		t.Fatalf("lastTransactionID = %q, want qris-member-1", callbacks.lastTransactionID)
 	}
 }
 
@@ -617,4 +630,15 @@ func (s *stubLedger) Credit(_ context.Context, _ string, input ledger.PostEntryI
 
 func (s *stubLedger) HasReferenceEntries(_ context.Context, referenceType string, referenceID string) (bool, error) {
 	return s.referenceEntries[referenceType+":"+referenceID], nil
+}
+
+type stubCallbacks struct {
+	enqueueCalls      int
+	lastTransactionID string
+}
+
+func (s *stubCallbacks) EnqueueMemberPaymentSuccess(_ context.Context, qrisTransactionID string) error {
+	s.enqueueCalls++
+	s.lastTransactionID = qrisTransactionID
+	return nil
 }

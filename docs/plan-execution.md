@@ -788,9 +788,9 @@ Menyelesaikan callback ke callback_url toko.
 - callback outbound reliable
 
 ### Checklist
-- [ ] HMAC active
-- [ ] retry worker active
-- [ ] failed attempt logged
+- [x] HMAC active
+- [x] retry worker active
+- [x] failed attempt logged
 
 ---
 

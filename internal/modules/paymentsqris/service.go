@@ -51,6 +51,10 @@ type LedgerContract interface {
 	HasReferenceEntries(ctx context.Context, referenceType string, referenceID string) (bool, error)
 }
 
+type CallbackContract interface {
+	EnqueueMemberPaymentSuccess(ctx context.Context, qrisTransactionID string) error
+}
+
 type Service interface {
 	ListStoreTopups(ctx context.Context, subject auth.Subject, storeID string) ([]QRISTransaction, error)
 	CreateStoreTopup(ctx context.Context, subject auth.Subject, storeID string, input CreateStoreTopupInput, metadata auth.RequestMetadata) (QRISTransaction, error)
@@ -63,6 +67,7 @@ type Options struct {
 	Repository           RepositoryContract
 	Upstream             UpstreamClient
 	Ledger               LedgerContract
+	Callbacks            CallbackContract
 	Clock                clock.Clock
 	DefaultExpireSeconds int
 	MemberPaymentFeePct  float64
@@ -72,6 +77,7 @@ type service struct {
 	repository           RepositoryContract
 	upstream             UpstreamClient
 	ledger               LedgerContract
+	callbacks            CallbackContract
 	clock                clock.Clock
 	topupRefFactory      func() (string, error)
 	memberPaymentFactory func() (string, error)
@@ -93,6 +99,10 @@ func NewService(options Options) Service {
 	if ledgerService == nil {
 		ledgerService = noopLedger{}
 	}
+	callbackService := options.Callbacks
+	if callbackService == nil {
+		callbackService = noopCallbacks{}
+	}
 	memberPaymentFeePct := options.MemberPaymentFeePct
 	if memberPaymentFeePct <= 0 {
 		memberPaymentFeePct = 3
@@ -102,6 +112,7 @@ func NewService(options Options) Service {
 		repository:           options.Repository,
 		upstream:             upstream,
 		ledger:               ledgerService,
+		callbacks:            callbackService,
 		clock:                now,
 		topupRefFactory:      newCustomRef,
 		memberPaymentFactory: newMemberPaymentRef,
@@ -366,6 +377,11 @@ func (s *service) HandlePaymentWebhook(ctx context.Context, payload qris.Payment
 	}
 
 	if shouldIgnoreFinalStatus(transaction.Status, resolvedStatus) {
+		if transaction.Type == TransactionTypeMemberPayment && resolvedStatus == TransactionStatusSuccess {
+			if err := s.callbacks.EnqueueMemberPaymentSuccess(ctx, transaction.ID); err != nil {
+				return WebhookDispatchResult{}, err
+			}
+		}
 		result.Processed = true
 		result.Status = &transaction.Status
 		return result, nil
@@ -438,6 +454,11 @@ func (s *service) HandlePaymentWebhook(ctx context.Context, payload qris.Payment
 
 	if auditErr := s.insertWebhookAudit(ctx, updated, metadata, string(payload.Status)); auditErr != nil {
 		return WebhookDispatchResult{}, auditErr
+	}
+	if updated.Type == TransactionTypeMemberPayment && updated.Status == TransactionStatusSuccess {
+		if err := s.callbacks.EnqueueMemberPaymentSuccess(ctx, updated.ID); err != nil {
+			return WebhookDispatchResult{}, err
+		}
 	}
 
 	result.Processed = true
@@ -651,6 +672,12 @@ func (noopLedger) Credit(context.Context, string, ledger.PostEntryInput) (ledger
 
 func (noopLedger) HasReferenceEntries(context.Context, string, string) (bool, error) {
 	return false, nil
+}
+
+type noopCallbacks struct{}
+
+func (noopCallbacks) EnqueueMemberPaymentSuccess(context.Context, string) error {
+	return nil
 }
 
 func entryTypeForTransaction(transactionType TransactionType) ledger.EntryType {

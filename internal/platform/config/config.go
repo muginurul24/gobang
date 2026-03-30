@@ -14,6 +14,7 @@ type Config struct {
 	Redis           RedisConfig
 	Auth            AuthConfig
 	Business        BusinessConfig
+	Callback        CallbackConfig
 	QRIS            QRISConfig
 	NexusGGR        NexusGGRConfig
 	ProviderCatalog ProviderCatalogConfig
@@ -66,6 +67,11 @@ type BusinessConfig struct {
 	StoreWithdrawPlatformFeePct float64
 }
 
+type CallbackConfig struct {
+	SigningSecret   string
+	DeliveryTimeout time.Duration
+}
+
 type QRISConfig struct {
 	BaseURL              string
 	Client               string
@@ -91,6 +97,8 @@ type ProviderCatalogConfig struct {
 type WorkerConfig struct {
 	GameReconcileInterval  time.Duration
 	GameReconcileBatchSize int
+	CallbackRetryInterval  time.Duration
+	CallbackRetryBatchSize int
 }
 
 type RealtimeConfig struct {
@@ -138,7 +146,17 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	callbackDeliveryTimeout, err := envDuration("CALLBACK_DELIVERY_TIMEOUT", 10*time.Second)
+	if err != nil {
+		return Config{}, err
+	}
+
 	gameReconcileInterval, err := envDuration("GAME_RECONCILE_INTERVAL", 30*time.Second)
+	if err != nil {
+		return Config{}, err
+	}
+
+	callbackRetryInterval, err := envDuration("CALLBACK_RETRY_INTERVAL", 15*time.Second)
 	if err != nil {
 		return Config{}, err
 	}
@@ -182,6 +200,10 @@ func Load() (Config, error) {
 			MemberPaymentPlatformFeePct: envFloat64("MEMBER_PAYMENT_PLATFORM_FEE_PERCENT", 3),
 			StoreWithdrawPlatformFeePct: envFloat64("STORE_WITHDRAW_PLATFORM_FEE_PERCENT", 12),
 		},
+		Callback: CallbackConfig{
+			SigningSecret:   envString("CALLBACK_SIGNING_SECRET", "change-me-callback-signing-secret"),
+			DeliveryTimeout: callbackDeliveryTimeout,
+		},
 		QRIS: QRISConfig{
 			BaseURL:              envString("QRIS_BASE_URL", "https://example-qris.local"),
 			Client:               envString("QRIS_CLIENT", ""),
@@ -204,6 +226,8 @@ func Load() (Config, error) {
 		Worker: WorkerConfig{
 			GameReconcileInterval:  gameReconcileInterval,
 			GameReconcileBatchSize: envInt("GAME_RECONCILE_BATCH_SIZE", 50),
+			CallbackRetryInterval:  callbackRetryInterval,
+			CallbackRetryBatchSize: envInt("CALLBACK_RETRY_BATCH_SIZE", 50),
 		},
 		Realtime: RealtimeConfig{
 			HeartbeatSeconds: envInt("WS_HEARTBEAT_SECONDS", 30),

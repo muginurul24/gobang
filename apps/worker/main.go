@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/mugiew/onixggr/internal/modules/callbacks"
 	"github.com/mugiew/onixggr/internal/modules/game"
 	"github.com/mugiew/onixggr/internal/modules/ledger"
 	"github.com/mugiew/onixggr/internal/platform/config"
@@ -42,6 +43,11 @@ func main() {
 		}, slog.Default(), nil),
 		Ledger: ledger.NewService(ledger.NewRepository(pool)),
 	})
+	callbackService := callbacks.NewService(callbacks.Options{
+		Repository:    callbacks.NewRepository(pool),
+		Dispatcher:    callbacks.NewHTTPDispatcher(cfg.Callback.DeliveryTimeout),
+		SigningSecret: cfg.Callback.SigningSecret,
+	})
 
 	interval := cfg.Worker.GameReconcileInterval
 	if interval <= 0 {
@@ -54,6 +60,18 @@ func main() {
 	}
 
 	go runGameReconcileLoop(ctx, reconcileService, interval, batchSize)
+
+	callbackInterval := cfg.Worker.CallbackRetryInterval
+	if callbackInterval <= 0 {
+		callbackInterval = 15 * time.Second
+	}
+
+	callbackBatchSize := cfg.Worker.CallbackRetryBatchSize
+	if callbackBatchSize <= 0 {
+		callbackBatchSize = 50
+	}
+
+	go runCallbackLoop(ctx, callbackService, callbackInterval, callbackBatchSize)
 
 	<-ctx.Done()
 	log.Println("worker stopped")
@@ -76,6 +94,42 @@ func runGameReconcileLoop(ctx context.Context, service game.ReconcileService, in
 			summary.FinalizedSuccess,
 			summary.FinalizedFailed,
 			summary.StillPending,
+			summary.Skipped,
+		)
+	}
+
+	runOnce()
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			runOnce()
+		}
+	}
+}
+
+func runCallbackLoop(ctx context.Context, service callbacks.Service, interval time.Duration, batchSize int) {
+	runOnce := func() {
+		summary, err := service.RunPending(ctx, batchSize)
+		if err != nil {
+			log.Printf("callback delivery run failed: %v", err)
+		}
+
+		if summary.Scanned == 0 && summary.Delivered == 0 && summary.Retrying == 0 && summary.Failed == 0 && summary.Skipped == 0 {
+			return
+		}
+
+		log.Printf(
+			"callback delivery run: scanned=%d delivered=%d retrying=%d failed=%d skipped=%d",
+			summary.Scanned,
+			summary.Delivered,
+			summary.Retrying,
+			summary.Failed,
 			summary.Skipped,
 		)
 	}
