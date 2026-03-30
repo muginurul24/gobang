@@ -41,6 +41,8 @@ func TestLoadDefaults(t *testing.T) {
 		"NEXUSGGR_AGENT_TOKEN",
 		"NEXUSGGR_TIMEOUT",
 		"PROVIDER_CATALOG_SYNC_INTERVAL",
+		"GAME_RECONCILE_INTERVAL",
+		"GAME_RECONCILE_BATCH_SIZE",
 		"WS_HEARTBEAT_SECONDS",
 		"METRICS_ENABLED",
 		"PROMETHEUS_PORT",
@@ -81,6 +83,8 @@ func TestLoadOverrides(t *testing.T) {
 	t.Setenv("STORE_WITHDRAW_PLATFORM_FEE_PERCENT", "10.5")
 	t.Setenv("NEXUSGGR_TIMEOUT", "25s")
 	t.Setenv("PROVIDER_CATALOG_SYNC_INTERVAL", "45m")
+	t.Setenv("GAME_RECONCILE_INTERVAL", "45s")
+	t.Setenv("GAME_RECONCILE_BATCH_SIZE", "77")
 	t.Setenv("METRICS_ENABLED", "false")
 
 	cfg, err := Load()
@@ -110,6 +114,14 @@ func TestLoadOverrides(t *testing.T) {
 
 	if cfg.ProviderCatalog.SyncInterval != 45*time.Minute {
 		t.Fatalf("ProviderCatalog.SyncInterval = %v, want 45m", cfg.ProviderCatalog.SyncInterval)
+	}
+
+	if cfg.Worker.GameReconcileInterval != 45*time.Second {
+		t.Fatalf("Worker.GameReconcileInterval = %v, want 45s", cfg.Worker.GameReconcileInterval)
+	}
+
+	if cfg.Worker.GameReconcileBatchSize != 77 {
+		t.Fatalf("Worker.GameReconcileBatchSize = %d, want 77", cfg.Worker.GameReconcileBatchSize)
 	}
 
 	if cfg.Observability.MetricsEnabled {

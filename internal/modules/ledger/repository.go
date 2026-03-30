@@ -108,6 +108,22 @@ func (r *Repository) PostEntry(ctx context.Context, params postEntryParams) (Pos
 	}, nil
 }
 
+func (r *Repository) HasReferenceEntries(ctx context.Context, referenceType string, referenceID string) (bool, error) {
+	var exists bool
+	err := r.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM ledger_entries
+			WHERE reference_type = $1 AND reference_id = $2
+		)
+	`, referenceType, referenceID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("check ledger entries by reference: %w", err)
+	}
+
+	return exists, nil
+}
+
 func (r *Repository) Reserve(ctx context.Context, params reserveParams) (ReservationResult, error) {
 	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {

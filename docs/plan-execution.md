@@ -665,9 +665,9 @@ Menutup timeout ambigu untuk transaksi game.
 - game timeout aman
 
 ### Checklist
-- [ ] reconcile scan
-- [ ] finalize safe
-- [ ] duplicate finalize blocked
+- [x] reconcile scan
+- [x] finalize safe
+- [x] duplicate finalize blocked
 
 ---
 

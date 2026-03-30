@@ -33,8 +33,11 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `./appctl migrate fresh --seed`: recreate the public schema, apply migrations, then run demo seeds.
 - `./appctl seed demo`: apply SQL seed files from `seeds/demo/`.
 - `./appctl sync providers`: pull provider list and game list from NexusGGR, then upsert the local catalog tables.
+- `./appctl worker run`: start the background worker and periodically resolve game reconcile backlog.
+- `./appctl scheduler run`: start the scheduler and periodically refresh the provider catalog.
 - `./scripts/podman-up.sh`: start PostgreSQL, Redis, API, and web in one command via Podman Compose.
 - `go run ./apps/api`: starts the API and exposes `/health/live` plus `/health/ready`.
+- `go run ./apps/worker`: starts the background worker and periodically resolves game transactions in `pending_reconcile`.
 - `go run ./apps/scheduler`: starts the scheduler and periodically refreshes the local provider catalog.
 - `npm run dev:web`: starts the SvelteKit shell with public, auth, and app layouts.
 
@@ -103,12 +106,14 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - Deposit currently requires an existing active member mapping, rejects duplicate `trx_id`, rejects insufficient balance, reserves balance before the upstream call, commits ledger debit on success, and returns `202 PENDING_RECONCILE` on timeout or other ambiguous upstream failures.
 - `POST /v1/store-api/game/withdrawals`: create a game withdraw via Bearer `store_token` with body `{"username":"member-alpha","amount":5000,"trx_id":"trx-002"}`.
 - Withdraw credits store balance only after upstream `user_withdraw` succeeds, marks ambiguous upstream responses as `pending_reconcile`, and returns the existing transaction on an idempotent retry with the same `trx_id`.
+- `apps/worker` now scans `game_transactions` with `status=pending` plus `reconcile_status=pending_reconcile`, calls NexusGGR `transfer_status`, finalizes ledger success/fail safely, and emits store-scope notifications when reconcile closes.
 
 ## Notes
 
 - `backend/` and `frontend/` are legacy placeholder directories; new work should go into `apps/`.
 - Use `make hooks` after the repository is initialized with Git to enable the local hooks in `.githooks/`.
 - API readiness is exposed at `/health/ready` and `/readyz`; liveness is exposed at `/health/live` and `/healthz`.
+- `notifications` now exists as a persistence table for worker-generated store notifications; realtime delivery is still scheduled for later milestones.
 - Demo seed rows create one `dev` user, one `owner` user, one `karyawan` user, one store, one demo member, one sample provider/game catalog row, one store-staff relation, and one audit log entry for local development.
 - Demo dashboard credentials after `./appctl migrate fresh --seed`:
 - `dev@example.com` or `dev-demo` with password `DevDemo123!`

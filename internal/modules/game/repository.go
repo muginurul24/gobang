@@ -19,6 +19,8 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool}
 }
 
+const reconcileLockNamespace = 22022
+
 func (r *Repository) AuthenticateStore(ctx context.Context, tokenHash string) (StoreScope, error) {
 	var store StoreScope
 	err := r.pool.QueryRow(ctx, `
@@ -80,6 +82,40 @@ func (r *Repository) FindStoreMemberByUsername(ctx context.Context, storeID stri
 		}
 
 		return StoreMember{}, fmt.Errorf("find store member by username: %w", err)
+	}
+
+	return member, nil
+}
+
+func (r *Repository) FindStoreMemberByID(ctx context.Context, memberID string) (StoreMember, error) {
+	var member StoreMember
+	err := r.pool.QueryRow(ctx, `
+		SELECT
+			id,
+			store_id,
+			real_username,
+			upstream_user_code,
+			status,
+			created_at,
+			updated_at
+		FROM store_members
+		WHERE id = $1
+		LIMIT 1
+	`, memberID).Scan(
+		&member.ID,
+		&member.StoreID,
+		&member.RealUsername,
+		&member.UpstreamUserCode,
+		&member.Status,
+		&member.CreatedAt,
+		&member.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return StoreMember{}, ErrNotFound
+		}
+
+		return StoreMember{}, fmt.Errorf("find store member by id: %w", err)
 	}
 
 	return member, nil
@@ -225,6 +261,147 @@ func (r *Repository) FindGameTransactionByTrxID(ctx context.Context, storeID str
 	return transaction, nil
 }
 
+func (r *Repository) FindGameTransactionByID(ctx context.Context, transactionID string) (GameTransaction, error) {
+	var transaction GameTransaction
+	var reconcileStatus *string
+	var upstreamErrorCode *string
+	err := r.pool.QueryRow(ctx, `
+		SELECT
+			id,
+			store_id,
+			store_member_id,
+			action,
+			trx_id,
+			upstream_user_code,
+			amount::text,
+			agent_sign,
+			status,
+			reconcile_status,
+			upstream_error_code,
+			upstream_response_masked,
+			created_at,
+			updated_at
+		FROM game_transactions
+		WHERE id = $1
+		LIMIT 1
+	`, transactionID).Scan(
+		&transaction.ID,
+		&transaction.StoreID,
+		&transaction.StoreMemberID,
+		&transaction.Action,
+		&transaction.TrxID,
+		&transaction.UpstreamUserCode,
+		&transaction.Amount,
+		&transaction.AgentSign,
+		&transaction.Status,
+		&reconcileStatus,
+		&upstreamErrorCode,
+		&transaction.UpstreamResponse,
+		&transaction.CreatedAt,
+		&transaction.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return GameTransaction{}, ErrNotFound
+		}
+
+		return GameTransaction{}, fmt.Errorf("find game transaction by id: %w", err)
+	}
+
+	transaction.ReconcileStatus = reconcileStatusPtr(reconcileStatus)
+	transaction.UpstreamErrorCode = upstreamErrorCode
+
+	return transaction, nil
+}
+
+func (r *Repository) ListPendingReconcileTransactions(ctx context.Context, limit int) ([]GameTransaction, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT
+			id,
+			store_id,
+			store_member_id,
+			action,
+			trx_id,
+			upstream_user_code,
+			amount::text,
+			agent_sign,
+			status,
+			reconcile_status,
+			upstream_error_code,
+			upstream_response_masked,
+			created_at,
+			updated_at
+		FROM game_transactions
+		WHERE status = 'pending' AND reconcile_status = 'pending_reconcile'
+		ORDER BY created_at ASC
+		LIMIT $1
+	`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list pending reconcile game transactions: %w", err)
+	}
+	defer rows.Close()
+
+	transactions := []GameTransaction{}
+	for rows.Next() {
+		var transaction GameTransaction
+		var reconcileStatus *string
+		var upstreamErrorCode *string
+		if err := rows.Scan(
+			&transaction.ID,
+			&transaction.StoreID,
+			&transaction.StoreMemberID,
+			&transaction.Action,
+			&transaction.TrxID,
+			&transaction.UpstreamUserCode,
+			&transaction.Amount,
+			&transaction.AgentSign,
+			&transaction.Status,
+			&reconcileStatus,
+			&upstreamErrorCode,
+			&transaction.UpstreamResponse,
+			&transaction.CreatedAt,
+			&transaction.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan pending reconcile game transaction: %w", err)
+		}
+
+		transaction.ReconcileStatus = reconcileStatusPtr(reconcileStatus)
+		transaction.UpstreamErrorCode = upstreamErrorCode
+		transactions = append(transactions, transaction)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate pending reconcile game transactions: %w", err)
+	}
+
+	return transactions, nil
+}
+
+func (r *Repository) AcquireReconcileLock(ctx context.Context, transactionID string) (ReconcileLock, bool, error) {
+	conn, err := r.pool.Acquire(ctx)
+	if err != nil {
+		return nil, false, fmt.Errorf("acquire reconcile lock connection: %w", err)
+	}
+
+	var locked bool
+	if err := conn.QueryRow(ctx, `
+		SELECT pg_try_advisory_lock($1, hashtext($2))
+	`, reconcileLockNamespace, transactionID).Scan(&locked); err != nil {
+		conn.Release()
+		return nil, false, fmt.Errorf("try advisory lock reconcile transaction: %w", err)
+	}
+
+	if !locked {
+		conn.Release()
+		return nil, false, nil
+	}
+
+	return &repositoryReconcileLock{
+		conn:          conn,
+		transactionID: transactionID,
+	}, true, nil
+}
+
 func (r *Repository) CreateGameTransaction(ctx context.Context, params CreateGameTransactionParams) (GameTransaction, error) {
 	var transaction GameTransaction
 	var reconcileStatus *string
@@ -349,6 +526,103 @@ func (r *Repository) UpdateGameTransaction(ctx context.Context, params UpdateGam
 	return transaction, nil
 }
 
+func (r *Repository) FinalizeGameTransactionReconcile(ctx context.Context, params FinalizeGameTransactionReconcileParams) (GameTransaction, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return GameTransaction{}, fmt.Errorf("begin finalize game reconcile tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	var transaction GameTransaction
+	var reconcileStatus *string
+	var upstreamErrorCode *string
+	err = tx.QueryRow(ctx, `
+		UPDATE game_transactions
+		SET
+			status = $2,
+			reconcile_status = $3,
+			upstream_error_code = $4,
+			upstream_response_masked = $5::jsonb,
+			updated_at = $6
+		WHERE id = $1
+		RETURNING
+			id,
+			store_id,
+			store_member_id,
+			action,
+			trx_id,
+			upstream_user_code,
+			amount::text,
+			agent_sign,
+			status,
+			reconcile_status,
+			upstream_error_code,
+			upstream_response_masked,
+			created_at,
+			updated_at
+	`, params.GameTransactionID, params.Status, string(params.ReconcileStatus), params.UpstreamErrorCode, toJSON(params.UpstreamResponseMasked), params.OccurredAt).Scan(
+		&transaction.ID,
+		&transaction.StoreID,
+		&transaction.StoreMemberID,
+		&transaction.Action,
+		&transaction.TrxID,
+		&transaction.UpstreamUserCode,
+		&transaction.Amount,
+		&transaction.AgentSign,
+		&transaction.Status,
+		&reconcileStatus,
+		&upstreamErrorCode,
+		&transaction.UpstreamResponse,
+		&transaction.CreatedAt,
+		&transaction.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return GameTransaction{}, ErrNotFound
+		}
+
+		return GameTransaction{}, fmt.Errorf("update finalize game reconcile transaction: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO audit_logs (
+			actor_role,
+			store_id,
+			action,
+			target_type,
+			target_id,
+			payload_masked,
+			created_at
+		)
+		VALUES ('system', $1, $2, 'game_transaction', $3, $4::jsonb, $5)
+	`, transaction.StoreID, params.AuditAction, transaction.ID, toJSON(params.AuditPayloadMasked), params.OccurredAt); err != nil {
+		return GameTransaction{}, fmt.Errorf("insert reconcile audit log: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO notifications (
+			scope_type,
+			scope_id,
+			event_type,
+			title,
+			body,
+			created_at
+		)
+		VALUES ('store', $1, $2, $3, $4, $5)
+	`, transaction.StoreID, params.NotificationEventType, params.NotificationTitle, params.NotificationBody, params.OccurredAt); err != nil {
+		return GameTransaction{}, fmt.Errorf("insert reconcile notification: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return GameTransaction{}, fmt.Errorf("commit finalize game reconcile tx: %w", err)
+	}
+
+	transaction.ReconcileStatus = reconcileStatusPtr(reconcileStatus)
+	transaction.UpstreamErrorCode = upstreamErrorCode
+
+	return transaction, nil
+}
+
 func (r *Repository) CreateGameLaunchLog(ctx context.Context, params CreateGameLaunchLogParams) error {
 	_, err := r.pool.Exec(ctx, `
 		INSERT INTO game_launch_logs (
@@ -435,4 +709,27 @@ func reconcileStatusPtr(value *string) *ReconcileStatus {
 
 	status := ReconcileStatus(*value)
 	return &status
+}
+
+type repositoryReconcileLock struct {
+	conn          *pgxpool.Conn
+	transactionID string
+}
+
+func (l *repositoryReconcileLock) Unlock(ctx context.Context) error {
+	if l == nil || l.conn == nil {
+		return nil
+	}
+
+	defer l.conn.Release()
+
+	var unlocked bool
+	if err := l.conn.QueryRow(ctx, `
+		SELECT pg_advisory_unlock($1, hashtext($2))
+	`, reconcileLockNamespace, l.transactionID).Scan(&unlocked); err != nil {
+		return fmt.Errorf("unlock reconcile advisory lock: %w", err)
+	}
+
+	l.conn = nil
+	return nil
 }

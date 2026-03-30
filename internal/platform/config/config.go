@@ -17,6 +17,7 @@ type Config struct {
 	QRIS            QRISConfig
 	NexusGGR        NexusGGRConfig
 	ProviderCatalog ProviderCatalogConfig
+	Worker          WorkerConfig
 	Realtime        RealtimeConfig
 	Observability   ObservabilityConfig
 }
@@ -87,6 +88,11 @@ type ProviderCatalogConfig struct {
 	SyncInterval time.Duration
 }
 
+type WorkerConfig struct {
+	GameReconcileInterval  time.Duration
+	GameReconcileBatchSize int
+}
+
 type RealtimeConfig struct {
 	HeartbeatSeconds int
 }
@@ -128,6 +134,11 @@ func Load() (Config, error) {
 	}
 
 	providerCatalogSyncInterval, err := envDuration("PROVIDER_CATALOG_SYNC_INTERVAL", 30*time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
+
+	gameReconcileInterval, err := envDuration("GAME_RECONCILE_INTERVAL", 30*time.Second)
 	if err != nil {
 		return Config{}, err
 	}
@@ -189,6 +200,10 @@ func Load() (Config, error) {
 		},
 		ProviderCatalog: ProviderCatalogConfig{
 			SyncInterval: providerCatalogSyncInterval,
+		},
+		Worker: WorkerConfig{
+			GameReconcileInterval:  gameReconcileInterval,
+			GameReconcileBatchSize: envInt("GAME_RECONCILE_BATCH_SIZE", 50),
 		},
 		Realtime: RealtimeConfig{
 			HeartbeatSeconds: envInt("WS_HEARTBEAT_SECONDS", 30),

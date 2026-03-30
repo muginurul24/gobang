@@ -216,6 +216,16 @@ func (r *fakeRepository) PostEntry(_ context.Context, params postEntryParams) (P
 	return PostingResult{Entry: entry, Balance: r.snapshot()}, nil
 }
 
+func (r *fakeRepository) HasReferenceEntries(_ context.Context, referenceType string, referenceID string) (bool, error) {
+	for _, entry := range r.entries {
+		if entry.ReferenceType == referenceType && entry.ReferenceID == referenceID {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 func (r *fakeRepository) Reserve(_ context.Context, params reserveParams) (ReservationResult, error) {
 	if params.StoreID != r.storeID {
 		return ReservationResult{}, ErrNotFound

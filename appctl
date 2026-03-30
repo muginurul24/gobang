@@ -1,4 +1,26 @@
 #!/usr/bin/env sh
 set -eu
 
-GOCACHE="${GOCACHE:-/tmp/onixggr-go-build}" go run ./apps/manage "$@"
+case "${1:-}" in
+  worker)
+    shift
+    if [ "${1:-}" != "run" ]; then
+      echo "usage: ./appctl worker run" >&2
+      exit 1
+    fi
+    shift
+    exec env GOCACHE="${GOCACHE:-/tmp/onixggr-go-build}" go run ./apps/worker "$@"
+    ;;
+  scheduler)
+    shift
+    if [ "${1:-}" != "run" ]; then
+      echo "usage: ./appctl scheduler run" >&2
+      exit 1
+    fi
+    shift
+    exec env GOCACHE="${GOCACHE:-/tmp/onixggr-go-build}" go run ./apps/scheduler "$@"
+    ;;
+  *)
+    exec env GOCACHE="${GOCACHE:-/tmp/onixggr-go-build}" go run ./apps/manage "$@"
+    ;;
+esac

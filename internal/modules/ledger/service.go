@@ -8,6 +8,7 @@ import (
 type repositoryContract interface {
 	GetBalance(ctx context.Context, storeID string) (BalanceSnapshot, error)
 	PostEntry(ctx context.Context, params postEntryParams) (PostingResult, error)
+	HasReferenceEntries(ctx context.Context, referenceType string, referenceID string) (bool, error)
 	Reserve(ctx context.Context, params reserveParams) (ReservationResult, error)
 	CommitReservation(ctx context.Context, params commitReservationParams) (CommitReservationResult, error)
 	ReleaseReservation(ctx context.Context, params releaseReservationParams) (ReservationResult, error)
@@ -17,6 +18,7 @@ type Service interface {
 	GetBalance(ctx context.Context, storeID string) (BalanceSnapshot, error)
 	Credit(ctx context.Context, storeID string, input PostEntryInput) (PostingResult, error)
 	Debit(ctx context.Context, storeID string, input PostEntryInput) (PostingResult, error)
+	HasReferenceEntries(ctx context.Context, referenceType string, referenceID string) (bool, error)
 	Reserve(ctx context.Context, storeID string, input ReserveInput) (ReservationResult, error)
 	CommitReservation(ctx context.Context, storeID string, input CommitReservationInput) (CommitReservationResult, error)
 	ReleaseReservation(ctx context.Context, storeID string, input ReleaseReservationInput) (ReservationResult, error)
@@ -54,6 +56,14 @@ func (s *service) Debit(ctx context.Context, storeID string, input PostEntryInpu
 	}
 
 	return s.repository.PostEntry(ctx, params)
+}
+
+func (s *service) HasReferenceEntries(ctx context.Context, referenceType string, referenceID string) (bool, error) {
+	if invalidReference(referenceType, referenceID) {
+		return false, ErrInvalidReference
+	}
+
+	return s.repository.HasReferenceEntries(ctx, strings.TrimSpace(referenceType), strings.TrimSpace(referenceID))
 }
 
 func (s *service) Reserve(ctx context.Context, storeID string, input ReserveInput) (ReservationResult, error) {

@@ -665,6 +665,8 @@ type fakeRepository struct {
 	transactions  map[string]GameTransaction
 	launchLogs    []CreateGameLaunchLogParams
 	auditActions  []string
+	notifications []string
+	locked        map[string]bool
 }
 
 func newFakeRepository(now time.Time) *fakeRepository {
@@ -695,6 +697,7 @@ func newFakeRepository(now time.Time) *fakeRepository {
 			},
 		},
 		transactions: map[string]GameTransaction{},
+		locked:       map[string]bool{},
 	}
 }
 
@@ -714,6 +717,15 @@ func (r *fakeRepository) FindStoreMemberByUsername(_ context.Context, storeID st
 	}
 
 	return StoreMember{}, ErrNotFound
+}
+
+func (r *fakeRepository) FindStoreMemberByID(_ context.Context, memberID string) (StoreMember, error) {
+	member, ok := r.members[memberID]
+	if !ok {
+		return StoreMember{}, ErrNotFound
+	}
+
+	return member, nil
 }
 
 func (r *fakeRepository) FindProviderGame(_ context.Context, providerCode string, gameCode string) (ProviderGame, error) {
@@ -801,6 +813,29 @@ func (r *fakeRepository) CreateGameLaunchLog(_ context.Context, params CreateGam
 	return nil
 }
 
+func (r *fakeRepository) ListPendingReconcileTransactions(_ context.Context, limit int) ([]GameTransaction, error) {
+	transactions := []GameTransaction{}
+	for _, transaction := range r.transactions {
+		if transaction.Status == TransactionStatusPending && transaction.ReconcileStatus != nil && *transaction.ReconcileStatus == ReconcileStatusPending {
+			transactions = append(transactions, transaction)
+		}
+		if limit > 0 && len(transactions) >= limit {
+			break
+		}
+	}
+
+	return transactions, nil
+}
+
+func (r *fakeRepository) FindGameTransactionByID(_ context.Context, transactionID string) (GameTransaction, error) {
+	transaction, ok := r.transactions[transactionID]
+	if !ok {
+		return GameTransaction{}, ErrNotFound
+	}
+
+	return transaction, nil
+}
+
 func (r *fakeRepository) UpdateGameTransaction(_ context.Context, params UpdateGameTransactionParams) (GameTransaction, error) {
 	transaction, ok := r.transactions[params.GameTransactionID]
 	if !ok {
@@ -818,25 +853,72 @@ func (r *fakeRepository) UpdateGameTransaction(_ context.Context, params UpdateG
 	return transaction, nil
 }
 
+func (r *fakeRepository) AcquireReconcileLock(_ context.Context, transactionID string) (ReconcileLock, bool, error) {
+	if r.locked[transactionID] {
+		return nil, false, nil
+	}
+
+	r.locked[transactionID] = true
+	return &fakeReconcileLock{
+		repository:    r,
+		transactionID: transactionID,
+	}, true, nil
+}
+
+func (r *fakeRepository) FinalizeGameTransactionReconcile(_ context.Context, params FinalizeGameTransactionReconcileParams) (GameTransaction, error) {
+	transaction, ok := r.transactions[params.GameTransactionID]
+	if !ok {
+		return GameTransaction{}, ErrNotFound
+	}
+
+	transaction.Status = params.Status
+	transaction.ReconcileStatus = &params.ReconcileStatus
+	transaction.UpstreamErrorCode = params.UpstreamErrorCode
+	transaction.UpdatedAt = params.OccurredAt
+	transaction.UpstreamResponse = json.RawMessage(toJSON(params.UpstreamResponseMasked))
+	r.transactions[transaction.ID] = transaction
+	r.auditActions = append(r.auditActions, params.AuditAction)
+	r.notifications = append(r.notifications, params.NotificationEventType)
+
+	return transaction, nil
+}
+
 func (r *fakeRepository) InsertAuditLog(_ context.Context, _ string, action string, _ string, _ *string, _ map[string]any, _ string, _ string, _ time.Time) error {
 	r.auditActions = append(r.auditActions, action)
 	return nil
 }
 
+type fakeReconcileLock struct {
+	repository    *fakeRepository
+	transactionID string
+}
+
+func (l *fakeReconcileLock) Unlock(_ context.Context) error {
+	if l == nil || l.repository == nil {
+		return nil
+	}
+
+	delete(l.repository.locked, l.transactionID)
+	return nil
+}
+
 type fakeUpstream struct {
-	calls           int
-	err             error
-	moneyInfoCalls  int
-	moneyInfoErr    error
-	moneyInfoResult nexusggr.MoneyInfoResult
-	moneyInfoWait   <-chan struct{}
-	launchCalls     int
-	launchErr       error
-	launchResult    nexusggr.GameLaunchResult
-	depositCalls    int
-	depositErr      error
-	withdrawCalls   int
-	withdrawErr     error
+	calls                int
+	err                  error
+	moneyInfoCalls       int
+	moneyInfoErr         error
+	moneyInfoResult      nexusggr.MoneyInfoResult
+	moneyInfoWait        <-chan struct{}
+	launchCalls          int
+	launchErr            error
+	launchResult         nexusggr.GameLaunchResult
+	depositCalls         int
+	depositErr           error
+	withdrawCalls        int
+	withdrawErr          error
+	transferStatusCalls  int
+	transferStatusErr    error
+	transferStatusResult nexusggr.TransferStatusResult
 }
 
 func (u *fakeUpstream) MoneyInfo(_ context.Context, _ nexusggr.MoneyInfoInput) (nexusggr.MoneyInfoResult, error) {
@@ -913,12 +995,31 @@ func (u *fakeUpstream) UserWithdraw(_ context.Context, input nexusggr.TransferIn
 	}, nil
 }
 
+func (u *fakeUpstream) TransferStatus(_ context.Context, _ nexusggr.TransferStatusInput) (nexusggr.TransferStatusResult, error) {
+	u.transferStatusCalls++
+	if u.transferStatusErr != nil {
+		return nexusggr.TransferStatusResult{}, u.transferStatusErr
+	}
+	if u.transferStatusResult.Message == "" {
+		u.transferStatusResult = nexusggr.TransferStatusResult{
+			Message:      "SUCCESS",
+			Amount:       5000,
+			AgentBalance: 250000,
+			UserBalance:  5000,
+			Type:         "user_deposit",
+		}
+	}
+
+	return u.transferStatusResult, nil
+}
+
 type fakeLedger struct {
-	balance      ledger.BalanceSnapshot
-	reserveCalls int
-	commitCalls  int
-	releaseCalls int
-	creditCalls  int
+	balance          ledger.BalanceSnapshot
+	reserveCalls     int
+	commitCalls      int
+	releaseCalls     int
+	creditCalls      int
+	referenceEntries map[string]bool
 }
 
 func newFakeLedger(available string) *fakeLedger {
@@ -931,6 +1032,7 @@ func newFakeLedger(available string) *fakeLedger {
 			ReservedAmount:   "0.00",
 			AvailableBalance: available,
 		},
+		referenceEntries: map[string]bool{},
 	}
 }
 
@@ -945,6 +1047,7 @@ func (l *fakeLedger) Credit(_ context.Context, _ string, input ledger.PostEntryI
 	newBalance := money(int64(current) + int64(amount))
 	l.balance.CurrentBalance = newBalance.String()
 	l.balance.AvailableBalance = newBalance.String()
+	l.referenceEntries[input.ReferenceType+":"+input.ReferenceID] = true
 	return ledger.PostingResult{
 		Balance: ledger.BalanceSnapshot{
 			StoreID:          l.balance.StoreID,
@@ -986,6 +1089,7 @@ func (l *fakeLedger) CommitReservation(_ context.Context, _ string, input ledger
 	l.balance.CurrentBalance = current.Sub(amount).String()
 	l.balance.ReservedAmount = "0.00"
 	l.balance.AvailableBalance = l.balance.CurrentBalance
+	l.referenceEntries[input.ReferenceType+":"+input.ReferenceID] = true
 	return ledger.CommitReservationResult{
 		Balance: ledger.BalanceSnapshot{
 			StoreID:          l.balance.StoreID,
@@ -1024,6 +1128,10 @@ func newFakeBalanceCache() *fakeBalanceCache {
 	return &fakeBalanceCache{
 		entries: map[string]GameBalanceResult{},
 	}
+}
+
+func (l *fakeLedger) HasReferenceEntries(_ context.Context, referenceType string, referenceID string) (bool, error) {
+	return l.referenceEntries[referenceType+":"+referenceID], nil
 }
 
 func (c *fakeBalanceCache) Get(_ context.Context, storeID string, memberID string) (GameBalanceResult, bool, error) {
