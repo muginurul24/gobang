@@ -209,12 +209,12 @@
 </svelte:head>
 
 {#if loading}
-  <div class="glass-panel rounded-[2rem] p-6">
+  <div class="glass-panel rounded-4xl p-6">
     <p class="text-sm text-ink-700">Memuat daftar bank RTOL dan rekening tujuan withdraw...</p>
   </div>
 {:else}
   <div class="space-y-6">
-    <section class="glass-panel rounded-[2rem] p-6">
+    <section class="glass-panel rounded-4xl p-6">
       <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div class="space-y-2">
           <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
@@ -230,7 +230,7 @@
           </p>
         </div>
 
-        <div class="rounded-[1.5rem] bg-canvas-100 px-4 py-3 text-sm text-ink-700">
+        <div class="rounded-3xl bg-canvas-100 px-4 py-3 text-sm text-ink-700">
           <p class="font-semibold text-ink-900">Scope</p>
           <p>Role: {$authSession?.user.role ?? '-'}</p>
           <p>Toko tersedia: {stores.length}</p>
@@ -239,28 +239,28 @@
     </section>
 
     {#if errorMessage}
-      <div class="rounded-[1.5rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+      <div class="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
         {errorMessage}
       </div>
     {/if}
 
     {#if successMessage}
-      <div class="rounded-[1.5rem] border border-brand-200 bg-brand-100/60 px-4 py-3 text-sm text-brand-700">
+      <div class="rounded-3xl border border-brand-200 bg-brand-100/60 px-4 py-3 text-sm text-brand-700">
         {successMessage}
       </div>
     {/if}
 
     {#if !canUseBankAccounts()}
-      <div class="glass-panel rounded-[2rem] p-6 text-sm text-ink-700">
+      <div class="glass-panel rounded-4xl p-6 text-sm text-ink-700">
         Role ini tidak bisa mengelola rekening tujuan withdraw.
       </div>
     {:else if stores.length === 0}
-      <div class="glass-panel rounded-[2rem] p-6 text-sm text-ink-700">
+      <div class="glass-panel rounded-4xl p-6 text-sm text-ink-700">
         Belum ada toko untuk dihubungkan dengan rekening withdraw.
       </div>
     {:else}
       <div class="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-        <section class="glass-panel rounded-[2rem] p-6">
+        <section class="glass-panel rounded-4xl p-6">
           <h2 class="font-display text-2xl font-bold text-ink-900">Tambah rekening tujuan</h2>
           <p class="mt-2 text-sm leading-6 text-ink-700">
             Pilih toko, cari bank berdasarkan `bank_code` atau nama bank, lalu masukkan nomor
@@ -295,7 +295,7 @@
               </div>
             </label>
 
-            <div class="rounded-[1.5rem] border border-ink-100 bg-white p-4">
+            <div class="rounded-3xl border border-ink-100 bg-white p-4">
               <p class="text-sm font-medium text-ink-900">Hasil bank</p>
               <div class="mt-3 space-y-2">
                 {#each bankResults as bank}
@@ -336,7 +336,7 @@
           </div>
         </section>
 
-        <section class="glass-panel rounded-[2rem] p-6">
+        <section class="glass-panel rounded-4xl p-6">
           <h2 class="font-display text-2xl font-bold text-ink-900">Riwayat rekening toko</h2>
           <p class="mt-2 text-sm leading-6 text-ink-700">
             {#if currentStore()}
@@ -347,12 +347,12 @@
 
           <div class="mt-5 space-y-4">
             {#if bankAccounts.length === 0}
-              <div class="rounded-[1.5rem] border border-ink-100 bg-canvas-50 px-4 py-4 text-sm text-ink-700">
+              <div class="rounded-3xl border border-ink-100 bg-canvas-50 px-4 py-4 text-sm text-ink-700">
                 Belum ada rekening terverifikasi untuk toko ini.
               </div>
             {:else}
               {#each bankAccounts as bankAccount}
-                <article class="rounded-[1.5rem] border border-ink-100 bg-white p-4">
+                <article class="rounded-3xl border border-ink-100 bg-white p-4">
                   <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                     <div class="space-y-1">
                       <p class="text-xs font-semibold uppercase tracking-[0.24em] text-accent-700">
@@ -363,7 +363,7 @@
                       <p class="font-mono text-sm text-ink-900">{bankAccount.account_number_masked}</p>
                     </div>
 
-                    <div class="rounded-[1.5rem] bg-canvas-100 px-4 py-3 text-sm text-ink-700">
+                    <div class="rounded-3xl bg-canvas-100 px-4 py-3 text-sm text-ink-700">
                       <p class="font-semibold text-ink-900">
                         {bankAccount.is_active ? 'Active' : 'Inactive'}
                       </p>

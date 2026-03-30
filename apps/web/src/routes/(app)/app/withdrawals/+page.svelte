@@ -234,12 +234,12 @@
 </svelte:head>
 
 {#if loading}
-  <div class="glass-panel rounded-[2rem] p-6">
+  <div class="glass-panel rounded-4xl p-6">
     <p class="text-sm text-ink-700">Memuat formulir withdraw balance toko...</p>
   </div>
 {:else}
   <div class="space-y-6">
-    <section class="glass-panel rounded-[2rem] p-6">
+    <section class="glass-panel rounded-4xl p-6">
       <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div class="space-y-2">
           <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
@@ -255,7 +255,7 @@
           </p>
         </div>
 
-        <div class="rounded-[1.5rem] bg-canvas-100 px-4 py-3 text-sm text-ink-700">
+        <div class="rounded-3xl bg-canvas-100 px-4 py-3 text-sm text-ink-700">
           <p class="font-semibold text-ink-900">Scope</p>
           <p>Role: {$authSession?.user.role ?? '-'}</p>
           <p>Toko tersedia: {stores.length}</p>
@@ -264,28 +264,28 @@
     </section>
 
     {#if errorMessage}
-      <div class="rounded-[1.5rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+      <div class="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
         {errorMessage}
       </div>
     {/if}
 
     {#if successMessage}
-      <div class="rounded-[1.5rem] border border-brand-200 bg-brand-100/60 px-4 py-3 text-sm text-brand-700">
+      <div class="rounded-3xl border border-brand-200 bg-brand-100/60 px-4 py-3 text-sm text-brand-700">
         {successMessage}
       </div>
     {/if}
 
     {#if !canUseWithdrawals()}
-      <div class="glass-panel rounded-[2rem] p-6 text-sm text-ink-700">
+      <div class="glass-panel rounded-4xl p-6 text-sm text-ink-700">
         Role ini tidak bisa melihat atau membuat withdraw toko.
       </div>
     {:else if stores.length === 0}
-      <div class="glass-panel rounded-[2rem] p-6 text-sm text-ink-700">
+      <div class="glass-panel rounded-4xl p-6 text-sm text-ink-700">
         Belum ada toko yang bisa dipakai untuk withdraw.
       </div>
     {:else}
       <div class="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-        <section class="glass-panel rounded-[2rem] p-6">
+        <section class="glass-panel rounded-4xl p-6">
           <h2 class="font-display text-2xl font-bold text-ink-900">Create withdrawal</h2>
           <p class="mt-2 text-sm leading-6 text-ink-700">
             Pilih toko, pilih rekening aktif, lalu input nominal bersih yang ingin diterima owner.
@@ -306,7 +306,7 @@
             </label>
 
             {#if currentStore()}
-              <div class="rounded-[1.5rem] border border-ink-100 bg-canvas-50 px-4 py-4 text-sm text-ink-700">
+              <div class="rounded-3xl border border-ink-100 bg-canvas-50 px-4 py-4 text-sm text-ink-700">
                 <p class="font-semibold text-ink-900">Current balance</p>
                 <p class="mt-1 font-mono text-base text-ink-900">
                   Rp {currentStore()?.current_balance}
@@ -336,7 +336,7 @@
             </label>
 
             {#if selectedBankAccount()}
-              <div class="rounded-[1.5rem] border border-ink-100 bg-white px-4 py-4 text-sm text-ink-700">
+              <div class="rounded-3xl border border-ink-100 bg-white px-4 py-4 text-sm text-ink-700">
                 <p class="font-semibold text-ink-900">{selectedBankAccount()?.bank_name}</p>
                 <p class="mt-1">{selectedBankAccount()?.account_name}</p>
                 <p class="font-mono text-ink-900">{selectedBankAccount()?.account_number_masked}</p>
@@ -371,7 +371,7 @@
           </div>
         </section>
 
-        <section class="glass-panel rounded-[2rem] p-6">
+        <section class="glass-panel rounded-4xl p-6">
           <h2 class="font-display text-2xl font-bold text-ink-900">Withdrawal history</h2>
           <p class="mt-2 text-sm leading-6 text-ink-700">
             Riwayat request withdraw per toko. Status final `success` atau `failed` akan dilanjutkan
@@ -380,12 +380,12 @@
 
           <div class="mt-5 space-y-4">
             {#if withdrawals.length === 0}
-              <div class="rounded-[1.5rem] border border-ink-100 bg-canvas-50 px-4 py-4 text-sm text-ink-700">
+              <div class="rounded-3xl border border-ink-100 bg-canvas-50 px-4 py-4 text-sm text-ink-700">
                 Belum ada request withdraw untuk toko ini.
               </div>
             {:else}
               {#each withdrawals as withdrawal}
-                <article class="rounded-[1.5rem] border border-ink-100 bg-white p-4">
+                <article class="rounded-3xl border border-ink-100 bg-white p-4">
                   <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                     <div class="space-y-1">
                       <p class="text-xs font-semibold uppercase tracking-[0.24em] text-accent-700">
@@ -396,7 +396,7 @@
                       <p class="font-mono text-sm text-ink-900">{withdrawal.account_number_masked}</p>
                     </div>
 
-                    <div class="rounded-[1.5rem] bg-canvas-100 px-4 py-3 text-sm text-ink-700">
+                    <div class="rounded-3xl bg-canvas-100 px-4 py-3 text-sm text-ink-700">
                       <p class="font-semibold uppercase text-ink-900">{withdrawal.status}</p>
                       <p>Net: Rp {withdrawal.net_requested_amount}</p>
                       <p>Total debit: Rp {withdrawal.total_store_debit}</p>
@@ -404,15 +404,15 @@
                   </div>
 
                   <div class="mt-4 grid gap-3 text-sm text-ink-700 md:grid-cols-3">
-                    <div class="rounded-[1.5rem] border border-ink-100 bg-canvas-50 px-4 py-3">
+                    <div class="rounded-3xl border border-ink-100 bg-canvas-50 px-4 py-3">
                       <p class="font-semibold text-ink-900">Platform fee</p>
                       <p>Rp {withdrawal.platform_fee_amount}</p>
                     </div>
-                    <div class="rounded-[1.5rem] border border-ink-100 bg-canvas-50 px-4 py-3">
+                    <div class="rounded-3xl border border-ink-100 bg-canvas-50 px-4 py-3">
                       <p class="font-semibold text-ink-900">External fee</p>
                       <p>Rp {withdrawal.external_fee_amount}</p>
                     </div>
-                    <div class="rounded-[1.5rem] border border-ink-100 bg-canvas-50 px-4 py-3">
+                    <div class="rounded-3xl border border-ink-100 bg-canvas-50 px-4 py-3">
                       <p class="font-semibold text-ink-900">Created</p>
                       <p>{new Date(withdrawal.created_at).toLocaleString('id-ID')}</p>
                     </div>

@@ -87,7 +87,7 @@
     </p>
   </div>
 
-  <div class="rounded-[1.5rem] border border-brand-200 bg-brand-100/60 px-4 py-4 text-sm leading-6 text-brand-700">
+  <div class="rounded-3xl border border-brand-200 bg-brand-100/60 px-4 py-4 text-sm leading-6 text-brand-700">
     Demo:
     <span class="font-semibold text-ink-900">owner-demo / OwnerDemo123!</span>
     atau
@@ -95,13 +95,13 @@
   </div>
 
   {#if errorMessage}
-    <div class="rounded-[1.5rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+    <div class="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
       {errorMessage}
     </div>
   {/if}
 
   {#if successMessage}
-    <div class="rounded-[1.5rem] border border-brand-200 bg-brand-100/60 px-4 py-3 text-sm text-brand-700">
+    <div class="rounded-3xl border border-brand-200 bg-brand-100/60 px-4 py-3 text-sm text-brand-700">
       {successMessage}
     </div>
   {/if}
@@ -128,7 +128,7 @@
     </label>
 
     {#if requiresTOTP}
-      <div class="rounded-[1.5rem] border border-ink-100 bg-canvas-50 px-4 py-4">
+      <div class="rounded-3xl border border-ink-100 bg-canvas-50 px-4 py-4">
         <p class="text-sm font-semibold text-ink-900">2FA diperlukan</p>
         <p class="mt-1 text-sm leading-6 text-ink-700">
           Isi salah satu: kode TOTP 6 digit dari authenticator atau recovery code sekali pakai.

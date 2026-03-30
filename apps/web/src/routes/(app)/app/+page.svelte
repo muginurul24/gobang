@@ -25,7 +25,7 @@
 </svelte:head>
 
 <section class="space-y-6">
-  <div class="glass-panel rounded-[2rem] px-6 py-7">
+  <div class="glass-panel rounded-4xl px-6 py-7">
     <p class="text-xs font-semibold uppercase tracking-[0.24em] text-accent-700">
       Dashboard Secure Area
     </p>
@@ -39,7 +39,7 @@
     </p>
 
     {#if $authSession}
-      <div class="mt-6 rounded-[1.5rem] bg-canvas-100 px-5 py-4 text-sm text-ink-700">
+      <div class="mt-6 rounded-3xl bg-canvas-100 px-5 py-4 text-sm text-ink-700">
         <p class="font-semibold text-ink-900">Current Session</p>
         <p class="mt-1">{$authSession.user.email}</p>
         <p>Role: {$authSession.user.role}</p>
@@ -49,7 +49,7 @@
 
   <div class="grid gap-4 md:grid-cols-3">
     {#each cards as card}
-      <article class="glass-panel rounded-[1.5rem] px-5 py-5">
+      <article class="glass-panel rounded-3xl px-5 py-5">
         <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
           {card.title}
         </p>

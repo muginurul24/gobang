@@ -103,7 +103,7 @@
 </script>
 
 <div class="space-y-6">
-  <section class="glass-panel rounded-[2rem] px-6 py-6">
+  <section class="glass-panel rounded-4xl px-6 py-6">
     <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">Provider Catalog</p>
     <h2 class="mt-3 font-display text-3xl font-bold tracking-tight text-ink-900">
       Browse provider dan game dari catalog lokal
@@ -115,7 +115,7 @@
   </section>
 
   <section class="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-    <div class="glass-panel rounded-[2rem] px-5 py-5">
+    <div class="glass-panel rounded-4xl px-5 py-5">
       <div class="grid gap-3">
         <label class="text-sm font-medium text-ink-800" for="provider-query">Cari provider</label>
         <input
@@ -178,7 +178,7 @@
       </div>
     </div>
 
-    <div class="glass-panel rounded-[2rem] px-5 py-5">
+    <div class="glass-panel rounded-4xl px-5 py-5">
       <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">Games</p>

@@ -435,12 +435,12 @@
 </svelte:head>
 
 {#if loading}
-  <div class="glass-panel rounded-[2rem] p-6">
+  <div class="glass-panel rounded-4xl p-6">
     <p class="text-sm text-ink-700">Memuat domain toko, token integrasi, dan relasi staff...</p>
   </div>
 {:else}
   <div class="space-y-6">
-    <section class="glass-panel rounded-[2rem] p-6">
+    <section class="glass-panel rounded-4xl p-6">
       <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div class="space-y-2">
           <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
@@ -455,7 +455,7 @@
           </p>
         </div>
 
-        <div class="rounded-[1.5rem] bg-canvas-100 px-4 py-3 text-sm text-ink-700">
+        <div class="rounded-3xl bg-canvas-100 px-4 py-3 text-sm text-ink-700">
           <p class="font-semibold text-ink-900">Scope</p>
           <p>Role: {$authSession?.user.role ?? '-'}</p>
           <p>Toko aktif: {stores.length}</p>
@@ -464,20 +464,20 @@
     </section>
 
     {#if errorMessage}
-      <div class="rounded-[1.5rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+      <div class="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
         {errorMessage}
       </div>
     {/if}
 
     {#if successMessage}
-      <div class="rounded-[1.5rem] border border-brand-200 bg-brand-100/60 px-4 py-3 text-sm text-brand-700">
+      <div class="rounded-3xl border border-brand-200 bg-brand-100/60 px-4 py-3 text-sm text-brand-700">
         {successMessage}
       </div>
     {/if}
 
     {#if canManageEmployees()}
       <div class="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <section class="glass-panel rounded-[2rem] p-6">
+        <section class="glass-panel rounded-4xl p-6">
           <h2 class="font-display text-2xl font-bold text-ink-900">Buat toko baru</h2>
           <p class="mt-2 text-sm leading-6 text-ink-700">
             Toko baru akan otomatis mendapat token integrasi baru. Simpan token sekali tampil.
@@ -520,7 +520,7 @@
           </div>
         </section>
 
-        <section class="glass-panel rounded-[2rem] p-6">
+        <section class="glass-panel rounded-4xl p-6">
           <h2 class="font-display text-2xl font-bold text-ink-900">Buat akun karyawan</h2>
           <p class="mt-2 text-sm leading-6 text-ink-700">
             Owner membuat akun karyawan lebih dulu, lalu menghubungkannya ke satu atau banyak toko.
@@ -567,7 +567,7 @@
 
     <section class="grid gap-5 xl:grid-cols-2">
       {#each stores as store}
-        <article class="glass-panel rounded-[2rem] p-6">
+        <article class="glass-panel rounded-4xl p-6">
           <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div class="space-y-2">
               <p class="text-xs font-semibold uppercase tracking-[0.24em] text-accent-700">
@@ -579,7 +579,7 @@
               </p>
             </div>
 
-            <div class="rounded-[1.5rem] bg-canvas-100 px-4 py-3 text-sm text-ink-700">
+            <div class="rounded-3xl bg-canvas-100 px-4 py-3 text-sm text-ink-700">
               <p class="font-semibold text-ink-900">Store Meta</p>
               <p>Balance: {store.current_balance}</p>
               <p>Staff: {store.staff_count}</p>
@@ -588,7 +588,7 @@
           </div>
 
           {#if revealedTokens[store.id]}
-            <div class="mt-5 rounded-[1.5rem] border border-brand-200 bg-brand-100/60 px-4 py-4">
+            <div class="mt-5 rounded-3xl border border-brand-200 bg-brand-100/60 px-4 py-4">
               <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
                 One-Time Token
               </p>
@@ -655,14 +655,14 @@
               </Button>
             </div>
           {:else}
-            <div class="mt-5 rounded-[1.5rem] border border-ink-100 bg-white px-4 py-4 text-sm text-ink-700">
+            <div class="mt-5 rounded-3xl border border-ink-100 bg-white px-4 py-4 text-sm text-ink-700">
               <p class="font-semibold text-ink-900">Callback URL</p>
               <p class="mt-1 break-all">{store.callback_url || 'Disembunyikan untuk role ini'}</p>
             </div>
           {/if}
 
           {#if canViewStaffLists()}
-            <div class="mt-6 rounded-[1.5rem] border border-ink-100 bg-white p-4">
+            <div class="mt-6 rounded-3xl border border-ink-100 bg-white p-4">
               <div class="flex items-center justify-between gap-3">
                 <div>
                   <p class="font-semibold text-ink-900">Staff toko</p>

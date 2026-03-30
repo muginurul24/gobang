@@ -175,12 +175,12 @@
 </svelte:head>
 
 {#if loading}
-  <div class="glass-panel rounded-[2rem] p-6">
+  <div class="glass-panel rounded-4xl p-6">
     <p class="text-sm text-ink-700">Memuat konfigurasi keamanan akun...</p>
   </div>
 {:else if security}
   <div class="space-y-6">
-    <section class="glass-panel rounded-[2rem] p-6">
+    <section class="glass-panel rounded-4xl p-6">
       <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div class="space-y-2">
           <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
@@ -195,7 +195,7 @@
           </p>
         </div>
 
-        <div class="rounded-[1.5rem] bg-canvas-100 px-4 py-3 text-sm text-ink-700">
+        <div class="rounded-3xl bg-canvas-100 px-4 py-3 text-sm text-ink-700">
           <p class="font-semibold text-ink-900">Status</p>
           <p>{security.totp_enabled ? '2FA aktif' : '2FA belum aktif'}</p>
           <p>{security.ip_allowlist ? `Allowlist: ${security.ip_allowlist}` : 'Allowlist kosong'}</p>
@@ -204,19 +204,19 @@
     </section>
 
     {#if errorMessage}
-      <div class="rounded-[1.5rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+      <div class="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
         {errorMessage}
       </div>
     {/if}
 
     {#if successMessage}
-      <div class="rounded-[1.5rem] border border-brand-200 bg-brand-100/60 px-4 py-3 text-sm text-brand-700">
+      <div class="rounded-3xl border border-brand-200 bg-brand-100/60 px-4 py-3 text-sm text-brand-700">
         {successMessage}
       </div>
     {/if}
 
     {#if !security.totp_enabled}
-      <section class="glass-panel rounded-[2rem] p-6">
+      <section class="glass-panel rounded-4xl p-6">
         <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div class="space-y-2">
             <h2 class="font-display text-2xl font-bold text-ink-900">Aktifkan TOTP</h2>
@@ -233,14 +233,14 @@
 
         {#if enrollment}
           <div class="mt-6 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-            <div class="rounded-[1.5rem] border border-ink-100 bg-canvas-50 p-5">
+            <div class="rounded-3xl border border-ink-100 bg-canvas-50 p-5">
               {#if qrDataURL}
                 <img alt="QR code TOTP" class="mx-auto rounded-3xl bg-white p-3" src={qrDataURL} />
               {/if}
             </div>
 
             <div class="space-y-4">
-              <div class="rounded-[1.5rem] border border-ink-100 bg-white px-4 py-4">
+              <div class="rounded-3xl border border-ink-100 bg-white px-4 py-4">
                 <p class="text-xs font-semibold uppercase tracking-[0.2em] text-ink-300">
                   Secret Manual
                 </p>
@@ -271,7 +271,7 @@
         {/if}
 
         {#if recoveryCodes.length > 0}
-          <div class="mt-6 rounded-[1.5rem] border border-amber-200 bg-amber-50 px-5 py-5">
+          <div class="mt-6 rounded-3xl border border-amber-200 bg-amber-50 px-5 py-5">
             <p class="text-sm font-semibold text-amber-900">Recovery code sekali pakai</p>
             <p class="mt-2 text-sm leading-6 text-amber-800">
               Simpan daftar ini sekarang. Setelah halaman ditutup, plain recovery code tidak akan
@@ -288,7 +288,7 @@
         {/if}
       </section>
     {:else}
-      <section class="glass-panel rounded-[2rem] p-6">
+      <section class="glass-panel rounded-4xl p-6">
         <div class="space-y-2">
           <h2 class="font-display text-2xl font-bold text-ink-900">Nonaktifkan TOTP</h2>
           <p class="max-w-2xl text-sm leading-6 text-ink-700">
@@ -327,7 +327,7 @@
       </section>
     {/if}
 
-    <section class="glass-panel rounded-[2rem] p-6">
+    <section class="glass-panel rounded-4xl p-6">
       <div class="space-y-2">
         <h2 class="font-display text-2xl font-bold text-ink-900">IP Allowlist</h2>
         <p class="max-w-2xl text-sm leading-6 text-ink-700">

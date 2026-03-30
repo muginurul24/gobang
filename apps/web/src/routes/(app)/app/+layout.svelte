@@ -78,7 +78,7 @@
 
 {#if ready}
   <div class="shell-width mx-auto flex min-h-screen flex-col gap-6 py-6 lg:flex-row">
-    <aside class="glass-panel w-full rounded-[2rem] p-5 lg:sticky lg:top-6 lg:h-[calc(100vh-3rem)] lg:w-80">
+    <aside class="glass-panel w-full rounded-4xl p-5 lg:sticky lg:top-6 lg:h-[calc(100vh-3rem)] lg:w-80">
       <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">App Shell</p>
       <h1 class="mt-3 font-display text-3xl font-bold tracking-tight text-ink-900">onixggr</h1>
       <p class="mt-3 text-sm leading-6 text-ink-700">
@@ -87,13 +87,13 @@
       </p>
 
       {#if $authSession}
-        <div class="mt-6 rounded-[1.5rem] bg-canvas-100 px-4 py-4 text-sm text-ink-700">
+        <div class="mt-6 rounded-3xl bg-canvas-100 px-4 py-4 text-sm text-ink-700">
           <p class="font-semibold text-ink-900">Signed In</p>
           <p class="mt-1">{$authSession.user.username}</p>
           <p>{$authSession.user.role}</p>
         </div>
 
-        <div class="mt-4 rounded-[1.5rem] border border-ink-100 px-4 py-4 text-sm text-ink-700">
+        <div class="mt-4 rounded-3xl border border-ink-100 px-4 py-4 text-sm text-ink-700">
           <p class="font-semibold text-ink-900">Realtime</p>
           <p class="mt-1 uppercase tracking-[0.18em] text-brand-700">{$realtimeState.status}</p>
           <p class="mt-2 text-xs text-ink-500">
@@ -126,7 +126,7 @@
   </div>
 {:else}
   <div class="shell-width mx-auto min-h-screen py-10">
-    <div class="glass-panel rounded-[2rem] px-6 py-8">
+    <div class="glass-panel rounded-4xl px-6 py-8">
       <p class="text-sm text-ink-700">Memeriksa session dashboard...</p>
     </div>
   </div>

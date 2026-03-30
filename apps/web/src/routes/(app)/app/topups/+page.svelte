@@ -260,12 +260,12 @@
 </svelte:head>
 
 {#if loading}
-  <div class="glass-panel rounded-[2rem] p-6">
+  <div class="glass-panel rounded-4xl p-6">
     <p class="text-sm text-ink-700">Memuat topup QRIS toko dan histori status...</p>
   </div>
 {:else}
   <div class="space-y-6">
-    <section class="glass-panel rounded-[2rem] p-6">
+    <section class="glass-panel rounded-4xl p-6">
       <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div class="space-y-2">
           <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
@@ -281,7 +281,7 @@
           </p>
         </div>
 
-        <div class="rounded-[1.5rem] bg-canvas-100 px-4 py-3 text-sm text-ink-700">
+        <div class="rounded-3xl bg-canvas-100 px-4 py-3 text-sm text-ink-700">
           <p class="font-semibold text-ink-900">Scope</p>
           <p>Role: {$authSession?.user.role ?? '-'}</p>
           <p>Toko tersedia: {stores.length}</p>
@@ -290,28 +290,28 @@
     </section>
 
     {#if errorMessage}
-      <div class="rounded-[1.5rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+      <div class="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
         {errorMessage}
       </div>
     {/if}
 
     {#if successMessage}
-      <div class="rounded-[1.5rem] border border-brand-200 bg-brand-100/60 px-4 py-3 text-sm text-brand-700">
+      <div class="rounded-3xl border border-brand-200 bg-brand-100/60 px-4 py-3 text-sm text-brand-700">
         {successMessage}
       </div>
     {/if}
 
     {#if !canManageTopups()}
-      <div class="glass-panel rounded-[2rem] p-6 text-sm text-ink-700">
+      <div class="glass-panel rounded-4xl p-6 text-sm text-ink-700">
         Role ini tidak bisa mengelola topup QRIS dashboard.
       </div>
     {:else if stores.length === 0}
-      <div class="glass-panel rounded-[2rem] p-6 text-sm text-ink-700">
+      <div class="glass-panel rounded-4xl p-6 text-sm text-ink-700">
         Belum ada toko yang bisa di-topup.
       </div>
     {:else}
       <div class="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-        <section class="glass-panel rounded-[2rem] p-6">
+        <section class="glass-panel rounded-4xl p-6">
           <h2 class="font-display text-2xl font-bold text-ink-900">Buat topup baru</h2>
           <p class="mt-2 text-sm leading-6 text-ink-700">
             Provider generate akan memakai `username` owner store, `custom_ref` internal topup,
@@ -333,7 +333,7 @@
             </label>
 
             {#if currentStore()}
-              <div class="rounded-[1.5rem] border border-ink-100 bg-canvas-50 px-4 py-4 text-sm text-ink-700">
+              <div class="rounded-3xl border border-ink-100 bg-canvas-50 px-4 py-4 text-sm text-ink-700">
                 <p class="font-semibold text-ink-900">{currentStore()?.name}</p>
                 <p>Balance sekarang: {currentStore()?.current_balance}</p>
                 <p>Low balance threshold: {currentStore()?.low_balance_threshold ?? '-'}</p>
@@ -357,7 +357,7 @@
             </Button>
           </div>
 
-          <div class="mt-8 rounded-[1.5rem] border border-dashed border-ink-200 bg-white p-5">
+          <div class="mt-8 rounded-3xl border border-dashed border-ink-200 bg-white p-5">
             <div class="flex items-start justify-between gap-4">
               <div>
                 <h3 class="font-semibold text-ink-900">QR aktif</h3>
@@ -379,25 +379,25 @@
 
             {#if selectedTopup && selectedTopup.qr_code_value && qrCodeDataURL !== ''}
               <div class="mt-5 flex flex-col items-center gap-4">
-                <img alt="QRIS topup" class="w-full max-w-[320px] rounded-[1.5rem] border border-ink-100 bg-white p-4" src={qrCodeDataURL} />
+                <img alt="QRIS topup" class="w-full max-w-[320px] rounded-3xl border border-ink-100 bg-white p-4" src={qrCodeDataURL} />
                 <p class="text-center text-sm leading-6 text-ink-700">
                   Scan QR ini untuk menyelesaikan topup. History transaksi tetap tersedia walau owner
                   membuat beberapa pending topup sekaligus.
                 </p>
               </div>
             {:else if selectedTopup}
-              <div class="mt-5 rounded-[1.5rem] bg-canvas-50 px-4 py-4 text-sm leading-6 text-ink-700">
+              <div class="mt-5 rounded-3xl bg-canvas-50 px-4 py-4 text-sm leading-6 text-ink-700">
                 {providerNote(selectedTopup)}
               </div>
             {:else}
-              <div class="mt-5 rounded-[1.5rem] bg-canvas-50 px-4 py-4 text-sm text-ink-700">
+              <div class="mt-5 rounded-3xl bg-canvas-50 px-4 py-4 text-sm text-ink-700">
                 Belum ada transaksi topup untuk toko ini.
               </div>
             {/if}
           </div>
         </section>
 
-        <section class="glass-panel rounded-[2rem] p-6">
+        <section class="glass-panel rounded-4xl p-6">
           <div class="flex items-start justify-between gap-4">
             <div>
               <h2 class="font-display text-2xl font-bold text-ink-900">History topup</h2>
@@ -414,13 +414,13 @@
 
           <div class="mt-5 space-y-4">
             {#if topups.length === 0}
-              <div class="rounded-[1.5rem] border border-ink-100 bg-canvas-50 px-4 py-4 text-sm text-ink-700">
+              <div class="rounded-3xl border border-ink-100 bg-canvas-50 px-4 py-4 text-sm text-ink-700">
                 Belum ada history topup untuk toko ini.
               </div>
             {:else}
               {#each topups as topup}
                 <button
-                  class={`w-full rounded-[1.5rem] border p-4 text-left transition ${
+                  class={`w-full rounded-3xl border p-4 text-left transition ${
                     selectedTopupID === topup.id
                       ? 'border-brand-300 bg-brand-100/40'
                       : 'border-ink-100 bg-white hover:border-accent-300 hover:bg-canvas-50'
@@ -446,7 +446,7 @@
                       <p class="text-sm leading-6 text-ink-700">{providerNote(topup)}</p>
                     </div>
 
-                    <div class="rounded-[1.5rem] bg-canvas-100 px-4 py-3 text-sm text-ink-700">
+                    <div class="rounded-3xl bg-canvas-100 px-4 py-3 text-sm text-ink-700">
                       <p>
                         Created:
                         {new Date(topup.created_at).toLocaleString('id-ID')}

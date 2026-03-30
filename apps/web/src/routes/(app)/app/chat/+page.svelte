@@ -11,7 +11,7 @@
   }
 </script>
 
-<section class="glass-panel overflow-hidden rounded-[2rem]">
+<section class="glass-panel overflow-hidden rounded-4xl">
   <header class="border-b border-ink-100 px-6 py-5">
     <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">Global Chat</p>
     <h2 class="mt-2 font-display text-3xl font-bold tracking-tight text-ink-900">
@@ -72,7 +72,7 @@
       </article>
     </div>
 
-    <aside class="rounded-[1.5rem] border border-dashed border-ink-100 px-4 py-4 text-sm leading-6 text-ink-700">
+    <aside class="rounded-3xl border border-dashed border-ink-100 px-4 py-4 text-sm leading-6 text-ink-700">
       <p class="font-semibold text-ink-900">Connection Detail</p>
       <p class="mt-3">Connection ID: {$realtimeState.connection_id ?? '-'}</p>
       <p class="mt-2">

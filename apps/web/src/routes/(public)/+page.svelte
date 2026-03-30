@@ -17,7 +17,7 @@
 </svelte:head>
 
 <main class="relative z-10 shell-width mx-auto pb-16 pt-8">
-  <section class="glass-panel overflow-hidden rounded-[2rem] border border-white/70">
+  <section class="glass-panel overflow-hidden rounded-4xl border border-white/70">
     <div class="grid gap-10 px-6 py-10 md:grid-cols-[1.2fr_0.8fr] md:px-10 md:py-14">
       <div class="space-y-6">
         <p class="inline-flex rounded-full border border-brand-300/70 bg-brand-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
@@ -45,7 +45,7 @@
         </div>
       </div>
 
-      <div class="rounded-[1.5rem] bg-ink-900 p-6 text-white">
+      <div class="rounded-3xl bg-ink-900 p-6 text-white">
         <p class="text-xs font-semibold uppercase tracking-[0.28em] text-brand-300">
           Foundation Snapshot
         </p>

@@ -146,12 +146,12 @@
 </svelte:head>
 
 {#if loading}
-  <div class="glass-panel rounded-[2rem] p-6">
+  <div class="glass-panel rounded-4xl p-6">
     <p class="text-sm text-ink-700">Memuat store members dan upstream mapping...</p>
   </div>
 {:else}
   <div class="space-y-6">
-    <section class="glass-panel rounded-[2rem] p-6">
+    <section class="glass-panel rounded-4xl p-6">
       <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div class="space-y-2">
           <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
@@ -166,7 +166,7 @@
           </p>
         </div>
 
-        <div class="rounded-[1.5rem] bg-canvas-100 px-4 py-3 text-sm text-ink-700">
+        <div class="rounded-3xl bg-canvas-100 px-4 py-3 text-sm text-ink-700">
           <p class="font-semibold text-ink-900">Scope</p>
           <p>Role: {$authSession?.user.role ?? '-'}</p>
           <p>Store terlihat: {stores.length}</p>
@@ -176,18 +176,18 @@
     </section>
 
     {#if errorMessage}
-      <div class="rounded-[1.5rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+      <div class="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
         {errorMessage}
       </div>
     {/if}
 
     {#if successMessage}
-      <div class="rounded-[1.5rem] border border-brand-200 bg-brand-100/60 px-4 py-3 text-sm text-brand-700">
+      <div class="rounded-3xl border border-brand-200 bg-brand-100/60 px-4 py-3 text-sm text-brand-700">
         {successMessage}
       </div>
     {/if}
 
-    <section class="glass-panel rounded-[2rem] p-6">
+    <section class="glass-panel rounded-4xl p-6">
       <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
         <label class="space-y-2">
           <span class="text-sm font-medium text-ink-700">Pilih toko</span>
@@ -206,7 +206,7 @@
           </select>
         </label>
 
-        <div class="rounded-[1.5rem] bg-canvas-100 px-4 py-3 text-sm text-ink-700">
+        <div class="rounded-3xl bg-canvas-100 px-4 py-3 text-sm text-ink-700">
           <p class="font-semibold text-ink-900">Store aktif</p>
           <p>{selectedStoreName()}</p>
         </div>
@@ -214,7 +214,7 @@
     </section>
 
     {#if canCreateMembers() && selectedStoreID !== ''}
-      <section class="glass-panel rounded-[2rem] p-6">
+      <section class="glass-panel rounded-4xl p-6">
         <h2 class="font-display text-2xl font-bold text-ink-900">Buat member baru</h2>
         <p class="mt-2 text-sm leading-6 text-ink-700">
           Username asli hanya unik di dalam toko yang sama. Sistem akan membuat upstream user code
@@ -238,7 +238,7 @@
       </section>
     {/if}
 
-    <section class="glass-panel rounded-[2rem] p-6">
+    <section class="glass-panel rounded-4xl p-6">
       <div class="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
           <h2 class="font-display text-2xl font-bold text-ink-900">Daftar member</h2>
@@ -249,11 +249,11 @@
       </div>
 
       {#if selectedStoreID === ''}
-        <div class="mt-5 rounded-[1.5rem] bg-canvas-100 px-4 py-4 text-sm text-ink-700">
+        <div class="mt-5 rounded-3xl bg-canvas-100 px-4 py-4 text-sm text-ink-700">
           Belum ada toko yang bisa dipilih.
         </div>
       {:else if members.length === 0}
-        <div class="mt-5 rounded-[1.5rem] bg-canvas-100 px-4 py-4 text-sm text-ink-700">
+        <div class="mt-5 rounded-3xl bg-canvas-100 px-4 py-4 text-sm text-ink-700">
           Belum ada member untuk toko ini.
         </div>
       {:else}
@@ -269,7 +269,7 @@
             </thead>
             <tbody>
               {#each members as member}
-                <tr class="rounded-[1.5rem] bg-canvas-100 text-sm text-ink-800">
+                <tr class="rounded-3xl bg-canvas-100 text-sm text-ink-800">
                   <td class="rounded-l-[1.5rem] px-3 py-4 font-medium text-ink-900">
                     {member.real_username}
                   </td>

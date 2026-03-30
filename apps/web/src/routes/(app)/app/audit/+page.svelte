@@ -96,12 +96,12 @@
 </svelte:head>
 
 {#if loading}
-  <div class="glass-panel rounded-[2rem] p-6">
+  <div class="glass-panel rounded-4xl p-6">
     <p class="text-sm text-ink-700">Memuat audit log sesuai scope role...</p>
   </div>
 {:else}
   <div class="space-y-6">
-    <section class="glass-panel rounded-[2rem] p-6">
+    <section class="glass-panel rounded-4xl p-6">
       <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div class="space-y-2">
           <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
@@ -116,7 +116,7 @@
           </p>
         </div>
 
-        <div class="rounded-[1.5rem] bg-canvas-100 px-4 py-3 text-sm text-ink-700">
+        <div class="rounded-3xl bg-canvas-100 px-4 py-3 text-sm text-ink-700">
           <p class="font-semibold text-ink-900">Filter</p>
           <p>Role: {$authSession?.user.role ?? '-'}</p>
           <p>Total row: {logs.length}</p>
@@ -125,12 +125,12 @@
     </section>
 
     {#if errorMessage}
-      <div class="rounded-[1.5rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+      <div class="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
         {errorMessage}
       </div>
     {/if}
 
-    <section class="glass-panel rounded-[2rem] p-6">
+    <section class="glass-panel rounded-4xl p-6">
       <div class="grid gap-4 md:grid-cols-[1fr_180px_auto]">
         <label class="space-y-2">
           <span class="text-sm font-medium text-ink-700">Filter toko</span>
@@ -167,12 +167,12 @@
 
     <section class="space-y-4">
       {#if logs.length === 0}
-        <div class="glass-panel rounded-[2rem] p-6 text-sm text-ink-700">
+        <div class="glass-panel rounded-4xl p-6 text-sm text-ink-700">
           Tidak ada audit log dalam scope dan filter saat ini.
         </div>
       {:else}
         {#each logs as entry}
-          <article class="glass-panel rounded-[2rem] p-6">
+          <article class="glass-panel rounded-4xl p-6">
             <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div class="space-y-1">
                 <p class="text-xs font-semibold uppercase tracking-[0.24em] text-accent-700">
@@ -184,7 +184,7 @@
                 </p>
               </div>
 
-              <div class="rounded-[1.5rem] bg-canvas-100 px-4 py-3 text-sm text-ink-700">
+              <div class="rounded-3xl bg-canvas-100 px-4 py-3 text-sm text-ink-700">
                 <p class="font-semibold text-ink-900">Meta</p>
                 <p>Store: {entry.store_id ?? '-'}</p>
                 <p>Target: {entry.target_id ?? '-'}</p>
@@ -193,7 +193,7 @@
               </div>
             </div>
 
-            <div class="mt-5 rounded-[1.5rem] border border-ink-100 bg-white p-4">
+            <div class="mt-5 rounded-3xl border border-ink-100 bg-white p-4">
               <p class="text-xs font-semibold uppercase tracking-[0.24em] text-ink-300">
                 Payload Masked
               </p>
