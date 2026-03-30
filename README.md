@@ -168,6 +168,13 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - Store cards include total balance, pending QRIS, success today, expired today, and monthly store income from `member_payment.success`.
 - Platform cards include income today or month, total stores, pending withdraw, upstream error rate 24h, and callback failure rate 24h.
 
+## Audit Log
+
+- `GET /v1/audit/logs`: role-aware audit endpoint. Owner stays scoped to owned stores and owned staff domain, while dev or superadmin can query the global audit stream.
+- Supported filters now include `store_id`, `action`, `actor_role`, `target_type`, and `limit`.
+- Coverage now includes login success or fail, store lifecycle changes, token create or rotate or revoke-via-rotation, callback URL updates, withdraw request and result, QRIS topup result, and other manual dashboard actions that already flow through domain services.
+- `apps/scheduler` prunes `audit_logs` older than 90 days via `AUDIT_RETENTION_PERIOD` and `AUDIT_PRUNE_INTERVAL`.
+
 ## Store API Game Flows
 
 - `POST /v1/store-api/game/users`: create a game user via Bearer `store_token` with body `{"username":"member-alpha"}`.

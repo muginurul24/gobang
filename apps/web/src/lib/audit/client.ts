@@ -15,11 +15,26 @@ export type AuditLogEntry = {
 };
 
 export async function fetchAuditLogs(
-  params: { storeID?: string; limit?: number } = {},
+  params: {
+    storeID?: string;
+    limit?: number;
+    action?: string;
+    actorRole?: string;
+    targetType?: string;
+  } = {},
 ) {
   const search = new URLSearchParams();
   if (params.storeID) {
     search.set('store_id', params.storeID);
+  }
+  if (params.action) {
+    search.set('action', params.action);
+  }
+  if (params.actorRole) {
+    search.set('actor_role', params.actorRole);
+  }
+  if (params.targetType) {
+    search.set('target_type', params.targetType);
   }
 
   if (params.limit) {

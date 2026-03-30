@@ -195,6 +195,24 @@ func (s *service) CreateStore(ctx context.Context, subject auth.Subject, input C
 		return Store{}, err
 	}
 
+	if err := s.repository.InsertAuditLog(
+		ctx,
+		&subject.UserID,
+		string(subject.Role),
+		&store.ID,
+		"store.token_created",
+		"store",
+		&store.ID,
+		map[string]any{
+			"token_state": "created",
+		},
+		metadata.IPAddress,
+		metadata.UserAgent,
+		now,
+	); err != nil {
+		return Store{}, err
+	}
+
 	return s.sanitizeStore(subject, store), nil
 }
 
@@ -346,6 +364,25 @@ func (s *service) RotateStoreToken(ctx context.Context, subject auth.Subject, st
 		&store.ID,
 		map[string]any{
 			"token_state": "rotated",
+		},
+		metadata.IPAddress,
+		metadata.UserAgent,
+		now,
+	); err != nil {
+		return StoreToken{}, err
+	}
+
+	if err := s.repository.InsertAuditLog(
+		ctx,
+		&subject.UserID,
+		string(subject.Role),
+		&store.ID,
+		"store.token_revoked",
+		"store",
+		&store.ID,
+		map[string]any{
+			"reason":      "rotate",
+			"token_state": "revoked",
 		},
 		metadata.IPAddress,
 		metadata.UserAgent,

@@ -640,11 +640,6 @@ func (s *service) insertStoreAPIFailureAudit(ctx context.Context, store StoreSco
 }
 
 func (s *service) insertWebhookAudit(ctx context.Context, transaction QRISTransaction, metadata auth.RequestMetadata, providerStatus string) error {
-	action := "paymentsqris.store_topup_webhook"
-	if transaction.Type == TransactionTypeMemberPayment {
-		action = "paymentsqris.member_payment_webhook"
-	}
-
 	payload := map[string]any{
 		"type":                transaction.Type,
 		"custom_ref":          transaction.CustomRef,
@@ -661,7 +656,7 @@ func (s *service) insertWebhookAudit(ctx context.Context, transaction QRISTransa
 		nil,
 		"provider_webhook",
 		&transaction.StoreID,
-		action,
+		webhookAuditAction(transaction),
 		"qris_transaction",
 		&transaction.ID,
 		payload,
@@ -669,6 +664,24 @@ func (s *service) insertWebhookAudit(ctx context.Context, transaction QRISTransa
 		metadata.UserAgent,
 		s.clock.Now().UTC(),
 	)
+}
+
+func webhookAuditAction(transaction QRISTransaction) string {
+	prefix := "paymentsqris.store_topup"
+	if transaction.Type == TransactionTypeMemberPayment {
+		prefix = "paymentsqris.member_payment"
+	}
+
+	switch transaction.Status {
+	case TransactionStatusSuccess:
+		return prefix + "_success"
+	case TransactionStatusFailed:
+		return prefix + "_failed"
+	case TransactionStatusExpired:
+		return prefix + "_expired"
+	default:
+		return prefix + "_webhook"
+	}
 }
 
 func (s *service) authenticateStoreToken(ctx context.Context, rawToken string) (StoreScope, error) {

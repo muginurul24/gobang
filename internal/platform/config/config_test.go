@@ -51,6 +51,8 @@ func TestLoadDefaults(t *testing.T) {
 		"WITHDRAW_RECONCILE_BATCH_SIZE",
 		"CALLBACK_RETRY_INTERVAL",
 		"CALLBACK_RETRY_BATCH_SIZE",
+		"AUDIT_RETENTION_PERIOD",
+		"AUDIT_PRUNE_INTERVAL",
 		"CHAT_RETENTION_PERIOD",
 		"CHAT_PRUNE_INTERVAL",
 		"WS_HEARTBEAT_SECONDS",
@@ -103,6 +105,8 @@ func TestLoadOverrides(t *testing.T) {
 	t.Setenv("WITHDRAW_RECONCILE_BATCH_SIZE", "17")
 	t.Setenv("CALLBACK_RETRY_INTERVAL", "20s")
 	t.Setenv("CALLBACK_RETRY_BATCH_SIZE", "31")
+	t.Setenv("AUDIT_RETENTION_PERIOD", "2200h")
+	t.Setenv("AUDIT_PRUNE_INTERVAL", "3h")
 	t.Setenv("CHAT_RETENTION_PERIOD", "200h")
 	t.Setenv("CHAT_PRUNE_INTERVAL", "2h")
 	t.Setenv("METRICS_ENABLED", "false")
@@ -174,6 +178,14 @@ func TestLoadOverrides(t *testing.T) {
 
 	if cfg.Worker.CallbackRetryBatchSize != 31 {
 		t.Fatalf("Worker.CallbackRetryBatchSize = %d, want 31", cfg.Worker.CallbackRetryBatchSize)
+	}
+
+	if cfg.Audit.RetentionPeriod != 2200*time.Hour {
+		t.Fatalf("Audit.RetentionPeriod = %v, want 2200h", cfg.Audit.RetentionPeriod)
+	}
+
+	if cfg.Audit.PruneInterval != 3*time.Hour {
+		t.Fatalf("Audit.PruneInterval = %v, want 3h", cfg.Audit.PruneInterval)
 	}
 
 	if cfg.Chat.RetentionPeriod != 200*time.Hour {

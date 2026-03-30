@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/mugiew/onixggr/internal/modules/audit"
 	"github.com/mugiew/onixggr/internal/modules/chat"
 	"github.com/mugiew/onixggr/internal/modules/providercatalog"
 	"github.com/mugiew/onixggr/internal/platform/config"
@@ -41,6 +42,10 @@ func main() {
 			Timeout:    cfg.NexusGGR.Timeout,
 		}, slog.Default(), nil),
 	})
+	auditService := audit.NewService(audit.Options{
+		Repository:      audit.NewRepository(pool),
+		RetentionPeriod: cfg.Audit.RetentionPeriod,
+	})
 	chatService := chat.NewService(chat.Options{
 		Repository:      chat.NewRepository(pool),
 		Clock:           nil,
@@ -53,10 +58,41 @@ func main() {
 	}
 
 	go runProviderCatalogSync(ctx, service, interval)
+	go runAuditRetentionPrune(ctx, auditService, cfg.Audit.PruneInterval)
 	go runChatRetentionPrune(ctx, chatService, cfg.Chat.PruneInterval)
 
 	<-ctx.Done()
 	log.Println("scheduler stopped")
+}
+
+func runAuditRetentionPrune(ctx context.Context, service audit.Service, interval time.Duration) {
+	if interval <= 0 {
+		interval = 24 * time.Hour
+	}
+
+	runOnce := func() {
+		pruned, err := service.PruneExpired(ctx)
+		if err != nil {
+			log.Printf("audit retention prune failed: %v", err)
+			return
+		}
+
+		log.Printf("audit retention prune complete: %d row(s) removed", pruned)
+	}
+
+	runOnce()
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			runOnce()
+		}
+	}
 }
 
 func runProviderCatalogSync(ctx context.Context, service providercatalog.Service, interval time.Duration) {

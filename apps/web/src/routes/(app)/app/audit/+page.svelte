@@ -14,6 +14,9 @@
   let stores: Store[] = [];
   let selectedStoreID = '';
   let selectedLimit = 50;
+  let actionQuery = '';
+  let selectedActorRole = '';
+  let selectedTargetType = '';
 
   onMount(async () => {
     hydrateAuthSession();
@@ -41,7 +44,10 @@
 
     const logsResponse = await fetchAuditLogs({
       storeID: selectedStoreID || undefined,
-      limit: selectedLimit
+      limit: selectedLimit,
+      action: actionQuery || undefined,
+      actorRole: selectedActorRole || undefined,
+      targetType: selectedTargetType || undefined
     });
     if (!(await ensureAuthorized(logsResponse.message))) {
       return;
@@ -112,7 +118,7 @@
           </h1>
           <p class="max-w-3xl text-sm leading-6 text-ink-700">
             Owner hanya melihat domainnya, superadmin/dev melihat global, dan karyawan diblokir dari
-            endpoint audit.
+            endpoint audit. Audit log dipertahankan maksimal 90 hari lewat retention job scheduler.
           </p>
         </div>
 
@@ -131,7 +137,7 @@
     {/if}
 
     <section class="glass-panel rounded-4xl p-6">
-      <div class="grid gap-4 md:grid-cols-[1fr_180px_auto]">
+      <div class="grid gap-4 xl:grid-cols-[1.2fr_180px_180px_220px_auto]">
         <label class="space-y-2">
           <span class="text-sm font-medium text-ink-700">Filter toko</span>
           <select
@@ -157,9 +163,73 @@
           </select>
         </label>
 
+        <label class="space-y-2">
+          <span class="text-sm font-medium text-ink-700">Actor role</span>
+          <select
+            bind:value={selectedActorRole}
+            class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300"
+          >
+            <option value="">Semua role actor</option>
+            <option value="owner">owner</option>
+            <option value="karyawan">karyawan</option>
+            <option value="dev">dev</option>
+            <option value="superadmin">superadmin</option>
+            <option value="store_api">store_api</option>
+            <option value="provider_webhook">provider_webhook</option>
+            <option value="system">system</option>
+            <option value="guest">guest</option>
+          </select>
+        </label>
+
+        <label class="space-y-2">
+          <span class="text-sm font-medium text-ink-700">Target type</span>
+          <select
+            bind:value={selectedTargetType}
+            class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300"
+          >
+            <option value="">Semua target</option>
+            <option value="auth">auth</option>
+            <option value="user">user</option>
+            <option value="store">store</option>
+            <option value="store_member">store_member</option>
+            <option value="game_transaction">game_transaction</option>
+            <option value="qris_transaction">qris_transaction</option>
+            <option value="store_withdrawal">store_withdrawal</option>
+          </select>
+        </label>
+
         <div class="flex items-end">
           <Button variant="brand" size="lg" onclick={refreshAudit} disabled={refreshing}>
             Refresh Audit
+          </Button>
+        </div>
+      </div>
+
+      <div class="mt-4 grid gap-4 md:grid-cols-[1fr_auto]">
+        <label class="space-y-2">
+          <span class="text-sm font-medium text-ink-700">Action contains</span>
+          <input
+            bind:value={actionQuery}
+            class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300"
+            placeholder="contoh: withdraw, auth.login, store.token"
+            type="text"
+          />
+        </label>
+
+        <div class="flex items-end">
+          <Button
+            variant="outline"
+            size="lg"
+            onclick={() => {
+              actionQuery = '';
+              selectedActorRole = '';
+              selectedTargetType = '';
+              selectedStoreID = '';
+              selectedLimit = 50;
+              void refreshAudit();
+            }}
+          >
+            Reset Filter
           </Button>
         </div>
       </div>
@@ -182,6 +252,7 @@
                 <p class="text-sm text-ink-700">
                   Actor role: <span class="font-semibold text-ink-900">{entry.actor_role}</span>
                 </p>
+                <p class="text-xs text-ink-500">Actor ID: {entry.actor_user_id ?? '-'}</p>
               </div>
 
               <div class="rounded-3xl bg-canvas-100 px-4 py-3 text-sm text-ink-700">

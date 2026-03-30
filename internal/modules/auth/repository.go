@@ -175,7 +175,7 @@ func (r *Repository) ReplaceUserSessions(ctx context.Context, params ReplaceUser
 			$2,
 			'user',
 			$1,
-			'auth.login',
+			'auth.login_success',
 			jsonb_build_object('source', 'dashboard'),
 			$3,
 			$4,

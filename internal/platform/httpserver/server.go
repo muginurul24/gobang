@@ -219,7 +219,10 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 				MinTransactionAmount: cfg.Business.MinTransactionAmount,
 			}),
 		).Register(mux)
-		audit.NewHandler(audit.NewService(audit.NewRepository(deps.DB)), authService).Register(mux)
+		audit.NewHandler(audit.NewService(audit.Options{
+			Repository:      audit.NewRepository(deps.DB),
+			RetentionPeriod: cfg.Audit.RetentionPeriod,
+		}), authService).Register(mux)
 	}
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {

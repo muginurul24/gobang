@@ -1184,9 +1184,9 @@ Tambahkan:
 
 ### Checklist
 
-- [ ] audit coverage penuh
-- [ ] owner scoped viewer
-- [ ] superadmin/dev full viewer
+- [x] audit coverage penuh
+- [x] owner scoped viewer
+- [x] superadmin/dev full viewer
 
 ---
 

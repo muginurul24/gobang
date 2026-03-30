@@ -20,6 +20,9 @@ type LogEntry struct {
 }
 
 type Filter struct {
-	StoreID *string
-	Limit   int
+	StoreID    *string
+	Action     *string
+	ActorRole  *string
+	TargetType *string
+	Limit      int
 }

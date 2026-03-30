@@ -3,6 +3,8 @@ package audit
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -21,10 +23,10 @@ func (r *Repository) ListGlobal(ctx context.Context, filter Filter) ([]LogEntry,
 		SELECT id, actor_user_id, actor_role, store_id, action, target_type, target_id, payload_masked, host(ip_address), user_agent, created_at
 		FROM audit_logs
 	`
-	args := []any{}
-	if filter.StoreID != nil && *filter.StoreID != "" {
-		query += ` WHERE store_id = $1`
-		args = append(args, *filter.StoreID)
+	args := make([]any, 0, 4)
+	clauses, _ := appendFilterClauses(nil, 1, filter, &args)
+	if len(clauses) > 0 {
+		query += " WHERE " + strings.Join(clauses, " AND ")
 	}
 
 	query += fmt.Sprintf(" ORDER BY created_at DESC LIMIT %d", sanitizeLimit(filter.Limit))
@@ -66,9 +68,9 @@ func (r *Repository) ListOwnerScoped(ctx context.Context, ownerUserID string, fi
 		)
 	`
 	args := []any{ownerUserID}
-	if filter.StoreID != nil && *filter.StoreID != "" {
-		query += " AND al.store_id = $2"
-		args = append(args, *filter.StoreID)
+	clauses, _ := appendFilterClauses([]string{}, 2, filter, &args)
+	if len(clauses) > 0 {
+		query += " AND " + strings.Join(clauses, " AND ")
 	}
 
 	query += fmt.Sprintf(" ORDER BY al.created_at DESC LIMIT %d", sanitizeLimit(filter.Limit))
@@ -96,6 +98,18 @@ func (r *Repository) OwnerHasStore(ctx context.Context, ownerUserID string, stor
 	}
 
 	return exists, nil
+}
+
+func (r *Repository) PruneBefore(ctx context.Context, cutoff time.Time) (int64, error) {
+	tag, err := r.pool.Exec(ctx, `
+		DELETE FROM audit_logs
+		WHERE created_at < $1
+	`, cutoff)
+	if err != nil {
+		return 0, fmt.Errorf("prune audit logs: %w", err)
+	}
+
+	return tag.RowsAffected(), nil
 }
 
 func collectLogs(rows pgx.Rows) ([]LogEntry, error) {
@@ -137,4 +151,46 @@ func sanitizeLimit(limit int) int {
 	default:
 		return limit
 	}
+}
+
+func appendFilterClauses(clauses []string, startAt int, filter Filter, args *[]any) ([]string, int) {
+	next := startAt
+
+	if filter.StoreID != nil {
+		clauses = append(clauses, fmt.Sprintf("al.store_id = $%d", next))
+		if startAt == 1 {
+			clauses[len(clauses)-1] = fmt.Sprintf("store_id = $%d", next)
+		}
+		*args = append(*args, *filter.StoreID)
+		next++
+	}
+
+	if filter.Action != nil {
+		clauses = append(clauses, fmt.Sprintf("action ILIKE $%d", next))
+		if startAt != 1 {
+			clauses[len(clauses)-1] = fmt.Sprintf("al.action ILIKE $%d", next)
+		}
+		*args = append(*args, "%"+*filter.Action+"%")
+		next++
+	}
+
+	if filter.ActorRole != nil {
+		clauses = append(clauses, fmt.Sprintf("actor_role = $%d", next))
+		if startAt != 1 {
+			clauses[len(clauses)-1] = fmt.Sprintf("al.actor_role = $%d", next)
+		}
+		*args = append(*args, *filter.ActorRole)
+		next++
+	}
+
+	if filter.TargetType != nil {
+		clauses = append(clauses, fmt.Sprintf("target_type = $%d", next))
+		if startAt != 1 {
+			clauses[len(clauses)-1] = fmt.Sprintf("al.target_type = $%d", next)
+		}
+		*args = append(*args, *filter.TargetType)
+		next++
+	}
+
+	return clauses, next
 }

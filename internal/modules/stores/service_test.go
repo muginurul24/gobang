@@ -44,8 +44,11 @@ func TestCreateStoreGeneratesInitialTokenAndDefaultThreshold(t *testing.T) {
 		t.Fatalf("LowBalanceThreshold = %v, want default threshold", store.LowBalanceThreshold)
 	}
 
-	if len(repository.auditLogs) != 1 || repository.auditLogs[0].action != "store.create" {
-		t.Fatalf("audit logs = %#v, want single store.create entry", repository.auditLogs)
+	if len(repository.auditLogs) != 2 {
+		t.Fatalf("audit logs = %#v, want store.create and store.token_created entries", repository.auditLogs)
+	}
+	if repository.auditLogs[0].action != "store.create" || repository.auditLogs[1].action != "store.token_created" {
+		t.Fatalf("audit logs = %#v, want store.create then store.token_created", repository.auditLogs)
 	}
 }
 

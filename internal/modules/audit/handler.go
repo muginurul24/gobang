@@ -33,6 +33,15 @@ func (h *Handler) handleListLogs(w http.ResponseWriter, r *http.Request) {
 	if storeID := r.URL.Query().Get("store_id"); storeID != "" {
 		filter.StoreID = &storeID
 	}
+	if action := r.URL.Query().Get("action"); action != "" {
+		filter.Action = &action
+	}
+	if actorRole := r.URL.Query().Get("actor_role"); actorRole != "" {
+		filter.ActorRole = &actorRole
+	}
+	if targetType := r.URL.Query().Get("target_type"); targetType != "" {
+		filter.TargetType = &targetType
+	}
 
 	if limit := r.URL.Query().Get("limit"); limit != "" {
 		parsed, err := strconv.Atoi(limit)
