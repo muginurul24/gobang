@@ -643,9 +643,9 @@ Menyediakan catalog lokal untuk validasi.
 - provider/game source lokal siap
 
 ### Checklist
-- [ ] provider sync
-- [ ] game sync
-- [ ] search/filter ada
+- [x] provider sync
+- [x] game sync
+- [x] search/filter ada
 
 ---
 

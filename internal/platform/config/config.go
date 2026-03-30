@@ -8,16 +8,17 @@ import (
 )
 
 type Config struct {
-	App           AppConfig
-	HTTP          HTTPConfig
-	Database      DatabaseConfig
-	Redis         RedisConfig
-	Auth          AuthConfig
-	Business      BusinessConfig
-	QRIS          QRISConfig
-	NexusGGR      NexusGGRConfig
-	Realtime      RealtimeConfig
-	Observability ObservabilityConfig
+	App             AppConfig
+	HTTP            HTTPConfig
+	Database        DatabaseConfig
+	Redis           RedisConfig
+	Auth            AuthConfig
+	Business        BusinessConfig
+	QRIS            QRISConfig
+	NexusGGR        NexusGGRConfig
+	ProviderCatalog ProviderCatalogConfig
+	Realtime        RealtimeConfig
+	Observability   ObservabilityConfig
 }
 
 type AppConfig struct {
@@ -82,6 +83,10 @@ type NexusGGRConfig struct {
 	Timeout    time.Duration
 }
 
+type ProviderCatalogConfig struct {
+	SyncInterval time.Duration
+}
+
 type RealtimeConfig struct {
 	HeartbeatSeconds int
 }
@@ -118,6 +123,11 @@ func Load() (Config, error) {
 	}
 
 	nexusTimeout, err := envDuration("NEXUSGGR_TIMEOUT", 10*time.Second)
+	if err != nil {
+		return Config{}, err
+	}
+
+	providerCatalogSyncInterval, err := envDuration("PROVIDER_CATALOG_SYNC_INTERVAL", 30*time.Minute)
 	if err != nil {
 		return Config{}, err
 	}
@@ -176,6 +186,9 @@ func Load() (Config, error) {
 			AgentCode:  envString("NEXUSGGR_AGENT_CODE", ""),
 			AgentToken: envString("NEXUSGGR_AGENT_TOKEN", ""),
 			Timeout:    nexusTimeout,
+		},
+		ProviderCatalog: ProviderCatalogConfig{
+			SyncInterval: providerCatalogSyncInterval,
 		},
 		Realtime: RealtimeConfig{
 			HeartbeatSeconds: envInt("WS_HEARTBEAT_SECONDS", 30),

@@ -16,6 +16,7 @@
   $: nav = [
     { href: '/app', label: 'Dashboard' },
     { href: '/app/stores', label: 'Stores' },
+    { href: '/app/catalog', label: 'Catalog' },
     { href: '/app/members', label: 'Members' },
     ...(role === 'karyawan'
       ? []

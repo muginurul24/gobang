@@ -40,6 +40,7 @@ func TestLoadDefaults(t *testing.T) {
 		"NEXUSGGR_AGENT_CODE",
 		"NEXUSGGR_AGENT_TOKEN",
 		"NEXUSGGR_TIMEOUT",
+		"PROVIDER_CATALOG_SYNC_INTERVAL",
 		"WS_HEARTBEAT_SECONDS",
 		"METRICS_ENABLED",
 		"PROMETHEUS_PORT",
@@ -79,6 +80,7 @@ func TestLoadOverrides(t *testing.T) {
 	t.Setenv("JWT_ACCESS_TTL", "2h")
 	t.Setenv("STORE_WITHDRAW_PLATFORM_FEE_PERCENT", "10.5")
 	t.Setenv("NEXUSGGR_TIMEOUT", "25s")
+	t.Setenv("PROVIDER_CATALOG_SYNC_INTERVAL", "45m")
 	t.Setenv("METRICS_ENABLED", "false")
 
 	cfg, err := Load()
@@ -104,6 +106,10 @@ func TestLoadOverrides(t *testing.T) {
 
 	if cfg.NexusGGR.Timeout != 25*time.Second {
 		t.Fatalf("NexusGGR.Timeout = %v, want 25s", cfg.NexusGGR.Timeout)
+	}
+
+	if cfg.ProviderCatalog.SyncInterval != 45*time.Minute {
+		t.Fatalf("ProviderCatalog.SyncInterval = %v, want 45m", cfg.ProviderCatalog.SyncInterval)
 	}
 
 	if cfg.Observability.MetricsEnabled {

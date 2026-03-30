@@ -5,11 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"time"
 
+	"github.com/mugiew/onixggr/internal/modules/providercatalog"
 	"github.com/mugiew/onixggr/internal/platform/config"
 	"github.com/mugiew/onixggr/internal/platform/db"
+	"github.com/mugiew/onixggr/internal/platform/nexusggr"
 )
 
 func main() {
@@ -28,6 +31,8 @@ func run(args []string) error {
 		return runMigrate(args[1:])
 	case "seed":
 		return runSeed(args[1:])
+	case "sync":
+		return runSync(args[1:])
 	default:
 		return usageError()
 	}
@@ -100,6 +105,37 @@ func runSeed(args []string) error {
 	})
 }
 
+func runSync(args []string) error {
+	if len(args) != 1 || args[0] != "providers" {
+		return usageError()
+	}
+
+	return withDatabase(func(ctx context.Context, pool *db.Pool) error {
+		cfg, err := config.Load()
+		if err != nil {
+			return fmt.Errorf("load config: %w", err)
+		}
+
+		service := providercatalog.NewService(providercatalog.Options{
+			Repository: providercatalog.NewRepository(pool),
+			Upstream: nexusggr.NewClient(nexusggr.Config{
+				BaseURL:    cfg.NexusGGR.BaseURL,
+				AgentCode:  cfg.NexusGGR.AgentCode,
+				AgentToken: cfg.NexusGGR.AgentToken,
+				Timeout:    cfg.NexusGGR.Timeout,
+			}, slog.Default(), nil),
+		})
+
+		summary, err := service.Sync(ctx)
+		if err != nil {
+			return fmt.Errorf("sync providers: %w", err)
+		}
+
+		log.Printf("sync providers complete: %d provider(s), %d game(s)", summary.ProvidersSynced, summary.GamesSynced)
+		return nil
+	})
+}
+
 func withDatabase(callback func(context.Context, *db.Pool) error) error {
 	cfg, err := config.Load()
 	if err != nil {
@@ -119,5 +155,5 @@ func withDatabase(callback func(context.Context, *db.Pool) error) error {
 }
 
 func usageError() error {
-	return errors.New("usage: go run ./apps/manage migrate <up|down|fresh [--seed]> | go run ./apps/manage seed demo")
+	return errors.New("usage: go run ./apps/manage migrate <up|down|fresh [--seed]> | go run ./apps/manage seed demo | go run ./apps/manage sync providers")
 }

@@ -32,8 +32,10 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `./appctl migrate down`: roll back the last applied migration.
 - `./appctl migrate fresh --seed`: recreate the public schema, apply migrations, then run demo seeds.
 - `./appctl seed demo`: apply SQL seed files from `seeds/demo/`.
+- `./appctl sync providers`: pull provider list and game list from NexusGGR, then upsert the local catalog tables.
 - `./scripts/podman-up.sh`: start PostgreSQL, Redis, API, and web in one command via Podman Compose.
 - `go run ./apps/api`: starts the API and exposes `/health/live` plus `/health/ready`.
+- `go run ./apps/scheduler`: starts the scheduler and periodically refreshes the local provider catalog.
 - `npm run dev:web`: starts the SvelteKit shell with public, auth, and app layouts.
 
 ## Auth Core
@@ -80,6 +82,13 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `store_members` now exists with unique `(store_id, real_username)` plus globally unique immutable `upstream_user_code`.
 - `internal/platform/nexusggr` wraps `provider_list`, `game_list`, `game_launch`, `money_info`, `user_create`, `user_deposit`, `user_withdraw`, `user_withdraw_reset`, and `transfer_status`.
 - NexusGGR business failures are normalized even when upstream still returns HTTP `200`, request/response logs are masked, and `NEXUSGGR_TIMEOUT` controls the transport timeout.
+
+## Provider Catalog
+
+- `GET /v1/catalog/providers`: browse and search synced providers with optional `query`, `status`, and `limit`.
+- `GET /v1/catalog/games`: browse and search synced games with optional `provider_code`, `query`, `status`, and `limit`.
+- `apps/scheduler` now runs periodic provider catalog syncs using `PROVIDER_CATALOG_SYNC_INTERVAL`.
+- The dashboard now includes `/app/catalog` for provider/game browse and filter against the local PostgreSQL catalog.
 
 ## Store API Game Flows
 

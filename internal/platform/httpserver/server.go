@@ -11,6 +11,7 @@ import (
 	"github.com/mugiew/onixggr/internal/modules/bankaccounts"
 	"github.com/mugiew/onixggr/internal/modules/game"
 	"github.com/mugiew/onixggr/internal/modules/ledger"
+	"github.com/mugiew/onixggr/internal/modules/providercatalog"
 	"github.com/mugiew/onixggr/internal/modules/storemembers"
 	"github.com/mugiew/onixggr/internal/modules/stores"
 	"github.com/mugiew/onixggr/internal/platform/bankdirectory"
@@ -93,6 +94,13 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 		).Register(mux)
 		storemembers.NewHandler(
 			storemembers.NewService(storemembers.NewRepository(deps.DB), nil),
+			authService,
+		).Register(mux)
+		providercatalog.NewHandler(
+			providercatalog.NewService(providercatalog.Options{
+				Repository: providercatalog.NewRepository(deps.DB),
+				Upstream:   nexusClient,
+			}),
 			authService,
 		).Register(mux)
 		game.NewHandler(
