@@ -29,7 +29,7 @@ func TestUserCreateSuccess(t *testing.T) {
 		}
 
 		return jsonResponse(http.StatusOK, `{"status":1,"msg":"SUCCESS","user_code":"ABCDEF123456","user_balance":0}`), nil
-	}))
+	}), nil)
 
 	result, err := client.UserCreate(context.Background(), UserCreateInput{
 		UserCode: "ABCDEF123456",
@@ -51,7 +51,7 @@ func TestBusinessFailureNormalizesMsg(t *testing.T) {
 		Timeout:    time.Second,
 	}, slog.New(slog.NewTextHandler(io.Discard, nil)), stubHTTPClient(func(*http.Request) (*http.Response, error) {
 		return jsonResponse(http.StatusOK, `{"status":0,"msg":"Invalid Agent."}`), nil
-	}))
+	}), nil)
 
 	_, err := client.ProviderList(context.Background())
 	var businessErr *BusinessError
@@ -72,7 +72,7 @@ func TestBusinessFailureNormalizesErrorField(t *testing.T) {
 		Timeout:    time.Second,
 	}, slog.New(slog.NewTextHandler(io.Discard, nil)), stubHTTPClient(func(*http.Request) (*http.Response, error) {
 		return jsonResponse(http.StatusOK, `{"status":0,"error":"INVALID_PARAMETER"}`), nil
-	}))
+	}), nil)
 
 	_, err := client.ProviderList(context.Background())
 	var businessErr *BusinessError
@@ -93,7 +93,7 @@ func TestTimeoutIsNormalized(t *testing.T) {
 		Timeout:    10 * time.Millisecond,
 	}, slog.New(slog.NewTextHandler(io.Discard, nil)), stubHTTPClient(func(*http.Request) (*http.Response, error) {
 		return nil, context.DeadlineExceeded
-	}))
+	}), nil)
 
 	_, err := client.ProviderList(context.Background())
 	if !errors.Is(err, ErrTimeout) {
@@ -112,7 +112,7 @@ func TestLogsMaskSensitiveFields(t *testing.T) {
 		Timeout:    time.Second,
 	}, logger, stubHTTPClient(func(*http.Request) (*http.Response, error) {
 		return jsonResponse(http.StatusOK, `{"status":1,"msg":"SUCCESS","agent_balance":1000,"user_balance":500}`), nil
-	}))
+	}), nil)
 
 	_, err := client.UserDeposit(context.Background(), TransferInput{
 		UserCode:  "ABCDEF123456",

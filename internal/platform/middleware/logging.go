@@ -8,6 +8,10 @@ import (
 	"time"
 )
 
+type HTTPMetricsObserver interface {
+	ObserveHTTPRequest(method string, status int, duration time.Duration)
+}
+
 type statusRecorder struct {
 	http.ResponseWriter
 	status int
@@ -34,7 +38,7 @@ func (r *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return hijacker.Hijack()
 }
 
-func Logging(logger *slog.Logger, next http.Handler) http.Handler {
+func Logging(logger *slog.Logger, metrics HTTPMetricsObserver, next http.Handler) http.Handler {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -47,6 +51,11 @@ func Logging(logger *slog.Logger, next http.Handler) http.Handler {
 		}
 
 		next.ServeHTTP(recorder, r)
+		duration := time.Since(startedAt)
+
+		if metrics != nil {
+			metrics.ObserveHTTPRequest(r.Method, recorder.status, duration)
+		}
 
 		logger.Info(
 			"http_request",
@@ -54,7 +63,7 @@ func Logging(logger *slog.Logger, next http.Handler) http.Handler {
 			slog.String("method", r.Method),
 			slog.String("path", r.URL.Path),
 			slog.Int("status", recorder.status),
-			slog.Duration("duration", time.Since(startedAt)),
+			slog.Duration("duration", duration),
 			slog.String("remote_addr", r.RemoteAddr),
 		)
 	})

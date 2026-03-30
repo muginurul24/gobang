@@ -1213,9 +1213,9 @@ Menyiapkan visibilitas sistem.
 
 ### Checklist
 
-- [ ] metrics exported
-- [ ] dashboards basic
-- [ ] provider latency visible
+- [x] metrics exported
+- [x] dashboards basic
+- [x] provider latency visible
 
 ---
 

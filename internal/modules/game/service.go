@@ -55,11 +55,16 @@ type NotificationEmitter interface {
 	Emit(storeID string, eventType string, title string, body string)
 }
 
+type CacheObserver interface {
+	ObserveCacheLookup(cache string, result string)
+}
+
 type Options struct {
 	Repository           RepositoryContract
 	Upstream             UpstreamClient
 	Ledger               LedgerService
 	BalanceCache         BalanceCache
+	CacheObserver        CacheObserver
 	Notifications        NotificationEmitter
 	Clock                clock.Clock
 	MinTransactionAmount int64
@@ -70,6 +75,7 @@ type service struct {
 	upstream             UpstreamClient
 	ledger               LedgerService
 	balanceCache         BalanceCache
+	cacheObserver        CacheObserver
 	notifications        NotificationEmitter
 	clock                clock.Clock
 	codeFactory          func() (string, error)
@@ -105,11 +111,17 @@ func NewService(options Options) Service {
 		notifs = noopNotificationEmitter{}
 	}
 
+	cacheObserver := options.CacheObserver
+	if cacheObserver == nil {
+		cacheObserver = noopCacheObserver{}
+	}
+
 	return &service{
 		repository:           options.Repository,
 		upstream:             upstream,
 		ledger:               ledgerService,
 		balanceCache:         cache,
+		cacheObserver:        cacheObserver,
 		notifications:        notifs,
 		clock:                now,
 		codeFactory:          newUpstreamUserCode,
@@ -163,7 +175,13 @@ func (s *service) GetBalance(ctx context.Context, storeToken string, input Creat
 
 	cached, ok, err := s.balanceCache.Get(ctx, store.ID, member.ID)
 	if err == nil && ok {
+		s.cacheObserver.ObserveCacheLookup("game_balance", "hit")
 		return cached, nil
+	}
+	if err != nil {
+		s.cacheObserver.ObserveCacheLookup("game_balance", "error")
+	} else {
+		s.cacheObserver.ObserveCacheLookup("game_balance", "miss")
 	}
 
 	coalescedKey := store.ID + ":" + member.ID
@@ -937,3 +955,7 @@ func parseLowBalanceThreshold(raw *string) (money, bool) {
 type noopNotificationEmitter struct{}
 
 func (noopNotificationEmitter) Emit(string, string, string, string) {}
+
+type noopCacheObserver struct{}
+
+func (noopCacheObserver) ObserveCacheLookup(string, string) {}

@@ -123,7 +123,7 @@ func runSync(args []string) error {
 				AgentCode:  cfg.NexusGGR.AgentCode,
 				AgentToken: cfg.NexusGGR.AgentToken,
 				Timeout:    cfg.NexusGGR.Timeout,
-			}, slog.Default(), nil),
+			}, slog.Default(), nil, nil),
 		})
 
 		summary, err := service.Sync(ctx)

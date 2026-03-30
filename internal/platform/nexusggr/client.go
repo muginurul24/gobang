@@ -17,12 +17,17 @@ type HTTPClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
+type Observer interface {
+	ObserveUpstream(provider string, operation string, result string, duration time.Duration)
+}
+
 type Client struct {
 	baseURL    string
 	agentCode  string
 	agentToken string
 	httpClient HTTPClient
 	logger     *slog.Logger
+	observer   Observer
 }
 
 type responseEnvelope struct {
@@ -31,7 +36,7 @@ type responseEnvelope struct {
 	Error  string `json:"error"`
 }
 
-func NewClient(cfg Config, logger *slog.Logger, httpClient HTTPClient) *Client {
+func NewClient(cfg Config, logger *slog.Logger, httpClient HTTPClient, observer Observer) *Client {
 	timeout := cfg.Timeout
 	if timeout <= 0 {
 		timeout = 10 * time.Second
@@ -51,6 +56,7 @@ func NewClient(cfg Config, logger *slog.Logger, httpClient HTTPClient) *Client {
 		agentToken: strings.TrimSpace(cfg.AgentToken),
 		httpClient: httpClient,
 		logger:     logger,
+		observer:   observer,
 	}
 }
 
@@ -205,6 +211,7 @@ func (c *Client) invoke(ctx context.Context, method string, payload map[string]a
 	if err != nil {
 		duration := time.Since(startedAt)
 		if errors.Is(err, context.DeadlineExceeded) {
+			c.observe(method, "timeout", duration)
 			c.logger.Warn("nexusggr_timeout",
 				slog.String("method", method),
 				slog.Duration("duration", duration),
@@ -213,6 +220,7 @@ func (c *Client) invoke(ctx context.Context, method string, payload map[string]a
 			return ErrTimeout
 		}
 
+		c.observe(method, "transport_error", duration)
 		c.logger.Error("nexusggr_transport_error",
 			slog.String("method", method),
 			slog.Duration("duration", duration),
@@ -230,6 +238,7 @@ func (c *Client) invoke(ctx context.Context, method string, payload map[string]a
 
 	duration := time.Since(startedAt)
 	if response.StatusCode != http.StatusOK {
+		c.observe(method, "http_error", duration)
 		c.logger.Error("nexusggr_http_error",
 			slog.String("method", method),
 			slog.Int("status_code", response.StatusCode),
@@ -242,6 +251,7 @@ func (c *Client) invoke(ctx context.Context, method string, payload map[string]a
 
 	var envelope responseEnvelope
 	if err := json.Unmarshal(raw, &envelope); err != nil {
+		c.observe(method, "invalid_response", duration)
 		c.logger.Error("nexusggr_invalid_response",
 			slog.String("method", method),
 			slog.Duration("duration", duration),
@@ -253,6 +263,7 @@ func (c *Client) invoke(ctx context.Context, method string, payload map[string]a
 	message := firstNonEmpty(envelope.Msg, envelope.Error)
 	if envelope.Status != 1 {
 		normalized := normalizeBusinessCode(message)
+		c.observe(method, "business_error", duration)
 		c.logger.Warn("nexusggr_business_failure",
 			slog.String("method", method),
 			slog.String("code", normalized),
@@ -273,6 +284,7 @@ func (c *Client) invoke(ctx context.Context, method string, payload map[string]a
 		}
 	}
 
+	c.observe(method, "success", duration)
 	c.logger.Info("nexusggr_request",
 		slog.String("method", method),
 		slog.Duration("duration", duration),
@@ -281,6 +293,14 @@ func (c *Client) invoke(ctx context.Context, method string, payload map[string]a
 	)
 
 	return nil
+}
+
+func (c *Client) observe(method string, result string, duration time.Duration) {
+	if c == nil || c.observer == nil {
+		return
+	}
+
+	c.observer.ObserveUpstream("nexusggr", method, result, duration)
 }
 
 func maskedRequest(method string, payload map[string]any) map[string]any {

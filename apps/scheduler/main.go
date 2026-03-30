@@ -40,7 +40,7 @@ func main() {
 			AgentCode:  cfg.NexusGGR.AgentCode,
 			AgentToken: cfg.NexusGGR.AgentToken,
 			Timeout:    cfg.NexusGGR.Timeout,
-		}, slog.Default(), nil),
+		}, slog.Default(), nil, nil),
 	})
 	auditService := audit.NewService(audit.Options{
 		Repository:      audit.NewRepository(pool),

@@ -53,7 +53,7 @@ func NewProvider(cfg ProviderConfig, directory BankDirectory) Provider {
 		GlobalUUID:           cfg.GlobalUUID,
 		DefaultExpireSeconds: 300,
 		Timeout:              timeout,
-	}, slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
+	}, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil)
 
 	return &qrisProvider{
 		client:       client,

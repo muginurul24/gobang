@@ -6,8 +6,9 @@ import (
 )
 
 type Checker struct {
-	Name  string
-	Check func(context.Context) error
+	Name     string
+	Severity Severity
+	Check    func(context.Context) error
 }
 
 type DependencyStatus struct {
@@ -15,6 +16,13 @@ type DependencyStatus struct {
 	Status string `json:"status"`
 	Error  string `json:"error,omitempty"`
 }
+
+type Severity string
+
+const (
+	SeverityCritical Severity = "critical"
+	SeverityDegraded Severity = "degraded"
+)
 
 type Report struct {
 	Status       string             `json:"status"`
@@ -77,15 +85,31 @@ func (s Service) Readiness(ctx context.Context) Report {
 		err := checker.Check(checkCtx)
 		cancel()
 		if err != nil {
-			dependency.Status = "error"
+			switch checker.severity() {
+			case SeverityDegraded:
+				dependency.Status = "degraded"
+				if report.Status == "ready" {
+					report.Status = "degraded"
+				}
+			default:
+				dependency.Status = "error"
+				report.Status = "not_ready"
+			}
 			dependency.Error = err.Error()
-			report.Status = "not_ready"
 		}
 
 		report.Dependencies = append(report.Dependencies, dependency)
 	}
 
 	return report
+}
+
+func (c Checker) severity() Severity {
+	if c.Severity == "" {
+		return SeverityCritical
+	}
+
+	return c.Severity
 }
 
 func (s Service) timestamp() string {

@@ -55,7 +55,7 @@ func NewInquiryVerifier(cfg InquiryVerifierConfig, directory BankDirectory) Inqu
 			GlobalUUID:           cfg.GlobalUUID,
 			DefaultExpireSeconds: 300,
 			Timeout:              timeout,
-		}, slog.New(slog.NewTextHandler(io.Discard, nil)), nil),
+		}, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil),
 		amount:       cfg.Amount,
 		transferType: cfg.TransferType,
 	}

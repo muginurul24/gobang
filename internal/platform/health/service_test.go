@@ -50,3 +50,22 @@ func TestReadinessReturnsNotReadyWhenDependencyFails(t *testing.T) {
 		t.Fatal("Dependencies[1].Error = empty, want failure message")
 	}
 }
+
+func TestReadinessReturnsDegradedWhenOptionalDependencyFails(t *testing.T) {
+	service := New("onixggr", "test", time.Second, Checker{
+		Name:     "nexusggr",
+		Severity: SeverityDegraded,
+		Check: func(context.Context) error {
+			return errors.New("missing credentials")
+		},
+	})
+
+	report := service.Readiness(context.Background())
+	if report.Status != "degraded" {
+		t.Fatalf("Status = %q, want degraded", report.Status)
+	}
+
+	if len(report.Dependencies) != 1 || report.Dependencies[0].Status != "degraded" {
+		t.Fatalf("Dependencies = %#v, want degraded dependency", report.Dependencies)
+	}
+}

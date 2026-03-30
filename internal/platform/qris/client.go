@@ -19,6 +19,10 @@ type HTTPClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
+type Observer interface {
+	ObserveUpstream(provider string, operation string, result string, duration time.Duration)
+}
+
 type Client struct {
 	baseURL              string
 	client               string
@@ -27,9 +31,10 @@ type Client struct {
 	defaultExpireSeconds int
 	httpClient           HTTPClient
 	logger               *slog.Logger
+	observer             Observer
 }
 
-func NewClient(cfg Config, logger *slog.Logger, httpClient HTTPClient) *Client {
+func NewClient(cfg Config, logger *slog.Logger, httpClient HTTPClient, observer Observer) *Client {
 	timeout := cfg.Timeout
 	if timeout <= 0 {
 		timeout = 10 * time.Second
@@ -55,6 +60,7 @@ func NewClient(cfg Config, logger *slog.Logger, httpClient HTTPClient) *Client {
 		defaultExpireSeconds: defaultExpire,
 		httpClient:           httpClient,
 		logger:               logger,
+		observer:             observer,
 	}
 }
 
@@ -463,6 +469,7 @@ func (c *Client) post(ctx context.Context, path string, payload map[string]any, 
 	if err != nil {
 		duration := time.Since(startedAt)
 		if errors.Is(err, context.DeadlineExceeded) {
+			c.observe(path, "timeout", duration)
 			c.logger.Warn("qris_timeout",
 				slog.String("path", path),
 				slog.Duration("duration", duration),
@@ -471,6 +478,7 @@ func (c *Client) post(ctx context.Context, path string, payload map[string]any, 
 			return nil, ErrTimeout
 		}
 
+		c.observe(path, "transport_error", duration)
 		c.logger.Error("qris_transport_error",
 			slog.String("path", path),
 			slog.Duration("duration", duration),
@@ -488,6 +496,7 @@ func (c *Client) post(ctx context.Context, path string, payload map[string]any, 
 
 	duration := time.Since(startedAt)
 	if response.StatusCode != http.StatusOK {
+		c.observe(path, "http_error", duration)
 		c.logger.Error("qris_http_error",
 			slog.String("path", path),
 			slog.Int("status_code", response.StatusCode),
@@ -498,6 +507,7 @@ func (c *Client) post(ctx context.Context, path string, payload map[string]any, 
 		return nil, fmt.Errorf("%w: %d", ErrUnexpectedHTTP, response.StatusCode)
 	}
 
+	c.observe(path, "success", duration)
 	c.logger.Info("qris_request",
 		slog.String("path", path),
 		slog.Duration("duration", duration),
@@ -506,6 +516,14 @@ func (c *Client) post(ctx context.Context, path string, payload map[string]any, 
 	)
 
 	return raw, nil
+}
+
+func (c *Client) observe(path string, result string, duration time.Duration) {
+	if c == nil || c.observer == nil {
+		return
+	}
+
+	c.observer.ObserveUpstream("qris", path, result, duration)
 }
 
 func (c *Client) resolveUUID(override string) string {

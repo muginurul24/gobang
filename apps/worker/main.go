@@ -44,7 +44,7 @@ func main() {
 			AgentCode:  cfg.NexusGGR.AgentCode,
 			AgentToken: cfg.NexusGGR.AgentToken,
 			Timeout:    cfg.NexusGGR.Timeout,
-		}, slog.Default(), nil),
+		}, slog.Default(), nil, nil),
 		Ledger: ledgerService,
 	})
 	callbackService := callbacks.NewService(callbacks.Options{
@@ -58,7 +58,7 @@ func main() {
 		ClientKey:            cfg.QRIS.ClientKey,
 		GlobalUUID:           cfg.QRIS.GlobalUUID,
 		DefaultExpireSeconds: cfg.QRIS.DefaultExpireSeconds,
-	}, slog.Default(), nil)
+	}, slog.Default(), nil, nil)
 	qrisPaymentService := paymentsqris.NewService(paymentsqris.Options{
 		Repository:          paymentsqris.NewRepository(pool),
 		Ledger:              ledgerService,

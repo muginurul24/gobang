@@ -28,6 +28,7 @@ import (
 	"github.com/mugiew/onixggr/internal/platform/health"
 	"github.com/mugiew/onixggr/internal/platform/middleware"
 	"github.com/mugiew/onixggr/internal/platform/nexusggr"
+	"github.com/mugiew/onixggr/internal/platform/observability"
 	"github.com/mugiew/onixggr/internal/platform/qris"
 	platformrealtime "github.com/mugiew/onixggr/internal/platform/realtime"
 	"github.com/mugiew/onixggr/internal/platform/security"
@@ -40,6 +41,7 @@ type Dependencies struct {
 	DB       *pgxpool.Pool
 	Redis    *goredis.Client
 	Realtime *platformrealtime.Hub
+	Metrics  *observability.Metrics
 }
 
 type infoResponse struct {
@@ -91,14 +93,14 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 			AgentCode:  cfg.NexusGGR.AgentCode,
 			AgentToken: cfg.NexusGGR.AgentToken,
 			Timeout:    cfg.NexusGGR.Timeout,
-		}, deps.Logger, nil)
+		}, deps.Logger, nil, deps.Metrics)
 		qrisClient := qris.NewClient(qris.Config{
 			BaseURL:              cfg.QRIS.BaseURL,
 			Client:               cfg.QRIS.Client,
 			ClientKey:            cfg.QRIS.ClientKey,
 			GlobalUUID:           cfg.QRIS.GlobalUUID,
 			DefaultExpireSeconds: cfg.QRIS.DefaultExpireSeconds,
-		}, deps.Logger, nil)
+		}, deps.Logger, nil, deps.Metrics)
 
 		auth.NewHandler(authService).Register(mux)
 		chat.NewHandler(
@@ -215,6 +217,7 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 				Upstream:             nexusClient,
 				Ledger:               ledgerService,
 				BalanceCache:         game.NewRedisBalanceCache(deps.Redis),
+				CacheObserver:        deps.Metrics,
 				Notifications:        storeNotifier,
 				MinTransactionAmount: cfg.Business.MinTransactionAmount,
 			}),
@@ -236,7 +239,7 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
 		report := deps.Health.Readiness(r.Context())
 		status := http.StatusOK
-		if report.Status != "ready" {
+		if report.Status == "not_ready" {
 			status = http.StatusServiceUnavailable
 		}
 
@@ -246,7 +249,7 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 	mux.HandleFunc("GET /health/ready", func(w http.ResponseWriter, r *http.Request) {
 		report := deps.Health.Readiness(r.Context())
 		status := http.StatusOK
-		if report.Status != "ready" {
+		if report.Status == "not_ready" {
 			status = http.StatusServiceUnavailable
 		}
 
@@ -268,7 +271,7 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 		})
 	})
 
-	return middleware.RequestID(middleware.Logging(deps.Logger, mux))
+	return middleware.RequestID(middleware.Logging(deps.Logger, deps.Metrics, mux))
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {

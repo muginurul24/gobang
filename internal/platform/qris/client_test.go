@@ -32,7 +32,7 @@ func TestGenerateUsesDefaultsAndParsesSuccess(t *testing.T) {
 		}
 
 		return jsonResponse(http.StatusOK, `{"status":true,"data":"000201...","trx_id":"trx-123"}`), nil
-	}))
+	}), nil)
 
 	result, err := client.Generate(context.Background(), GenerateInput{
 		Username: "owner-demo",
@@ -63,7 +63,7 @@ func TestCheckStatusParsesPendingSuccess(t *testing.T) {
 		}
 
 		return jsonResponse(http.StatusOK, `{"amount":1000,"merchant_id":"merchant-uuid","trx_id":"trx-123","status":"pending","created_at":"2024-05-06T09:35:44.000Z","finish_at":"2024-05-06T09:35:44.000Z"}`), nil
-	}))
+	}), nil)
 
 	result, err := client.CheckStatus(context.Background(), CheckStatusInput{TrxID: "trx-123"})
 	if err != nil {
@@ -95,7 +95,7 @@ func TestInquiryTransferParsesSuccess(t *testing.T) {
 		}
 
 		return jsonResponse(http.StatusOK, `{"status":true,"data":{"account_number":"100009689749","account_name":"SISKA DAMAYANTI","bank_code":"542","bank_name":"PT. BANK ARTOS INDONESIA (Bank Jago)","partner_ref_no":"03ce198c","vendor_ref_no":"","amount":700000,"fee":1800,"inquiry_id":2949850}}`), nil
-	}))
+	}), nil)
 
 	result, err := client.InquiryTransfer(context.Background(), InquiryTransferInput{
 		Amount:        700000,
@@ -124,7 +124,7 @@ func TestTransferBusinessFailureNormalizesError(t *testing.T) {
 		Timeout:    time.Second,
 	}, slog.New(slog.NewTextHandler(io.Discard, nil)), stubHTTPClient(func(*http.Request) (*http.Response, error) {
 		return jsonResponse(http.StatusOK, `{"status":false,"error":"Invalid client"}`), nil
-	}))
+	}), nil)
 
 	_, err := client.Transfer(context.Background(), TransferInput{
 		Amount:        25000,
@@ -151,7 +151,7 @@ func TestCheckDisbursementStatusParsesSuccess(t *testing.T) {
 		Timeout:    time.Second,
 	}, slog.New(slog.NewTextHandler(io.Discard, nil)), stubHTTPClient(func(*http.Request) (*http.Response, error) {
 		return jsonResponse(http.StatusOK, `{"amount":25000,"fee":1800,"partner_ref_no":"123444","merchant_uuid":"uuid-toko","status":"success"}`), nil
-	}))
+	}), nil)
 
 	result, err := client.CheckDisbursementStatus(context.Background(), CheckDisbursementStatusInput{
 		PartnerRefNo: "123444",
@@ -193,7 +193,7 @@ func TestLogsMaskSensitiveFields(t *testing.T) {
 		Timeout:    time.Second,
 	}, slog.New(slog.NewTextHandler(&buffer, nil)), stubHTTPClient(func(*http.Request) (*http.Response, error) {
 		return jsonResponse(http.StatusOK, `{"status":true,"data":{"account_number":"100009689749","account_name":"SISKA DAMAYANTI","bank_code":"542","bank_name":"PT. BANK ARTOS INDONESIA (Bank Jago)","partner_ref_no":"03ce198c0d2561c8","vendor_ref_no":"","amount":700000,"fee":1800,"inquiry_id":2949850}}`), nil
-	}))
+	}), nil)
 
 	_, err := client.InquiryTransfer(context.Background(), InquiryTransferInput{
 		Amount:        700000,

@@ -147,6 +147,24 @@ func (h *Hub) Close() error {
 	return closeErr
 }
 
+func (h *Hub) ConnectionCount() int {
+	if h == nil {
+		return 0
+	}
+
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	seen := make(map[*localSubscriber]struct{})
+	for _, channelSubscribers := range h.subscribers {
+		for subscriber := range channelSubscribers {
+			seen[subscriber] = struct{}{}
+		}
+	}
+
+	return len(seen)
+}
+
 func (h *Hub) run(ctx context.Context) {
 	messages := h.pubsub.Channel()
 	for {

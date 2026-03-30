@@ -175,6 +175,13 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - Coverage now includes login success or fail, store lifecycle changes, token create or rotate or revoke-via-rotation, callback URL updates, withdraw request and result, QRIS topup result, and other manual dashboard actions that already flow through domain services.
 - `apps/scheduler` prunes `audit_logs` older than 90 days via `AUDIT_RETENTION_PERIOD` and `AUDIT_PRUNE_INTERVAL`.
 
+## Observability
+
+- When `METRICS_ENABLED=true`, the API also starts a Prometheus exporter on `:${PROMETHEUS_PORT}` with `GET /metrics`.
+- Exported basics now include request count and latency, upstream latency, game balance cache hit or miss, callback queue depth, reconcile backlog, and websocket connection count.
+- Health readiness now distinguishes degraded upstream configuration from hard dependency failure: PostgreSQL or Redis failure keeps `/health/ready` as `503`, while missing QRIS or NexusGGR credentials marks readiness payload as `degraded` but keeps the API bootable.
+- Starter PromQL panels live in [`basic-dashboard.md`](/home/mugiew/project/onixggr/deploy/monitoring/basic-dashboard.md).
+
 ## Store API Game Flows
 
 - `POST /v1/store-api/game/users`: create a game user via Bearer `store_token` with body `{"username":"member-alpha"}`.
