@@ -154,6 +154,12 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `/app/chat` now acts as a realtime diagnostics surface: it shows connection state, subscribed channels, latest events, and a ping action that publishes `realtime.pong` through Redis pub/sub to prove reconnect and fanout wiring.
 - Local tuning uses `WS_HEARTBEAT_SECONDS`. The Vite dev proxy now forwards websocket upgrades on `/v1`, so local web sessions can connect through the same origin in development.
 
+## Dashboard Cards
+
+- `GET /v1/dashboard/cards`: role-aware dashboard aggregate endpoint. Owner or karyawan receives store-scope cards only, while dev or superadmin receives platform-scope cards only.
+- Store cards include total balance, pending QRIS, success today, expired today, and monthly store income from `member_payment.success`.
+- Platform cards include income today or month, total stores, pending withdraw, upstream error rate 24h, and callback failure rate 24h.
+
 ## Store API Game Flows
 
 - `POST /v1/store-api/game/users`: create a game user via Bearer `store_token` with body `{"username":"member-alpha"}`.

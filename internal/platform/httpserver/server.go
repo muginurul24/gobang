@@ -11,6 +11,7 @@ import (
 	"github.com/mugiew/onixggr/internal/modules/auth"
 	"github.com/mugiew/onixggr/internal/modules/bankaccounts"
 	"github.com/mugiew/onixggr/internal/modules/callbacks"
+	"github.com/mugiew/onixggr/internal/modules/dashboard"
 	"github.com/mugiew/onixggr/internal/modules/game"
 	"github.com/mugiew/onixggr/internal/modules/ledger"
 	"github.com/mugiew/onixggr/internal/modules/notifications"
@@ -99,6 +100,12 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 		}, deps.Logger, nil)
 
 		auth.NewHandler(authService).Register(mux)
+		dashboard.NewHandler(
+			dashboard.NewService(dashboard.Options{
+				Repository: dashboard.NewRepository(deps.DB),
+			}),
+			authService,
+		).Register(mux)
 		if deps.Realtime != nil {
 			modulerealtime.NewHandler(
 				modulerealtime.NewService(modulerealtime.Options{

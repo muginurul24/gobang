@@ -1120,9 +1120,9 @@ Dev:
 
 ### Checklist
 
-- [ ] owner/karyawan cards benar
-- [ ] dev cards benar
-- [ ] dev-only metrics hidden dari role lain
+- [x] owner/karyawan cards benar
+- [x] dev cards benar
+- [x] dev-only metrics hidden dari role lain
 
 ---
 
