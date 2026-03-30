@@ -83,6 +83,17 @@ INSERT INTO stores (
 )
 ON CONFLICT (slug) DO NOTHING;
 
+INSERT INTO ledger_accounts (
+  store_id,
+  currency,
+  created_at
+) VALUES (
+  'cccccccc-cccc-cccc-cccc-cccccccccccc',
+  'IDR',
+  now()
+)
+ON CONFLICT (store_id) DO NOTHING;
+
 INSERT INTO store_staff (
   store_id,
   user_id,

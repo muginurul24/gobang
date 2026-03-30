@@ -440,9 +440,9 @@ Buat service:
 - semua mutasi uang nanti sudah punya fondasi benar
 
 ### Checklist
-- [ ] no negative balance
-- [ ] reserve/commit/release
-- [ ] balance_after benar
+- [x] no negative balance
+- [x] reserve/commit/release
+- [x] balance_after benar
 
 ---
 

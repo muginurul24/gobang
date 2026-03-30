@@ -174,8 +174,14 @@ func (r *Repository) IsStoreStaff(ctx context.Context, storeID string, userID st
 }
 
 func (r *Repository) CreateStore(ctx context.Context, params CreateStoreParams) (Store, error) {
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return Store{}, fmt.Errorf("begin create store transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
 	var store Store
-	err := r.pool.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		INSERT INTO stores (
 			owner_user_id,
 			name,
@@ -220,6 +226,17 @@ func (r *Repository) CreateStore(ctx context.Context, params CreateStoreParams) 
 		}
 
 		return Store{}, fmt.Errorf("create store: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO ledger_accounts (store_id, currency, created_at)
+		VALUES ($1, 'IDR', $2)
+	`, store.ID, params.OccurredAt); err != nil {
+		return Store{}, fmt.Errorf("create ledger account for store: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return Store{}, fmt.Errorf("commit create store transaction: %w", err)
 	}
 
 	return store, nil
