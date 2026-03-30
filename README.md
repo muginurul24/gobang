@@ -93,6 +93,13 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `apps/scheduler` now runs periodic provider catalog syncs using `PROVIDER_CATALOG_SYNC_INTERVAL`.
 - The dashboard now includes `/app/catalog` for provider/game browse and filter against the local PostgreSQL catalog.
 
+## QRIS / VA Wrapper
+
+- `internal/platform/qris` now wraps provider calls for `generate`, QRIS `checkstatus/v2`, bank `inquiry`, bank `transfer`, and disbursement `check-status`.
+- The wrapper follows [`docs/API Qris & VA V3.postman_collection.json`](docs/API%20Qris%20%26%20VA%20V3.postman_collection.json), applies `QRIS_DEFAULT_EXPIRE_SECONDS` as the generate fallback, and masks sensitive request/response fields in logs.
+- `ParsePaymentWebhook` and `ParseTransferWebhook` are ready for the later webhook milestones.
+- Saved bank-account verification now reuses the shared QRIS wrapper instead of a second bespoke HTTP client.
+
 ## Store API Game Flows
 
 - `POST /v1/store-api/game/users`: create a game user via Bearer `store_token` with body `{"username":"member-alpha"}`.

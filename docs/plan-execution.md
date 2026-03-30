@@ -691,10 +691,10 @@ Membungkus API QRIS/VA secara rapi.
 - adapter QRIS/VA siap
 
 ### Checklist
-- [ ] generate wrapper
-- [ ] check-status wrapper
-- [ ] inquiry wrapper
-- [ ] transfer wrapper
+- [x] generate wrapper
+- [x] check-status wrapper
+- [x] inquiry wrapper
+- [x] transfer wrapper
 
 ---
 

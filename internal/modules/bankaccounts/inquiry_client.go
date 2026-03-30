@@ -1,15 +1,16 @@
 package bankaccounts
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
-	"net/http"
+	"io"
+	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/mugiew/onixggr/internal/platform/bankdirectory"
+	"github.com/mugiew/onixggr/internal/platform/qris"
 )
 
 type BankDirectory interface {
@@ -46,90 +47,54 @@ func NewInquiryVerifier(cfg InquiryVerifierConfig, directory BankDirectory) Inqu
 		timeout = 10 * time.Second
 	}
 
-	return &httpInquiryVerifier{
-		baseURL:      strings.TrimRight(strings.TrimSpace(cfg.BaseURL), "/"),
-		client:       strings.TrimSpace(cfg.Client),
-		clientKey:    strings.TrimSpace(cfg.ClientKey),
-		globalUUID:   strings.TrimSpace(cfg.GlobalUUID),
+	return &qrisInquiryVerifier{
+		client: qris.NewClient(qris.Config{
+			BaseURL:              cfg.BaseURL,
+			Client:               cfg.Client,
+			ClientKey:            cfg.ClientKey,
+			GlobalUUID:           cfg.GlobalUUID,
+			DefaultExpireSeconds: 300,
+			Timeout:              timeout,
+		}, slog.New(slog.NewTextHandler(io.Discard, nil)), nil),
 		amount:       cfg.Amount,
 		transferType: cfg.TransferType,
-		httpClient:   &http.Client{Timeout: timeout},
 	}
 }
 
-type httpInquiryVerifier struct {
-	baseURL      string
-	client       string
-	clientKey    string
-	globalUUID   string
+type qrisInquiryClient interface {
+	InquiryTransfer(ctx context.Context, input qris.InquiryTransferInput) (qris.InquiryTransferResult, error)
+}
+
+type qrisInquiryVerifier struct {
+	client       qrisInquiryClient
 	amount       int64
 	transferType int
-	httpClient   *http.Client
 }
 
-func (v *httpInquiryVerifier) Verify(ctx context.Context, request InquiryRequest) (InquiryResult, error) {
-	payload := map[string]any{
-		"client":         v.client,
-		"client_key":     v.clientKey,
-		"uuid":           v.globalUUID,
-		"amount":         v.amount,
-		"bank_code":      request.BankCode,
-		"account_number": request.AccountNumber,
-		"type":           v.transferType,
-	}
-
-	body, err := json.Marshal(payload)
+func (v *qrisInquiryVerifier) Verify(ctx context.Context, request InquiryRequest) (InquiryResult, error) {
+	result, err := v.client.InquiryTransfer(ctx, qris.InquiryTransferInput{
+		Amount:        v.amount,
+		BankCode:      request.BankCode,
+		AccountNumber: request.AccountNumber,
+		TransferType:  v.transferType,
+	})
 	if err != nil {
-		return InquiryResult{}, fmt.Errorf("encode inquiry request: %w", err)
-	}
-
-	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, v.baseURL+"/api/inquiry", bytes.NewReader(body))
-	if err != nil {
-		return InquiryResult{}, fmt.Errorf("build inquiry request: %w", err)
-	}
-	httpRequest.Header.Set("Content-Type", "application/json")
-
-	response, err := v.httpClient.Do(httpRequest)
-	if err != nil {
-		return InquiryResult{}, fmt.Errorf("%w: %v", ErrInquiryUnavailable, err)
-	}
-	defer response.Body.Close()
-
-	var envelope struct {
-		Status bool `json:"status"`
-		Data   struct {
-			AccountNumber string `json:"account_number"`
-			AccountName   string `json:"account_name"`
-			BankCode      string `json:"bank_code"`
-			BankName      string `json:"bank_name"`
-		} `json:"data"`
-		Error string `json:"error"`
-	}
-	if err := json.NewDecoder(response.Body).Decode(&envelope); err != nil {
-		return InquiryResult{}, fmt.Errorf("decode inquiry response: %w", err)
-	}
-
-	if response.StatusCode >= http.StatusBadRequest {
-		if strings.TrimSpace(envelope.Error) != "" {
-			return InquiryResult{}, fmt.Errorf("%w: %s", ErrInquiryFailed, envelope.Error)
+		var businessErr *qris.BusinessError
+		switch {
+		case errors.Is(err, qris.ErrTimeout), errors.Is(err, qris.ErrUpstreamUnavailable), errors.Is(err, qris.ErrUnexpectedHTTP), errors.Is(err, qris.ErrNotConfigured):
+			return InquiryResult{}, fmt.Errorf("%w: %v", ErrInquiryUnavailable, err)
+		case errors.As(err, &businessErr):
+			return InquiryResult{}, fmt.Errorf("%w: %s", ErrInquiryFailed, businessErr.Message)
+		default:
+			return InquiryResult{}, fmt.Errorf("%w: %v", ErrInquiryFailed, err)
 		}
-
-		return InquiryResult{}, ErrInquiryFailed
-	}
-
-	if !envelope.Status {
-		if strings.TrimSpace(envelope.Error) != "" {
-			return InquiryResult{}, fmt.Errorf("%w: %s", ErrInquiryFailed, envelope.Error)
-		}
-
-		return InquiryResult{}, ErrInquiryFailed
 	}
 
 	return InquiryResult{
-		BankCode:      strings.TrimSpace(envelope.Data.BankCode),
-		BankName:      strings.TrimSpace(envelope.Data.BankName),
-		AccountNumber: strings.TrimSpace(envelope.Data.AccountNumber),
-		AccountName:   strings.TrimSpace(envelope.Data.AccountName),
+		BankCode:      strings.TrimSpace(result.BankCode),
+		BankName:      strings.TrimSpace(result.BankName),
+		AccountNumber: strings.TrimSpace(result.AccountNumber),
+		AccountName:   strings.TrimSpace(result.AccountName),
 	}, nil
 }
 
