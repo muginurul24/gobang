@@ -32,6 +32,14 @@ func formatAmount(value int64) string {
 }
 
 func newCustomRef() (string, error) {
+	return newCustomRefWithPrefix("TOPUP")
+}
+
+func newMemberPaymentRef() (string, error) {
+	return newCustomRefWithPrefix("MPAY")
+}
+
+func newCustomRefWithPrefix(prefix string) (string, error) {
 	buffer := make([]byte, customRefLength)
 	if _, err := rand.Read(buffer); err != nil {
 		return "", err
@@ -41,7 +49,7 @@ func newCustomRef() (string, error) {
 		buffer[index] = alphabet[int(buffer[index])%len(alphabet)]
 	}
 
-	return "TOPUP" + string(buffer), nil
+	return prefix + string(buffer), nil
 }
 
 func toJSON(payload map[string]any) string {
@@ -116,4 +124,8 @@ func payloadFieldProviderState(payload map[string]any) *ProviderState {
 
 	state := ProviderState(*value)
 	return &state
+}
+
+func normalizeUsername(value string) string {
+	return strings.TrimSpace(value)
 }

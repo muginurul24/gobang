@@ -34,7 +34,7 @@ func TestCreateStoreTopupSuccess(t *testing.T) {
 		Clock:                fixedClock{now: now},
 		DefaultExpireSeconds: 300,
 	}).(*service)
-	service.customRefFactory = func() (string, error) {
+	service.topupRefFactory = func() (string, error) {
 		return "TOPUPFIXED000001", nil
 	}
 
@@ -92,7 +92,7 @@ func TestCreateStoreTopupTimeoutKeepsPending(t *testing.T) {
 		Clock:                fixedClock{now: now},
 		DefaultExpireSeconds: 300,
 	}).(*service)
-	service.customRefFactory = func() (string, error) {
+	service.topupRefFactory = func() (string, error) {
 		return "TOPUPFIXED000002", nil
 	}
 
@@ -138,6 +138,166 @@ func TestListStoreTopupsForKaryawanForbidden(t *testing.T) {
 	}
 }
 
+func TestCreateMemberPaymentSuccess(t *testing.T) {
+	now := time.Date(2026, time.March, 30, 8, 0, 0, 0, time.UTC)
+	repository := &stubRepository{
+		store: StoreScope{
+			ID:            "store-1",
+			OwnerUserID:   "owner-1",
+			OwnerUsername: "owner-demo",
+			Status:        StoreStatusActive,
+		},
+		storeMember: StoreMember{
+			ID:               "member-1",
+			StoreID:          "store-1",
+			RealUsername:     "member-alpha",
+			UpstreamUserCode: "MEMBER000001",
+			Status:           MemberStatusActive,
+		},
+	}
+	upstream := &stubUpstream{
+		result: qris.GenerateResult{
+			RawValue: "0002010102112669member",
+			TrxID:    "trx-member-1",
+		},
+	}
+
+	service := NewService(Options{
+		Repository:           repository,
+		Upstream:             upstream,
+		Clock:                fixedClock{now: now},
+		DefaultExpireSeconds: 300,
+	}).(*service)
+	service.memberPaymentFactory = func() (string, error) {
+		return "MPAYFIXED000001", nil
+	}
+
+	transaction, err := service.CreateMemberPayment(context.Background(), "plain-store-token", CreateMemberPaymentInput{
+		Username: "member-alpha",
+		Amount:   json.Number("25000"),
+	}, auth.RequestMetadata{})
+	if err != nil {
+		t.Fatalf("CreateMemberPayment error = %v", err)
+	}
+
+	if transaction.Type != TransactionTypeMemberPayment {
+		t.Fatalf("transaction.Type = %q, want member_payment", transaction.Type)
+	}
+	if transaction.StoreMemberID == nil || *transaction.StoreMemberID != "member-1" {
+		t.Fatalf("transaction.StoreMemberID = %v, want member-1", transaction.StoreMemberID)
+	}
+	if transaction.PlatformFeeAmount != "0.00" {
+		t.Fatalf("transaction.PlatformFeeAmount = %q, want 0.00", transaction.PlatformFeeAmount)
+	}
+	if transaction.StoreCreditAmount != "0.00" {
+		t.Fatalf("transaction.StoreCreditAmount = %q, want 0.00", transaction.StoreCreditAmount)
+	}
+	if transaction.QRCodeValue == nil || *transaction.QRCodeValue != "0002010102112669member" {
+		t.Fatalf("transaction.QRCodeValue = %v, want member QR payload", transaction.QRCodeValue)
+	}
+	if upstream.lastInput.Username != "MEMBER000001" {
+		t.Fatalf("Generate username = %q, want MEMBER000001", upstream.lastInput.Username)
+	}
+	if upstream.lastInput.CustomRef != "MPAYFIXED000001" {
+		t.Fatalf("Generate custom_ref = %q, want MPAYFIXED000001", upstream.lastInput.CustomRef)
+	}
+}
+
+func TestCreateMemberPaymentAmbiguousCreatesPendingRow(t *testing.T) {
+	now := time.Date(2026, time.March, 30, 8, 0, 0, 0, time.UTC)
+	repository := &stubRepository{
+		store: StoreScope{
+			ID:            "store-1",
+			OwnerUserID:   "owner-1",
+			OwnerUsername: "owner-demo",
+			Status:        StoreStatusActive,
+		},
+		storeMember: StoreMember{
+			ID:               "member-1",
+			StoreID:          "store-1",
+			RealUsername:     "member-alpha",
+			UpstreamUserCode: "MEMBER000001",
+			Status:           MemberStatusActive,
+		},
+	}
+	upstream := &stubUpstream{err: qris.ErrTimeout}
+
+	service := NewService(Options{
+		Repository:           repository,
+		Upstream:             upstream,
+		Clock:                fixedClock{now: now},
+		DefaultExpireSeconds: 300,
+	}).(*service)
+	service.memberPaymentFactory = func() (string, error) {
+		return "MPAYFIXED000002", nil
+	}
+
+	transaction, err := service.CreateMemberPayment(context.Background(), "plain-store-token", CreateMemberPaymentInput{
+		Username: "member-alpha",
+		Amount:   json.Number("15000"),
+	}, auth.RequestMetadata{})
+	if err != nil {
+		t.Fatalf("CreateMemberPayment error = %v", err)
+	}
+
+	if transaction.Status != TransactionStatusPending {
+		t.Fatalf("transaction.Status = %q, want pending", transaction.Status)
+	}
+	if transaction.ProviderState == nil || *transaction.ProviderState != ProviderStatePendingProviderAnswer {
+		t.Fatalf("transaction.ProviderState = %v, want pending_provider_response", transaction.ProviderState)
+	}
+	if transaction.ProviderTrxID != nil {
+		t.Fatalf("transaction.ProviderTrxID = %v, want nil", transaction.ProviderTrxID)
+	}
+	if repository.createCalls != 1 {
+		t.Fatalf("createCalls = %d, want 1", repository.createCalls)
+	}
+	if repository.updateGeneratedCalls != 0 {
+		t.Fatalf("updateGeneratedCalls = %d, want 0", repository.updateGeneratedCalls)
+	}
+}
+
+func TestCreateMemberPaymentHardFailureDoesNotPersistRow(t *testing.T) {
+	now := time.Date(2026, time.March, 30, 8, 0, 0, 0, time.UTC)
+	repository := &stubRepository{
+		store: StoreScope{
+			ID:            "store-1",
+			OwnerUserID:   "owner-1",
+			OwnerUsername: "owner-demo",
+			Status:        StoreStatusActive,
+		},
+		storeMember: StoreMember{
+			ID:               "member-1",
+			StoreID:          "store-1",
+			RealUsername:     "member-alpha",
+			UpstreamUserCode: "MEMBER000001",
+			Status:           MemberStatusActive,
+		},
+	}
+	upstream := &stubUpstream{err: qris.ErrNotConfigured}
+
+	service := NewService(Options{
+		Repository:           repository,
+		Upstream:             upstream,
+		Clock:                fixedClock{now: now},
+		DefaultExpireSeconds: 300,
+	}).(*service)
+	service.memberPaymentFactory = func() (string, error) {
+		return "MPAYFIXED000003", nil
+	}
+
+	_, err := service.CreateMemberPayment(context.Background(), "plain-store-token", CreateMemberPaymentInput{
+		Username: "member-alpha",
+		Amount:   json.Number("15000"),
+	}, auth.RequestMetadata{})
+	if !errors.Is(err, qris.ErrNotConfigured) {
+		t.Fatalf("CreateMemberPayment error = %v, want qris.ErrNotConfigured", err)
+	}
+	if repository.createCalls != 0 {
+		t.Fatalf("createCalls = %d, want 0", repository.createCalls)
+	}
+}
+
 type fixedClock struct {
 	now time.Time
 }
@@ -148,14 +308,23 @@ func (f fixedClock) Now() time.Time {
 
 type stubRepository struct {
 	store                StoreScope
+	storeMember          StoreMember
 	transactions         []QRISTransaction
 	createCalls          int
 	updateGeneratedCalls int
 	updateStatusCalls    int
 }
 
+func (s *stubRepository) AuthenticateStore(context.Context, string) (StoreScope, error) {
+	return s.store, nil
+}
+
 func (s *stubRepository) GetStoreScope(context.Context, string) (StoreScope, error) {
 	return s.store, nil
+}
+
+func (s *stubRepository) FindStoreMemberByUsername(context.Context, string, string) (StoreMember, error) {
+	return s.storeMember, nil
 }
 
 func (s *stubRepository) CreateQRISTransaction(_ context.Context, params CreateQRISTransactionParams) (QRISTransaction, error) {
@@ -164,6 +333,7 @@ func (s *stubRepository) CreateQRISTransaction(_ context.Context, params CreateQ
 	transaction := QRISTransaction{
 		ID:                "qris-1",
 		StoreID:           params.StoreID,
+		StoreMemberID:     params.StoreMemberID,
 		Type:              params.Type,
 		CustomRef:         params.CustomRef,
 		ExternalUsername:  params.ExternalUsername,

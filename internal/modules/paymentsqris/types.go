@@ -14,6 +14,13 @@ const (
 	StoreStatusDeleted  StoreStatus = "deleted"
 )
 
+type MemberStatus string
+
+const (
+	MemberStatusActive   MemberStatus = "active"
+	MemberStatusInactive MemberStatus = "inactive"
+)
+
 type TransactionType string
 
 const (
@@ -49,6 +56,14 @@ type StoreScope struct {
 	DeletedAt     *time.Time
 }
 
+type StoreMember struct {
+	ID               string
+	StoreID          string
+	RealUsername     string
+	UpstreamUserCode string
+	Status           MemberStatus
+}
+
 type QRISTransaction struct {
 	ID                string            `json:"id"`
 	StoreID           string            `json:"store_id"`
@@ -70,6 +85,11 @@ type QRISTransaction struct {
 
 type CreateStoreTopupInput struct {
 	Amount json.Number `json:"amount"`
+}
+
+type CreateMemberPaymentInput struct {
+	Username string      `json:"username"`
+	Amount   json.Number `json:"amount"`
 }
 
 type CreateQRISTransactionParams struct {

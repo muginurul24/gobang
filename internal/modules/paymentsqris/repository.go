@@ -21,6 +21,41 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool}
 }
 
+func (r *Repository) AuthenticateStore(ctx context.Context, tokenHash string) (StoreScope, error) {
+	var store StoreScope
+	err := r.pool.QueryRow(ctx, `
+		SELECT
+			s.id,
+			s.owner_user_id,
+			u.username,
+			s.name,
+			s.slug,
+			s.status,
+			s.deleted_at
+		FROM stores s
+		INNER JOIN users u ON u.id = s.owner_user_id
+		WHERE s.api_token_hash = $1
+		LIMIT 1
+	`, strings.TrimSpace(tokenHash)).Scan(
+		&store.ID,
+		&store.OwnerUserID,
+		&store.OwnerUsername,
+		&store.Name,
+		&store.Slug,
+		&store.Status,
+		&store.DeletedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return StoreScope{}, ErrUnauthorized
+		}
+
+		return StoreScope{}, fmt.Errorf("authenticate store token: %w", err)
+	}
+
+	return store, nil
+}
+
 func (r *Repository) GetStoreScope(ctx context.Context, storeID string) (StoreScope, error) {
 	var store StoreScope
 	err := r.pool.QueryRow(ctx, `
@@ -54,6 +89,36 @@ func (r *Repository) GetStoreScope(ctx context.Context, storeID string) (StoreSc
 	}
 
 	return store, nil
+}
+
+func (r *Repository) FindStoreMemberByUsername(ctx context.Context, storeID string, username string) (StoreMember, error) {
+	var member StoreMember
+	err := r.pool.QueryRow(ctx, `
+		SELECT
+			id,
+			store_id,
+			real_username,
+			upstream_user_code,
+			status
+		FROM store_members
+		WHERE store_id = $1 AND real_username = $2
+		LIMIT 1
+	`, storeID, strings.TrimSpace(username)).Scan(
+		&member.ID,
+		&member.StoreID,
+		&member.RealUsername,
+		&member.UpstreamUserCode,
+		&member.Status,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return StoreMember{}, ErrNotFound
+		}
+
+		return StoreMember{}, fmt.Errorf("find store member by username: %w", err)
+	}
+
+	return member, nil
 }
 
 func (r *Repository) CreateQRISTransaction(ctx context.Context, params CreateQRISTransactionParams) (QRISTransaction, error) {

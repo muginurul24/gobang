@@ -108,6 +108,13 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - Ambiguous generate responses currently stay in `pending` with `provider_state=pending_provider_response`; hard provider/config errors mark the topup `failed` without touching the ledger.
 - `apps/web` now includes `/app/topups` so owners, `dev`, and `superadmin` can generate QRIS topups, render the QR image, and inspect pending, success, failed, or expired history per store.
 
+## Member Payment QRIS
+
+- `POST /v1/store-api/qris/member-payments`: generate QRIS for one existing active store member via Bearer `store_token` with body `{"username":"member-alpha","amount":25000}`.
+- Member-payment QRIS is deliberately separated from dashboard `store_topup`: it authenticates with the store token, validates `real_username`, then sends provider `generate` using the member `upstream_user_code`.
+- The pending row is stored as `type=member_payment` in `qris_transactions`, but `platform_fee_amount` and `store_credit_amount` remain `0` until the later webhook-success milestone applies the 3% platform fee and ledger postings.
+- Ambiguous provider generate responses still create a `pending` row with `provider_state=pending_provider_response`; hard provider/config failures do not post ledger entries and do not finalize success early.
+
 ## Store API Game Flows
 
 - `POST /v1/store-api/game/users`: create a game user via Bearer `store_token` with body `{"username":"member-alpha"}`.

@@ -740,8 +740,8 @@ Menyelesaikan QRIS untuk member payment.
 - member payment QRIS siap dipakai
 
 ### Checklist
-- [ ] dipisah dari store_topup
-- [ ] fee belum diterapkan sampai success
+- [x] dipisah dari store_topup
+- [x] fee belum diterapkan sampai success
 
 ---
 

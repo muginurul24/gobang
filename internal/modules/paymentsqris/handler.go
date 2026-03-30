@@ -23,6 +23,7 @@ func NewHandler(service Service, authService auth.Service) *Handler {
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.Handle("GET /v1/stores/{storeID}/topups/qris", auth.RequireAuth(h.authService, h.handleListStoreTopups()))
 	mux.Handle("POST /v1/stores/{storeID}/topups/qris", auth.RequireAuth(h.authService, h.handleCreateStoreTopup()))
+	mux.Handle("POST /v1/store-api/qris/member-payments", h.handleCreateMemberPayment())
 }
 
 func (h *Handler) handleListStoreTopups() http.Handler {
@@ -72,6 +73,35 @@ func (h *Handler) handleCreateStoreTopup() http.Handler {
 	})
 }
 
+func (h *Handler) handleCreateMemberPayment() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token, ok := bearerToken(r.Header.Get("Authorization"))
+		if !ok {
+			writeEnvelope(w, http.StatusUnauthorized, false, "UNAUTHORIZED", nil)
+			return
+		}
+
+		var input CreateMemberPaymentInput
+		if err := decodeJSONBody(w, r, &input); err != nil {
+			writeEnvelope(w, http.StatusBadRequest, false, "INVALID_REQUEST", nil)
+			return
+		}
+
+		transaction, err := h.service.CreateMemberPayment(r.Context(), token, input, requestMetadata(r))
+		if err != nil {
+			writePaymentError(w, err)
+			return
+		}
+
+		if transaction.ProviderState != nil && *transaction.ProviderState == ProviderStatePendingProviderAnswer {
+			writeEnvelope(w, http.StatusAccepted, true, "PENDING_PROVIDER", transaction)
+			return
+		}
+
+		writeEnvelope(w, http.StatusCreated, true, "SUCCESS", transaction)
+	})
+}
+
 type envelope struct {
 	Status  bool   `json:"status"`
 	Message string `json:"message"`
@@ -92,14 +122,20 @@ func writePaymentError(w http.ResponseWriter, err error) {
 	var businessErr *qris.BusinessError
 
 	switch {
+	case errors.Is(err, ErrUnauthorized):
+		writeEnvelope(w, http.StatusUnauthorized, false, "UNAUTHORIZED", nil)
 	case errors.Is(err, ErrForbidden):
 		writeEnvelope(w, http.StatusForbidden, false, "FORBIDDEN", nil)
 	case errors.Is(err, ErrNotFound):
 		writeEnvelope(w, http.StatusNotFound, false, "NOT_FOUND", nil)
 	case errors.Is(err, ErrStoreInactive):
 		writeEnvelope(w, http.StatusConflict, false, "STORE_INACTIVE", nil)
+	case errors.Is(err, ErrInvalidUsername):
+		writeEnvelope(w, http.StatusBadRequest, false, "INVALID_USERNAME", nil)
 	case errors.Is(err, ErrInvalidAmount):
 		writeEnvelope(w, http.StatusBadRequest, false, "INVALID_AMOUNT", nil)
+	case errors.Is(err, ErrMemberInactive):
+		writeEnvelope(w, http.StatusConflict, false, "MEMBER_INACTIVE", nil)
 	case errors.Is(err, qris.ErrNotConfigured):
 		writeEnvelope(w, http.StatusServiceUnavailable, false, "UPSTREAM_NOT_CONFIGURED", nil)
 	case errors.Is(err, qris.ErrTimeout), errors.Is(err, qris.ErrUpstreamUnavailable), errors.Is(err, qris.ErrUnexpectedHTTP):
@@ -151,4 +187,22 @@ func clientIP(r *http.Request) string {
 	}
 
 	return "0.0.0.0"
+}
+
+func bearerToken(header string) (string, bool) {
+	if header == "" {
+		return "", false
+	}
+
+	prefix, token, found := strings.Cut(header, " ")
+	if !found || !strings.EqualFold(prefix, "Bearer") {
+		return "", false
+	}
+
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return "", false
+	}
+
+	return token, true
 }
