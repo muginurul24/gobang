@@ -569,10 +569,10 @@ Menyelesaikan deposit game.
 - game deposit end-to-end selesai
 
 ### Checklist
-- [ ] insufficient balance reject
-- [ ] duplicate trx_id reject
-- [ ] success debit ledger
-- [ ] timeout pending
+- [x] insufficient balance reject
+- [x] duplicate trx_id reject
+- [x] success debit ledger
+- [x] timeout pending
 
 ---
 

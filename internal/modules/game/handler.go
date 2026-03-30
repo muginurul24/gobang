@@ -20,6 +20,7 @@ func NewHandler(service Service) *Handler {
 
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.Handle("POST /v1/store-api/game/users", h.handleCreateUser())
+	mux.Handle("POST /v1/store-api/game/deposits", h.handleCreateDeposit())
 }
 
 func (h *Handler) handleCreateUser() http.Handler {
@@ -43,6 +44,35 @@ func (h *Handler) handleCreateUser() http.Handler {
 		}
 
 		writeEnvelope(w, http.StatusCreated, true, "SUCCESS", member)
+	})
+}
+
+func (h *Handler) handleCreateDeposit() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token, ok := bearerToken(r.Header.Get("Authorization"))
+		if !ok {
+			writeEnvelope(w, http.StatusUnauthorized, false, "UNAUTHORIZED", nil)
+			return
+		}
+
+		var input CreateDepositInput
+		if err := decodeJSONBody(w, r, &input); err != nil {
+			writeEnvelope(w, http.StatusBadRequest, false, "INVALID_REQUEST", nil)
+			return
+		}
+
+		result, err := h.service.Deposit(r.Context(), token, input, requestMetadata(r))
+		if err != nil {
+			writeGameError(w, err)
+			return
+		}
+
+		if result.Transaction.ReconcileStatus != nil && *result.Transaction.ReconcileStatus == ReconcileStatusPending {
+			writeEnvelope(w, http.StatusAccepted, true, "PENDING_RECONCILE", result)
+			return
+		}
+
+		writeEnvelope(w, http.StatusCreated, true, "SUCCESS", result)
 	})
 }
 
@@ -72,16 +102,22 @@ func writeGameError(w http.ResponseWriter, err error) {
 		writeEnvelope(w, http.StatusForbidden, false, "STORE_INACTIVE", nil)
 	case errors.Is(err, ErrInvalidUsername):
 		writeEnvelope(w, http.StatusBadRequest, false, "INVALID_USERNAME", nil)
+	case errors.Is(err, ErrInvalidAmount):
+		writeEnvelope(w, http.StatusBadRequest, false, "INVALID_AMOUNT", nil)
+	case errors.Is(err, ErrInvalidTransactionID):
+		writeEnvelope(w, http.StatusBadRequest, false, "INVALID_TRX_ID", nil)
 	case errors.Is(err, ErrDuplicateUsername):
 		writeEnvelope(w, http.StatusConflict, false, "DUPLICATE_USERNAME", nil)
+	case errors.Is(err, ErrDuplicateTransactionID):
+		writeEnvelope(w, http.StatusConflict, false, "DUPLICATE_TRX_ID", nil)
+	case errors.Is(err, ErrMemberInactive):
+		writeEnvelope(w, http.StatusConflict, false, "MEMBER_INACTIVE", nil)
+	case errors.Is(err, ErrInsufficientBalance):
+		writeEnvelope(w, http.StatusConflict, false, "INSUFFICIENT_BALANCE", nil)
+	case errors.Is(err, ErrNotFound):
+		writeEnvelope(w, http.StatusNotFound, false, "NOT_FOUND", nil)
 	case errors.Is(err, nexusggr.ErrNotConfigured):
 		writeEnvelope(w, http.StatusServiceUnavailable, false, "UPSTREAM_NOT_CONFIGURED", nil)
-	case errors.Is(err, nexusggr.ErrTimeout):
-		writeEnvelope(w, http.StatusGatewayTimeout, false, "UPSTREAM_TIMEOUT", nil)
-	case errors.Is(err, nexusggr.ErrUpstreamUnavailable):
-		writeEnvelope(w, http.StatusBadGateway, false, "UPSTREAM_UNAVAILABLE", nil)
-	case errors.Is(err, nexusggr.ErrUnexpectedHTTP), errors.Is(err, nexusggr.ErrInvalidResponse):
-		writeEnvelope(w, http.StatusBadGateway, false, "UPSTREAM_INVALID_RESPONSE", nil)
 	case errors.As(err, &businessErr):
 		writeEnvelope(w, http.StatusBadGateway, false, businessErr.Code, nil)
 	default:
@@ -93,6 +129,7 @@ func decodeJSONBody(w http.ResponseWriter, r *http.Request, target any) error {
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 
 	decoder := json.NewDecoder(r.Body)
+	decoder.UseNumber()
 	decoder.DisallowUnknownFields()
 
 	return decoder.Decode(target)

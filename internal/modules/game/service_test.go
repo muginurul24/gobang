@@ -2,10 +2,12 @@ package game
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
 
+	"github.com/mugiew/onixggr/internal/modules/ledger"
 	"github.com/mugiew/onixggr/internal/platform/nexusggr"
 )
 
@@ -22,7 +24,12 @@ func TestCreateUserRejectsDuplicateUsernameBeforeUpstream(t *testing.T) {
 	}
 	upstream := &fakeUpstream{}
 
-	service := NewService(repository, upstream, fixedClock{now: repository.now}).(*service)
+	service := NewService(Options{
+		Repository: repository,
+		Upstream:   upstream,
+		Ledger:     newFakeLedger("100000.00"),
+		Clock:      fixedClock{now: repository.now},
+	}).(*service)
 	service.codeFactory = func() (string, error) {
 		return "ZXCVBN123456", nil
 	}
@@ -43,7 +50,12 @@ func TestCreateUserSavesMappingAfterUpstreamSuccess(t *testing.T) {
 	repository := newFakeRepository(time.Date(2026, 3, 30, 20, 15, 0, 0, time.UTC))
 	upstream := &fakeUpstream{}
 
-	service := NewService(repository, upstream, fixedClock{now: repository.now}).(*service)
+	service := NewService(Options{
+		Repository: repository,
+		Upstream:   upstream,
+		Ledger:     newFakeLedger("100000.00"),
+		Clock:      fixedClock{now: repository.now},
+	}).(*service)
 	service.codeFactory = func() (string, error) {
 		return "Q3RKJ1PC0ZMK", nil
 	}
@@ -79,13 +91,162 @@ func TestCreateUserRejectsInactiveStore(t *testing.T) {
 	repository := newFakeRepository(time.Date(2026, 3, 30, 20, 30, 0, 0, time.UTC))
 	repository.store.Status = "inactive"
 
-	service := NewService(repository, &fakeUpstream{}, fixedClock{now: repository.now})
+	service := NewService(Options{
+		Repository: repository,
+		Upstream:   &fakeUpstream{},
+		Ledger:     newFakeLedger("100000.00"),
+		Clock:      fixedClock{now: repository.now},
+	})
 
 	_, err := service.CreateUser(context.Background(), "store_live_demo", CreateUserInput{
 		Username: "member-gamma",
 	}, RequestMetadata{})
 	if !errors.Is(err, ErrStoreInactive) {
 		t.Fatalf("CreateUser error = %v, want ErrStoreInactive", err)
+	}
+}
+
+func TestDepositRejectsInsufficientBalance(t *testing.T) {
+	repository := newFakeRepository(time.Date(2026, 3, 30, 21, 0, 0, 0, time.UTC))
+	ledgerService := newFakeLedger("4999.00")
+	upstream := &fakeUpstream{}
+
+	service := NewService(Options{
+		Repository:           repository,
+		Upstream:             upstream,
+		Ledger:               ledgerService,
+		Clock:                fixedClock{now: repository.now},
+		MinTransactionAmount: 5000,
+	})
+
+	_, err := service.Deposit(context.Background(), "store_live_demo", CreateDepositInput{
+		Username: "member-demo",
+		Amount:   json.Number("5000"),
+		TrxID:    "trx-insufficient",
+	}, RequestMetadata{})
+	if !errors.Is(err, ErrInsufficientBalance) {
+		t.Fatalf("Deposit error = %v, want ErrInsufficientBalance", err)
+	}
+
+	if upstream.depositCalls != 0 {
+		t.Fatalf("deposit calls = %d, want 0", upstream.depositCalls)
+	}
+}
+
+func TestDepositRejectsDuplicateTransactionID(t *testing.T) {
+	repository := newFakeRepository(time.Date(2026, 3, 30, 21, 10, 0, 0, time.UTC))
+	repository.transactions["existing"] = GameTransaction{
+		ID:            "tx-existing",
+		StoreID:       "store-1",
+		StoreMemberID: "member-1",
+		Action:        GameActionDeposit,
+		TrxID:         "trx-duplicate",
+		Amount:        "5000.00",
+		Status:        TransactionStatusSuccess,
+	}
+	upstream := &fakeUpstream{}
+
+	service := NewService(Options{
+		Repository:           repository,
+		Upstream:             upstream,
+		Ledger:               newFakeLedger("100000.00"),
+		Clock:                fixedClock{now: repository.now},
+		MinTransactionAmount: 5000,
+	})
+
+	_, err := service.Deposit(context.Background(), "store_live_demo", CreateDepositInput{
+		Username: "member-demo",
+		Amount:   json.Number("5000"),
+		TrxID:    "trx-duplicate",
+	}, RequestMetadata{})
+	if !errors.Is(err, ErrDuplicateTransactionID) {
+		t.Fatalf("Deposit error = %v, want ErrDuplicateTransactionID", err)
+	}
+
+	if upstream.depositCalls != 0 {
+		t.Fatalf("deposit calls = %d, want 0", upstream.depositCalls)
+	}
+}
+
+func TestDepositSuccessDebitsLedger(t *testing.T) {
+	repository := newFakeRepository(time.Date(2026, 3, 30, 21, 20, 0, 0, time.UTC))
+	upstream := &fakeUpstream{}
+	ledgerService := newFakeLedger("100000.00")
+
+	service := NewService(Options{
+		Repository:           repository,
+		Upstream:             upstream,
+		Ledger:               ledgerService,
+		Clock:                fixedClock{now: repository.now},
+		MinTransactionAmount: 5000,
+	}).(*service)
+	service.agentSignFactory = func() (string, error) {
+		return "AGTDEPOSIT000001", nil
+	}
+
+	result, err := service.Deposit(context.Background(), "store_live_demo", CreateDepositInput{
+		Username: "member-demo",
+		Amount:   json.Number("5000"),
+		TrxID:    "trx-success",
+	}, RequestMetadata{
+		IPAddress: "127.0.0.1",
+		UserAgent: "game-deposit-test",
+	})
+	if err != nil {
+		t.Fatalf("Deposit returned error: %v", err)
+	}
+
+	if result.Transaction.Status != TransactionStatusSuccess {
+		t.Fatalf("Transaction.Status = %s, want success", result.Transaction.Status)
+	}
+
+	if ledgerService.commitCalls != 1 {
+		t.Fatalf("commit calls = %d, want 1", ledgerService.commitCalls)
+	}
+
+	if result.Balance == nil || result.Balance.CurrentBalance != "95000.00" {
+		t.Fatalf("Balance.CurrentBalance = %#v, want 95000.00", result.Balance)
+	}
+}
+
+func TestDepositTimeoutMovesToPendingReconcile(t *testing.T) {
+	repository := newFakeRepository(time.Date(2026, 3, 30, 21, 30, 0, 0, time.UTC))
+	upstream := &fakeUpstream{depositErr: nexusggr.ErrTimeout}
+	ledgerService := newFakeLedger("100000.00")
+
+	service := NewService(Options{
+		Repository:           repository,
+		Upstream:             upstream,
+		Ledger:               ledgerService,
+		Clock:                fixedClock{now: repository.now},
+		MinTransactionAmount: 5000,
+	}).(*service)
+	service.agentSignFactory = func() (string, error) {
+		return "AGTTIMEOUT000001", nil
+	}
+
+	result, err := service.Deposit(context.Background(), "store_live_demo", CreateDepositInput{
+		Username: "member-demo",
+		Amount:   json.Number("5000"),
+		TrxID:    "trx-timeout",
+	}, RequestMetadata{
+		IPAddress: "127.0.0.1",
+		UserAgent: "game-timeout-test",
+	})
+	if err != nil {
+		t.Fatalf("Deposit returned error: %v", err)
+	}
+
+	if result.Transaction.ReconcileStatus == nil || *result.Transaction.ReconcileStatus != ReconcileStatusPending {
+		t.Fatalf("ReconcileStatus = %#v, want pending_reconcile", result.Transaction.ReconcileStatus)
+	}
+
+	if ledgerService.releaseCalls != 0 {
+		t.Fatalf("release calls = %d, want 0", ledgerService.releaseCalls)
+	}
+
+	if repository.auditActions[len(repository.auditActions)-1] != "game.deposit_pending_reconcile" {
+		t.Fatalf("last audit action = %q, want game.deposit_pending_reconcile", repository.auditActions[len(repository.auditActions)-1])
 	}
 }
 
@@ -101,8 +262,8 @@ type fakeRepository struct {
 	now          time.Time
 	store        StoreScope
 	members      map[string]StoreMember
+	transactions map[string]GameTransaction
 	auditActions []string
-	sequence     int
 }
 
 func newFakeRepository(now time.Time) *fakeRepository {
@@ -115,7 +276,18 @@ func newFakeRepository(now time.Time) *fakeRepository {
 			Slug:        "demo-store",
 			Status:      StoreStatusActive,
 		},
-		members: map[string]StoreMember{},
+		members: map[string]StoreMember{
+			"member-1": {
+				ID:               "member-1",
+				StoreID:          "store-1",
+				RealUsername:     "member-demo",
+				UpstreamUserCode: "MEMBER000001",
+				Status:           MemberStatusActive,
+				CreatedAt:        now,
+				UpdatedAt:        now,
+			},
+		},
+		transactions: map[string]GameTransaction{},
 	}
 }
 
@@ -158,7 +330,6 @@ func (r *fakeRepository) CreateStoreMember(_ context.Context, params CreateStore
 		}
 	}
 
-	r.sequence++
 	member := StoreMember{
 		ID:               "member-created",
 		StoreID:          params.StoreID,
@@ -172,14 +343,70 @@ func (r *fakeRepository) CreateStoreMember(_ context.Context, params CreateStore
 	return member, nil
 }
 
-func (r *fakeRepository) InsertAuditLog(_ context.Context, _ string, action string, _ *string, _ map[string]any, _ string, _ string, _ time.Time) error {
+func (r *fakeRepository) FindGameTransactionByTrxID(_ context.Context, storeID string, trxID string) (GameTransaction, error) {
+	for _, transaction := range r.transactions {
+		if transaction.StoreID == storeID && transaction.TrxID == trxID {
+			return transaction, nil
+		}
+	}
+
+	return GameTransaction{}, ErrNotFound
+}
+
+func (r *fakeRepository) CreateGameTransaction(_ context.Context, params CreateGameTransactionParams) (GameTransaction, error) {
+	for _, transaction := range r.transactions {
+		if transaction.StoreID == params.StoreID && transaction.TrxID == params.TrxID {
+			return GameTransaction{}, ErrDuplicateTransactionID
+		}
+		if transaction.AgentSign == params.AgentSign {
+			return GameTransaction{}, ErrAgentSignExhausted
+		}
+	}
+
+	transaction := GameTransaction{
+		ID:               "transaction-created",
+		StoreID:          params.StoreID,
+		StoreMemberID:    params.StoreMemberID,
+		Action:           params.Action,
+		TrxID:            params.TrxID,
+		UpstreamUserCode: params.UpstreamUserCode,
+		Amount:           params.Amount,
+		AgentSign:        params.AgentSign,
+		Status:           params.Status,
+		CreatedAt:        params.OccurredAt,
+		UpdatedAt:        params.OccurredAt,
+	}
+	r.transactions[transaction.ID] = transaction
+	return transaction, nil
+}
+
+func (r *fakeRepository) UpdateGameTransaction(_ context.Context, params UpdateGameTransactionParams) (GameTransaction, error) {
+	transaction, ok := r.transactions[params.GameTransactionID]
+	if !ok {
+		return GameTransaction{}, ErrNotFound
+	}
+
+	transaction.Status = params.Status
+	transaction.ReconcileStatus = params.ReconcileStatus
+	transaction.UpstreamErrorCode = params.UpstreamErrorCode
+	transaction.UpdatedAt = params.OccurredAt
+	if params.UpstreamResponseMasked != nil {
+		transaction.UpstreamResponse = json.RawMessage(toJSON(params.UpstreamResponseMasked))
+	}
+	r.transactions[transaction.ID] = transaction
+	return transaction, nil
+}
+
+func (r *fakeRepository) InsertAuditLog(_ context.Context, _ string, action string, _ string, _ *string, _ map[string]any, _ string, _ string, _ time.Time) error {
 	r.auditActions = append(r.auditActions, action)
 	return nil
 }
 
 type fakeUpstream struct {
-	calls int
-	err   error
+	calls        int
+	err          error
+	depositCalls int
+	depositErr   error
 }
 
 func (u *fakeUpstream) UserCreate(_ context.Context, input nexusggr.UserCreateInput) (nexusggr.UserCreateResult, error) {
@@ -191,5 +418,99 @@ func (u *fakeUpstream) UserCreate(_ context.Context, input nexusggr.UserCreateIn
 	return nexusggr.UserCreateResult{
 		Message:  "SUCCESS",
 		UserCode: input.UserCode,
+	}, nil
+}
+
+func (u *fakeUpstream) UserDeposit(_ context.Context, input nexusggr.TransferInput) (nexusggr.TransferResult, error) {
+	u.depositCalls++
+	if u.depositErr != nil {
+		return nexusggr.TransferResult{}, u.depositErr
+	}
+
+	return nexusggr.TransferResult{
+		Message:      "SUCCESS",
+		AgentBalance: 250000,
+		UserBalance:  input.Amount,
+	}, nil
+}
+
+type fakeLedger struct {
+	balance      ledger.BalanceSnapshot
+	reserveCalls int
+	commitCalls  int
+	releaseCalls int
+}
+
+func newFakeLedger(available string) *fakeLedger {
+	return &fakeLedger{
+		balance: ledger.BalanceSnapshot{
+			StoreID:          "store-1",
+			LedgerAccountID:  "ledger-1",
+			Currency:         "IDR",
+			CurrentBalance:   available,
+			ReservedAmount:   "0.00",
+			AvailableBalance: available,
+		},
+	}
+}
+
+func (l *fakeLedger) GetBalance(_ context.Context, _ string) (ledger.BalanceSnapshot, error) {
+	return l.balance, nil
+}
+
+func (l *fakeLedger) Reserve(_ context.Context, _ string, input ledger.ReserveInput) (ledger.ReservationResult, error) {
+	l.reserveCalls++
+	available, _ := parseMoney(l.balance.AvailableBalance)
+	amount, _ := parseMoney(input.Amount)
+	if available.LessThan(amount) {
+		return ledger.ReservationResult{}, ledger.ErrInsufficientFunds
+	}
+
+	l.balance.ReservedAmount = amount.String()
+	l.balance.AvailableBalance = available.Sub(amount).String()
+	return ledger.ReservationResult{
+		Balance: ledger.BalanceSnapshot{
+			StoreID:          l.balance.StoreID,
+			LedgerAccountID:  l.balance.LedgerAccountID,
+			Currency:         l.balance.Currency,
+			CurrentBalance:   l.balance.CurrentBalance,
+			ReservedAmount:   l.balance.ReservedAmount,
+			AvailableBalance: l.balance.AvailableBalance,
+		},
+	}, nil
+}
+
+func (l *fakeLedger) CommitReservation(_ context.Context, _ string, input ledger.CommitReservationInput) (ledger.CommitReservationResult, error) {
+	l.commitCalls++
+	amount, _ := parseMoney(input.Entries[0].Amount)
+	current, _ := parseMoney(l.balance.CurrentBalance)
+	l.balance.CurrentBalance = current.Sub(amount).String()
+	l.balance.ReservedAmount = "0.00"
+	l.balance.AvailableBalance = l.balance.CurrentBalance
+	return ledger.CommitReservationResult{
+		Balance: ledger.BalanceSnapshot{
+			StoreID:          l.balance.StoreID,
+			LedgerAccountID:  l.balance.LedgerAccountID,
+			Currency:         l.balance.Currency,
+			CurrentBalance:   l.balance.CurrentBalance,
+			ReservedAmount:   l.balance.ReservedAmount,
+			AvailableBalance: l.balance.AvailableBalance,
+		},
+	}, nil
+}
+
+func (l *fakeLedger) ReleaseReservation(_ context.Context, _ string, _ ledger.ReleaseReservationInput) (ledger.ReservationResult, error) {
+	l.releaseCalls++
+	l.balance.ReservedAmount = "0.00"
+	l.balance.AvailableBalance = l.balance.CurrentBalance
+	return ledger.ReservationResult{
+		Balance: ledger.BalanceSnapshot{
+			StoreID:          l.balance.StoreID,
+			LedgerAccountID:  l.balance.LedgerAccountID,
+			Currency:         l.balance.Currency,
+			CurrentBalance:   l.balance.CurrentBalance,
+			ReservedAmount:   l.balance.ReservedAmount,
+			AvailableBalance: l.balance.AvailableBalance,
+		},
 	}, nil
 }

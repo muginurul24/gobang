@@ -10,6 +10,7 @@ import (
 	"github.com/mugiew/onixggr/internal/modules/auth"
 	"github.com/mugiew/onixggr/internal/modules/bankaccounts"
 	"github.com/mugiew/onixggr/internal/modules/game"
+	"github.com/mugiew/onixggr/internal/modules/ledger"
 	"github.com/mugiew/onixggr/internal/modules/storemembers"
 	"github.com/mugiew/onixggr/internal/modules/stores"
 	"github.com/mugiew/onixggr/internal/platform/bankdirectory"
@@ -55,6 +56,7 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 			TOTPEnrollmentTTL: cfg.Auth.TOTPEnrollmentTTL,
 		})
 		banks := bankdirectory.MustLoadDefault()
+		ledgerService := ledger.NewService(ledger.NewRepository(deps.DB))
 		nexusClient := nexusggr.NewClient(nexusggr.Config{
 			BaseURL:    cfg.NexusGGR.BaseURL,
 			AgentCode:  cfg.NexusGGR.AgentCode,
@@ -94,7 +96,12 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 			authService,
 		).Register(mux)
 		game.NewHandler(
-			game.NewService(game.NewRepository(deps.DB), nexusClient, nil),
+			game.NewService(game.Options{
+				Repository:           game.NewRepository(deps.DB),
+				Upstream:             nexusClient,
+				Ledger:               ledgerService,
+				MinTransactionAmount: cfg.Business.MinTransactionAmount,
+			}),
 		).Register(mux)
 		audit.NewHandler(audit.NewService(audit.NewRepository(deps.DB)), authService).Register(mux)
 	}
