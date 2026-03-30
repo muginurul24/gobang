@@ -179,6 +179,49 @@ func TestRotateStoreTokenBlocksDevVisibility(t *testing.T) {
 	}
 }
 
+func TestRotateStoreTokenRehashesTokenAndWritesAuditTrail(t *testing.T) {
+	now := time.Date(2026, 3, 30, 14, 5, 0, 0, time.UTC)
+	repository := newFakeRepository(now)
+	repository.stores["store-1"] = Store{
+		ID:          "store-1",
+		OwnerUserID: "owner-1",
+		Name:        "Scoped Store",
+		Slug:        "scoped-store",
+		Status:      StatusActive,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	service := NewService(repository, fakePasswordHasher{}, fixedClock{now: now}, 150000).(*service)
+	service.tokenFactory = func() (string, error) {
+		return "store_live_rotated_token", nil
+	}
+
+	token, err := service.RotateStoreToken(context.Background(), auth.Subject{
+		UserID: "owner-1",
+		Role:   auth.RoleOwner,
+	}, "store-1", auth.RequestMetadata{
+		IPAddress: "127.0.0.1",
+		UserAgent: "stores-test",
+	})
+	if err != nil {
+		t.Fatalf("RotateStoreToken returned error: %v", err)
+	}
+
+	if token.Token != "store_live_rotated_token" {
+		t.Fatalf("token = %q, want store_live_rotated_token", token.Token)
+	}
+	if repository.lastRotate.APITokenHash != security.HashStoreToken("store_live_rotated_token") {
+		t.Fatalf("lastRotate.APITokenHash = %q, want rotated token hash", repository.lastRotate.APITokenHash)
+	}
+	if len(repository.auditLogs) != 2 {
+		t.Fatalf("audit logs = %#v, want token_rotated and token_revoked", repository.auditLogs)
+	}
+	if repository.auditLogs[0].action != "store.token_rotated" || repository.auditLogs[1].action != "store.token_revoked" {
+		t.Fatalf("audit logs = %#v, want token_rotated then token_revoked", repository.auditLogs)
+	}
+}
+
 type fixedClock struct {
 	now time.Time
 }
@@ -200,6 +243,7 @@ type fakeRepository struct {
 	employees        map[string]StaffUser
 	storeStaff       map[string][]StaffUser
 	lastCreatedStore CreateStoreParams
+	lastRotate       RotateTokenParams
 	auditLogs        []fakeAuditLog
 }
 
@@ -310,6 +354,7 @@ func (r *fakeRepository) RotateToken(_ context.Context, params RotateTokenParams
 		return ErrNotFound
 	}
 
+	r.lastRotate = params
 	return nil
 }
 

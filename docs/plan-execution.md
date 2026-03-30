@@ -1329,9 +1329,9 @@ Test:
 
 ### Checklist
 
-- [ ] all money flows tested
-- [ ] timeout tested
-- [ ] duplicate tested
+- [x] all money flows tested
+- [x] timeout tested
+- [x] duplicate tested
 
 ---
 

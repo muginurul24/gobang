@@ -68,6 +68,59 @@ func TestLoginRequiresSecondFactorWhenTOTPEnabled(t *testing.T) {
 	}
 }
 
+func TestLoginReplacesPreviousSessionForSameUser(t *testing.T) {
+	service, repository, sessions, _, _ := newTestService(t)
+
+	first, err := service.Login(context.Background(), LoginInput{
+		Login:    "owner@example.com",
+		Password: "OwnerDemo123!",
+		RequestMetadata: RequestMetadata{
+			IPAddress: "127.0.0.1",
+			UserAgent: "test-agent-1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("first Login returned error: %v", err)
+	}
+
+	second, err := service.Login(context.Background(), LoginInput{
+		Login:    "owner@example.com",
+		Password: "OwnerDemo123!",
+		RequestMetadata: RequestMetadata{
+			IPAddress: "127.0.0.2",
+			UserAgent: "test-agent-2",
+		},
+	})
+	if err != nil {
+		t.Fatalf("second Login returned error: %v", err)
+	}
+
+	if first.SessionJTI == second.SessionJTI {
+		t.Fatalf("SessionJTI = %q, want rotated session on second login", second.SessionJTI)
+	}
+	if len(repository.sessions) != 1 {
+		t.Fatalf("active repository sessions = %d, want 1", len(repository.sessions))
+	}
+	if len(sessions.states) != 1 {
+		t.Fatalf("active redis sessions = %d, want 1", len(sessions.states))
+	}
+	if _, ok := repository.sessions[first.SessionJTI]; ok {
+		t.Fatalf("old session %q still active in repository", first.SessionJTI)
+	}
+	if _, ok := sessions.states[first.SessionJTI]; ok {
+		t.Fatalf("old session %q still active in redis store", first.SessionJTI)
+	}
+	if archived, ok := repository.archived[first.SessionJTI]; !ok || archived.RevokedAt == nil {
+		t.Fatalf("archived session = %#v, want revoked old session", archived)
+	}
+	if _, ok := repository.sessions[second.SessionJTI]; !ok {
+		t.Fatalf("new session %q missing from repository", second.SessionJTI)
+	}
+	if _, ok := sessions.states[second.SessionJTI]; !ok {
+		t.Fatalf("new session %q missing from redis store", second.SessionJTI)
+	}
+}
+
 func TestLoginConsumesRecoveryCodeOnce(t *testing.T) {
 	service, repository, _, _, _ := newTestService(t)
 	user := repository.usersByID["user-owner"]
