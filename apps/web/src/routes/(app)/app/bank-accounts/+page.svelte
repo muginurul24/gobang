@@ -2,6 +2,9 @@
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
 
+  import EmptyState from '$lib/components/app/empty-state.svelte';
+  import Notice from '$lib/components/app/notice.svelte';
+  import PageSkeleton from '$lib/components/app/page-skeleton.svelte';
   import Button from '$lib/components/ui/button/button.svelte';
   import { authSession, hydrateAuthSession } from '$lib/auth/client';
   import {
@@ -13,6 +16,12 @@
     updateBankAccountStatus
   } from '$lib/bank-accounts/client';
   import { fetchStores, type Store } from '$lib/stores/client';
+  import {
+    hydratePreferredStoreID,
+    pickPreferredStoreID,
+    preferredStoreID,
+    setPreferredStoreID
+  } from '$lib/stores/preferences';
 
   let loading = true;
   let busy = false;
@@ -25,16 +34,61 @@
   let bankResults: BankDirectoryEntry[] = [];
   let selectedBank: BankDirectoryEntry | null = null;
   let accountNumber = '';
+  let savedAccountSearchTerm = '';
 
-  onMount(async () => {
-    hydrateAuthSession();
-
-    if (!$authSession) {
-      await goto('/login');
-      return;
+  $: normalizedSavedAccountSearch = savedAccountSearchTerm.trim().toLowerCase();
+  $: bankQueryNote =
+    bankQuery.trim() === ''
+      ? 'Kosongkan untuk melihat shortlist bank awal, atau isi kode/nama bank spesifik.'
+      : 'Pencarian mendukung bank code atau nama bank RTOL.';
+  $: accountNumberError =
+    accountNumber.trim() !== '' && !/^[0-9]{6,30}$/.test(accountNumber.trim())
+      ? 'Nomor rekening harus numerik dengan panjang 6 sampai 30 digit.'
+      : '';
+  $: filteredBankAccounts = bankAccounts.filter((bankAccount) => {
+    if (normalizedSavedAccountSearch === '') {
+      return true;
     }
 
-    await loadStoresAndAccounts();
+    return (
+      bankAccount.bank_name.toLowerCase().includes(normalizedSavedAccountSearch) ||
+      bankAccount.bank_code.toLowerCase().includes(normalizedSavedAccountSearch) ||
+      bankAccount.account_name.toLowerCase().includes(normalizedSavedAccountSearch) ||
+      bankAccount.account_number_masked.toLowerCase().includes(normalizedSavedAccountSearch)
+    );
+  });
+
+  onMount(() => {
+    let active = true;
+    hydratePreferredStoreID();
+    const unsubscribe = preferredStoreID.subscribe(async (storeID) => {
+      if (!active || loading || stores.length === 0) {
+        return;
+      }
+
+      if (storeID !== '' && storeID !== selectedStoreID && stores.some((store) => store.id === storeID)) {
+        selectedStoreID = storeID;
+        errorMessage = '';
+        successMessage = '';
+        await loadBankAccounts();
+      }
+    });
+
+    void (async () => {
+      hydrateAuthSession();
+
+      if (!$authSession) {
+        await goto('/login');
+        return;
+      }
+
+      await loadStoresAndAccounts();
+    })();
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   });
 
   async function loadStoresAndAccounts() {
@@ -61,9 +115,8 @@
       return;
     }
 
-    if (selectedStoreID === '' || !stores.some((store) => store.id === selectedStoreID)) {
-      selectedStoreID = stores[0].id;
-    }
+    selectedStoreID = pickPreferredStoreID(stores, selectedStoreID);
+    setPreferredStoreID(selectedStoreID);
 
     await loadBankAccounts();
     await runBankSearch();
@@ -107,12 +160,23 @@
 
   async function changeStore(storeID: string) {
     selectedStoreID = storeID;
+    setPreferredStoreID(selectedStoreID);
     await loadBankAccounts();
   }
 
   async function submitCreateBankAccount() {
     if (selectedStoreID === '' || !selectedBank) {
       errorMessage = 'Pilih toko dan bank tujuan terlebih dahulu.';
+      return;
+    }
+
+    if (accountNumber.trim() === '') {
+      errorMessage = 'Nomor rekening wajib diisi sebelum inquiry.';
+      return;
+    }
+
+    if (accountNumberError !== '') {
+      errorMessage = accountNumberError;
       return;
     }
 
@@ -209,9 +273,7 @@
 </svelte:head>
 
 {#if loading}
-  <div class="glass-panel rounded-4xl p-6">
-    <p class="text-sm text-ink-700">Memuat daftar bank RTOL dan rekening tujuan withdraw...</p>
-  </div>
+  <PageSkeleton blocks={4} />
 {:else}
   <div class="space-y-6">
     <section class="glass-panel rounded-4xl p-6">
@@ -239,25 +301,27 @@
     </section>
 
     {#if errorMessage}
-      <div class="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-        {errorMessage}
-      </div>
+      <Notice tone="error" title="Rekening belum bisa diproses" message={errorMessage} />
     {/if}
 
     {#if successMessage}
-      <div class="rounded-3xl border border-brand-200 bg-brand-100/60 px-4 py-3 text-sm text-brand-700">
-        {successMessage}
-      </div>
+      <Notice tone="success" title="Rekening tersimpan" message={successMessage} />
     {/if}
 
     {#if !canUseBankAccounts()}
-      <div class="glass-panel rounded-4xl p-6 text-sm text-ink-700">
-        Role ini tidak bisa mengelola rekening tujuan withdraw.
-      </div>
+      <EmptyState
+        eyebrow="Role Scope"
+        title="Role ini tidak bisa mengelola rekening tujuan"
+        body="Rekening withdraw hanya boleh diubah oleh owner, dev, dan superadmin agar data payout tidak bocor ke role yang tidak relevan."
+      />
     {:else if stores.length === 0}
-      <div class="glass-panel rounded-4xl p-6 text-sm text-ink-700">
-        Belum ada toko untuk dihubungkan dengan rekening withdraw.
-      </div>
+      <EmptyState
+        eyebrow="Bank Accounts"
+        title="Belum ada toko untuk dihubungkan"
+        body="Tambahkan toko lebih dulu sebelum menyimpan rekening tujuan withdraw."
+        actionHref="/app/stores"
+        actionLabel="Buka Stores"
+      />
     {:else}
       <div class="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <section class="glass-panel rounded-4xl p-6">
@@ -293,28 +357,37 @@
                   Cari
                 </Button>
               </div>
+              <p class="text-xs leading-5 text-ink-500">{bankQueryNote}</p>
             </label>
 
             <div class="rounded-3xl border border-ink-100 bg-white p-4">
               <p class="text-sm font-medium text-ink-900">Hasil bank</p>
               <div class="mt-3 space-y-2">
-                {#each bankResults as bank}
-                  <button
-                    class={`w-full rounded-2xl border px-4 py-3 text-left text-sm transition ${
-                      selectedBank?.bank_code === bank.bank_code &&
-                      selectedBank?.bank_name === bank.bank_name
-                        ? 'border-brand-300 bg-brand-100/60 text-ink-900'
-                        : 'border-ink-100 bg-canvas-50 text-ink-700 hover:border-accent-300 hover:bg-white'
-                    }`}
-                    onclick={() => {
-                      selectedBank = bank;
-                    }}
-                    type="button"
-                  >
-                    <span class="block font-semibold text-ink-900">{bank.bank_code}</span>
-                    <span class="block mt-1">{bank.bank_name}</span>
-                  </button>
-                {/each}
+                {#if bankResults.length === 0}
+                  <EmptyState
+                    eyebrow="Bank Search"
+                    title="Belum ada hasil bank"
+                    body="Coba kode bank seperti 014 atau nama bank spesifik. Shortlist juga akan berubah saat Anda menekan tombol cari."
+                  />
+                {:else}
+                  {#each bankResults as bank}
+                    <button
+                      class={`w-full rounded-2xl border px-4 py-3 text-left text-sm transition ${
+                        selectedBank?.bank_code === bank.bank_code &&
+                        selectedBank?.bank_name === bank.bank_name
+                          ? 'border-brand-300 bg-brand-100/60 text-ink-900'
+                          : 'border-ink-100 bg-canvas-50 text-ink-700 hover:border-accent-300 hover:bg-white'
+                      }`}
+                      onclick={() => {
+                        selectedBank = bank;
+                      }}
+                      type="button"
+                    >
+                      <span class="block font-semibold text-ink-900">{bank.bank_code}</span>
+                      <span class="block mt-1">{bank.bank_name}</span>
+                    </button>
+                  {/each}
+                {/if}
               </div>
             </div>
 
@@ -326,11 +399,23 @@
                 inputmode="numeric"
                 placeholder="100009689749"
               />
+              <p class={`text-xs leading-5 ${accountNumberError === '' ? 'text-ink-500' : 'text-rose-700'}`}>
+                {accountNumber.trim() === ''
+                  ? 'Nomor rekening penuh hanya dipakai untuk inquiry dan disimpan terenkripsi.'
+                  : accountNumberError === ''
+                    ? 'Format nomor rekening terlihat valid untuk inquiry.'
+                    : accountNumberError}
+              </p>
             </label>
           </div>
 
           <div class="mt-5">
-            <Button variant="brand" size="lg" onclick={submitCreateBankAccount} disabled={busy}>
+            <Button
+              variant="brand"
+              size="lg"
+              onclick={submitCreateBankAccount}
+              disabled={busy || accountNumber.trim() === '' || accountNumberError !== ''}
+            >
               Verify and Save
             </Button>
           </div>
@@ -345,13 +430,30 @@
             {/if}
           </p>
 
+          <label class="mt-5 block space-y-2">
+            <span class="text-sm font-medium text-ink-700">Filter rekening</span>
+            <input
+              bind:value={savedAccountSearchTerm}
+              class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300"
+              placeholder="Cari bank, account name, atau masked number"
+            />
+          </label>
+
           <div class="mt-5 space-y-4">
             {#if bankAccounts.length === 0}
-              <div class="rounded-3xl border border-ink-100 bg-canvas-50 px-4 py-4 text-sm text-ink-700">
-                Belum ada rekening terverifikasi untuk toko ini.
-              </div>
+              <EmptyState
+                eyebrow="Stored Accounts"
+                title="Belum ada rekening terverifikasi"
+                body="Rekening yang lolos inquiry akan tampil di sini dalam bentuk masked agar aman untuk dashboard."
+              />
+            {:else if filteredBankAccounts.length === 0}
+              <EmptyState
+                eyebrow="Filter Result"
+                title="Tidak ada rekening yang cocok"
+                body={`Tidak ada rekening yang cocok dengan filter "${savedAccountSearchTerm}".`}
+              />
             {:else}
-              {#each bankAccounts as bankAccount}
+              {#each filteredBankAccounts as bankAccount}
                 <article class="rounded-3xl border border-ink-100 bg-white p-4">
                   <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                     <div class="space-y-1">

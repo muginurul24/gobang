@@ -4,13 +4,22 @@
   import QRCode from 'qrcode';
 
   import { authSession, hydrateAuthSession } from '$lib/auth/client';
+  import EmptyState from '$lib/components/app/empty-state.svelte';
+  import Notice from '$lib/components/app/notice.svelte';
+  import PageSkeleton from '$lib/components/app/page-skeleton.svelte';
   import Button from '$lib/components/ui/button/button.svelte';
   import {
     createStoreTopup,
     fetchStoreTopups,
     type StoreTopup
   } from '$lib/payments-qris/client';
-  import { fetchStores, type Store } from '$lib/stores/client';
+  import { fetchStores, isStoreLowBalance, type Store } from '$lib/stores/client';
+  import {
+    hydratePreferredStoreID,
+    pickPreferredStoreID,
+    preferredStoreID,
+    setPreferredStoreID
+  } from '$lib/stores/preferences';
 
   let loading = true;
   let busy = false;
@@ -20,20 +29,60 @@
   let selectedStoreID = '';
   let topups: StoreTopup[] = [];
   let selectedTopupID = '';
+  let statusFilter: StoreTopup['status'] | 'all' = 'all';
   let amountInput = '';
+  let topupSearchTerm = '';
   let qrCodeDataURL = '';
   let qrRequestID = 0;
   let selectedTopup: StoreTopup | null = null;
 
-  onMount(async () => {
-    hydrateAuthSession();
+  $: normalizedTopupSearch = topupSearchTerm.trim().toLowerCase();
+  $: amountError =
+    amountInput.trim() !== '' && !/^[1-9][0-9]*$/.test(amountInput.trim())
+      ? 'Nominal topup harus angka bulat lebih dari nol.'
+      : '';
+  $: filteredTopups = topups.filter((topup) => {
+    const matchesStatus = statusFilter === 'all' || topup.status === statusFilter;
+    const matchesSearch =
+      normalizedTopupSearch === '' ||
+      topup.custom_ref.toLowerCase().includes(normalizedTopupSearch) ||
+      topup.external_username.toLowerCase().includes(normalizedTopupSearch) ||
+      (topup.provider_trx_id ?? '').toLowerCase().includes(normalizedTopupSearch);
 
-    if (!$authSession) {
-      await goto('/login');
-      return;
-    }
+    return matchesStatus && matchesSearch;
+  });
 
-    await loadStoresAndTopups();
+  onMount(() => {
+    let active = true;
+    hydratePreferredStoreID();
+    const unsubscribe = preferredStoreID.subscribe(async (storeID) => {
+      if (!active || loading || stores.length === 0) {
+        return;
+      }
+
+      if (storeID !== '' && storeID !== selectedStoreID && stores.some((store) => store.id === storeID)) {
+        selectedStoreID = storeID;
+        errorMessage = '';
+        successMessage = '';
+        await loadTopups();
+      }
+    });
+
+    void (async () => {
+      hydrateAuthSession();
+
+      if (!$authSession) {
+        await goto('/login');
+        return;
+      }
+
+      await loadStoresAndTopups();
+    })();
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   });
 
   $: selectedTopup = topups.find((topup) => topup.id === selectedTopupID) ?? null;
@@ -66,9 +115,8 @@
       return;
     }
 
-    if (selectedStoreID === '' || !stores.some((store) => store.id === selectedStoreID)) {
-      selectedStoreID = stores[0].id;
-    }
+    selectedStoreID = pickPreferredStoreID(stores, selectedStoreID);
+    setPreferredStoreID(selectedStoreID);
 
     await loadTopups();
     loading = false;
@@ -105,6 +153,7 @@
 
   async function changeStore(storeID: string) {
     selectedStoreID = storeID;
+    setPreferredStoreID(selectedStoreID);
     errorMessage = '';
     successMessage = '';
     await loadTopups();
@@ -116,8 +165,13 @@
       return;
     }
 
-    if (!/^[1-9][0-9]*$/.test(amountInput.trim())) {
-      errorMessage = 'Nominal topup harus berupa angka bulat lebih dari nol.';
+    if (amountInput.trim() === '') {
+      errorMessage = 'Masukkan nominal topup dalam rupiah.';
+      return;
+    }
+
+    if (amountError !== '') {
+      errorMessage = amountError;
       return;
     }
 
@@ -185,6 +239,11 @@
 
   function currentStore() {
     return stores.find((store) => store.id === selectedStoreID) ?? null;
+  }
+
+  function hasLowBalanceStore() {
+    const store = currentStore();
+    return store ? isStoreLowBalance(store) : false;
   }
 
   function statusLabel(status: StoreTopup['status']) {
@@ -260,9 +319,7 @@
 </svelte:head>
 
 {#if loading}
-  <div class="glass-panel rounded-4xl p-6">
-    <p class="text-sm text-ink-700">Memuat topup QRIS toko dan histori status...</p>
-  </div>
+  <PageSkeleton blocks={5} />
 {:else}
   <div class="space-y-6">
     <section class="glass-panel rounded-4xl p-6">
@@ -290,25 +347,27 @@
     </section>
 
     {#if errorMessage}
-      <div class="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-        {errorMessage}
-      </div>
+      <Notice tone="error" title="Generate topup belum berhasil" message={errorMessage} />
     {/if}
 
     {#if successMessage}
-      <div class="rounded-3xl border border-brand-200 bg-brand-100/60 px-4 py-3 text-sm text-brand-700">
-        {successMessage}
-      </div>
+      <Notice tone="success" title="Topup tersimpan" message={successMessage} />
     {/if}
 
     {#if !canManageTopups()}
-      <div class="glass-panel rounded-4xl p-6 text-sm text-ink-700">
-        Role ini tidak bisa mengelola topup QRIS dashboard.
-      </div>
+      <EmptyState
+        eyebrow="Role Scope"
+        title="Role ini tidak bisa mengelola topup QRIS"
+        body="Topup dashboard hanya tersedia untuk owner, dev, dan superadmin agar flow uang tidak dipicu dari role yang salah."
+      />
     {:else if stores.length === 0}
-      <div class="glass-panel rounded-4xl p-6 text-sm text-ink-700">
-        Belum ada toko yang bisa di-topup.
-      </div>
+      <EmptyState
+        eyebrow="Store Topup"
+        title="Belum ada toko untuk di-topup"
+        body="Tambahkan toko lebih dulu atau pastikan store yang relevan memang ada di scope sesi dashboard ini."
+        actionHref="/app/stores"
+        actionLabel="Buka Stores"
+      />
     {:else}
       <div class="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
         <section class="glass-panel rounded-4xl p-6">
@@ -340,6 +399,14 @@
               </div>
             {/if}
 
+            {#if hasLowBalanceStore()}
+              <Notice
+                tone="warning"
+                title="Saldo toko sedang menipis"
+                message="Store aktif sudah menyentuh low balance threshold. Topup ini bisa dipakai untuk mengisi buffer saldo sebelum deposit game atau withdraw berikutnya."
+              />
+            {/if}
+
             <label class="space-y-2">
               <span class="text-sm font-medium text-ink-700">Nominal topup</span>
               <input
@@ -348,11 +415,18 @@
                 inputmode="numeric"
                 placeholder="50000"
               />
+              <p class={`text-xs leading-5 ${amountError === '' ? 'text-ink-500' : 'text-rose-700'}`}>
+                {amountInput.trim() === ''
+                  ? 'Gunakan angka bulat tanpa titik atau koma, misalnya 50000.'
+                  : amountError === ''
+                    ? 'Nominal siap dikirim ke provider QRIS.'
+                    : amountError}
+              </p>
             </label>
           </div>
 
           <div class="mt-5">
-            <Button variant="brand" size="lg" onclick={submitCreateTopup} disabled={busy}>
+            <Button variant="brand" size="lg" onclick={submitCreateTopup} disabled={busy || amountInput.trim() === '' || amountError !== ''}>
               Generate QRIS
             </Button>
           </div>
@@ -412,13 +486,46 @@
             </Button>
           </div>
 
+          <div class="mt-5 grid gap-4 md:grid-cols-[12rem_minmax(0,1fr)]">
+            <label class="space-y-2">
+              <span class="text-sm font-medium text-ink-700">Status</span>
+              <select
+                bind:value={statusFilter}
+                class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300"
+              >
+                <option value="all">Semua status</option>
+                <option value="pending">Pending</option>
+                <option value="success">Success</option>
+                <option value="failed">Failed</option>
+                <option value="expired">Expired</option>
+              </select>
+            </label>
+
+            <label class="space-y-2">
+              <span class="text-sm font-medium text-ink-700">Cari transaksi</span>
+              <input
+                bind:value={topupSearchTerm}
+                class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300"
+                placeholder="Cari custom ref, username, atau provider trx"
+              />
+            </label>
+          </div>
+
           <div class="mt-5 space-y-4">
             {#if topups.length === 0}
-              <div class="rounded-3xl border border-ink-100 bg-canvas-50 px-4 py-4 text-sm text-ink-700">
-                Belum ada history topup untuk toko ini.
-              </div>
+              <EmptyState
+                eyebrow="Topup History"
+                title="Belum ada histori topup"
+                body="Toko ini belum punya transaksi `store_topup`. Generate QR pertama akan langsung tampil di panel aktif dan histori di sisi kanan."
+              />
+            {:else if filteredTopups.length === 0}
+              <EmptyState
+                eyebrow="Filter Result"
+                title="Tidak ada topup yang cocok"
+                body={`Filter status ${statusFilter} dan kata kunci "${topupSearchTerm}" tidak menemukan transaksi yang sesuai.`}
+              />
             {:else}
-              {#each topups as topup}
+              {#each filteredTopups as topup}
                 <button
                   class={`w-full rounded-3xl border p-4 text-left transition ${
                     selectedTopupID === topup.id

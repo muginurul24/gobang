@@ -2,10 +2,19 @@
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
 
+  import EmptyState from '$lib/components/app/empty-state.svelte';
+  import Notice from '$lib/components/app/notice.svelte';
+  import PageSkeleton from '$lib/components/app/page-skeleton.svelte';
   import Button from '$lib/components/ui/button/button.svelte';
   import { authSession, hydrateAuthSession } from '$lib/auth/client';
   import { fetchBankAccounts, type BankAccount } from '$lib/bank-accounts/client';
-  import { fetchStores, type Store } from '$lib/stores/client';
+  import { fetchStores, isStoreLowBalance, type Store } from '$lib/stores/client';
+  import {
+    hydratePreferredStoreID,
+    pickPreferredStoreID,
+    preferredStoreID,
+    setPreferredStoreID
+  } from '$lib/stores/preferences';
   import {
     createStoreWithdrawal,
     fetchStoreWithdrawals,
@@ -21,18 +30,59 @@
   let bankAccounts: BankAccount[] = [];
   let selectedBankAccountID = '';
   let withdrawals: StoreWithdrawal[] = [];
+  let withdrawalStatusFilter: StoreWithdrawal['status'] | 'all' = 'all';
   let amount = '';
   let idempotencyKey = newIdempotencyKey();
+  let withdrawalSearchTerm = '';
 
-  onMount(async () => {
-    hydrateAuthSession();
+  $: normalizedWithdrawalSearch = withdrawalSearchTerm.trim().toLowerCase();
+  $: amountError =
+    amount.trim() !== '' && !(Number.isFinite(Number(amount)) && Number(amount) > 0)
+      ? 'Nominal withdraw harus lebih besar dari nol.'
+      : '';
+  $: filteredWithdrawals = withdrawals.filter((withdrawal) => {
+    const matchesStatus = withdrawalStatusFilter === 'all' || withdrawal.status === withdrawalStatusFilter;
+    const matchesSearch =
+      normalizedWithdrawalSearch === '' ||
+      withdrawal.bank_code.toLowerCase().includes(normalizedWithdrawalSearch) ||
+      withdrawal.bank_name.toLowerCase().includes(normalizedWithdrawalSearch) ||
+      withdrawal.account_name.toLowerCase().includes(normalizedWithdrawalSearch) ||
+      (withdrawal.provider_partner_ref_no ?? '').toLowerCase().includes(normalizedWithdrawalSearch);
 
-    if (!$authSession) {
-      await goto('/login');
-      return;
-    }
+    return matchesStatus && matchesSearch;
+  });
 
-    await loadPage();
+  onMount(() => {
+    let active = true;
+    hydratePreferredStoreID();
+    const unsubscribe = preferredStoreID.subscribe(async (storeID) => {
+      if (!active || loading || stores.length === 0) {
+        return;
+      }
+
+      if (storeID !== '' && storeID !== selectedStoreID && stores.some((store) => store.id === storeID)) {
+        selectedStoreID = storeID;
+        errorMessage = '';
+        successMessage = '';
+        await loadStoreData();
+      }
+    });
+
+    void (async () => {
+      hydrateAuthSession();
+
+      if (!$authSession) {
+        await goto('/login');
+        return;
+      }
+
+      await loadPage();
+    })();
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   });
 
   async function loadPage() {
@@ -59,9 +109,8 @@
       return;
     }
 
-    if (selectedStoreID === '' || !stores.some((store) => store.id === selectedStoreID)) {
-      selectedStoreID = stores[0].id;
-    }
+    selectedStoreID = pickPreferredStoreID(stores, selectedStoreID);
+    setPreferredStoreID(selectedStoreID);
 
     await loadStoreData();
     loading = false;
@@ -111,6 +160,7 @@
 
   async function changeStore(storeID: string) {
     selectedStoreID = storeID;
+    setPreferredStoreID(selectedStoreID);
     successMessage = '';
     errorMessage = '';
     await loadStoreData();
@@ -122,11 +172,16 @@
       return;
     }
 
-    const parsedAmount = Number(amount);
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      errorMessage = 'Nominal withdraw harus lebih besar dari nol.';
+    if (amount.trim() === '') {
+      errorMessage = 'Nominal withdraw wajib diisi.';
       return;
     }
+
+    if (amountError !== '') {
+      errorMessage = amountError;
+      return;
+    }
+    const parsedAmount = Number(amount);
 
     busy = true;
     errorMessage = '';
@@ -182,6 +237,11 @@
     return ['owner', 'dev', 'superadmin'].includes($authSession?.user.role ?? '');
   }
 
+  function hasLowBalanceStore() {
+    const store = currentStore();
+    return store ? isStoreLowBalance(store) : false;
+  }
+
   function newIdempotencyKey() {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
       return crypto.randomUUID();
@@ -234,9 +294,7 @@
 </svelte:head>
 
 {#if loading}
-  <div class="glass-panel rounded-4xl p-6">
-    <p class="text-sm text-ink-700">Memuat formulir withdraw balance toko...</p>
-  </div>
+  <PageSkeleton blocks={4} />
 {:else}
   <div class="space-y-6">
     <section class="glass-panel rounded-4xl p-6">
@@ -264,25 +322,27 @@
     </section>
 
     {#if errorMessage}
-      <div class="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-        {errorMessage}
-      </div>
+      <Notice tone="error" title="Withdraw belum bisa dibuat" message={errorMessage} />
     {/if}
 
     {#if successMessage}
-      <div class="rounded-3xl border border-brand-200 bg-brand-100/60 px-4 py-3 text-sm text-brand-700">
-        {successMessage}
-      </div>
+      <Notice tone="success" title="Withdraw tersimpan" message={successMessage} />
     {/if}
 
     {#if !canUseWithdrawals()}
-      <div class="glass-panel rounded-4xl p-6 text-sm text-ink-700">
-        Role ini tidak bisa melihat atau membuat withdraw toko.
-      </div>
+      <EmptyState
+        eyebrow="Role Scope"
+        title="Role ini tidak bisa memakai withdrawal dashboard"
+        body="Withdraw dashboard hanya tersedia untuk owner, dev, dan superadmin agar approval payout tidak keluar dari jalur yang benar."
+      />
     {:else if stores.length === 0}
-      <div class="glass-panel rounded-4xl p-6 text-sm text-ink-700">
-        Belum ada toko yang bisa dipakai untuk withdraw.
-      </div>
+      <EmptyState
+        eyebrow="Store Withdrawal"
+        title="Belum ada toko untuk withdraw"
+        body="Tambahkan toko lebih dulu atau pastikan toko yang relevan memang ada di scope sesi dashboard ini."
+        actionHref="/app/stores"
+        actionLabel="Buka Stores"
+      />
     {:else}
       <div class="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <section class="glass-panel rounded-4xl p-6">
@@ -315,6 +375,14 @@
                   Request key {idempotencyKey.slice(0, 12)}...
                 </p>
               </div>
+            {/if}
+
+            {#if hasLowBalanceStore()}
+              <Notice
+                tone="warning"
+                title="Store aktif sedang low balance"
+                message="Saldo store aktif sudah menyentuh threshold. Pastikan nominal withdraw tidak memotong buffer operasional yang masih dibutuhkan."
+              />
             {/if}
 
             <label class="space-y-2">
@@ -351,11 +419,23 @@
                 inputmode="numeric"
                 placeholder="1000000"
               />
+              <p class={`text-xs leading-5 ${amountError === '' ? 'text-ink-500' : 'text-rose-700'}`}>
+                {amount.trim() === ''
+                  ? 'Nominal ini adalah jumlah bersih yang ingin diterima owner, sebelum fee tampil di riwayat.'
+                  : amountError === ''
+                    ? 'Nominal withdraw terlihat valid untuk diproses.'
+                    : amountError}
+              </p>
             </label>
           </div>
 
           <div class="mt-5 flex flex-wrap gap-3">
-            <Button variant="brand" size="lg" onclick={submitWithdrawal} disabled={busy || bankAccounts.length === 0}>
+            <Button
+              variant="brand"
+              size="lg"
+              onclick={submitWithdrawal}
+              disabled={busy || bankAccounts.length === 0 || amount.trim() === '' || amountError !== ''}
+            >
               Submit Withdrawal
             </Button>
             <Button
@@ -378,13 +458,45 @@
             oleh milestone webhook dan check-status berikutnya.
           </p>
 
+          <div class="mt-5 grid gap-4 md:grid-cols-[12rem_minmax(0,1fr)]">
+            <label class="space-y-2">
+              <span class="text-sm font-medium text-ink-700">Status</span>
+              <select
+                bind:value={withdrawalStatusFilter}
+                class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300"
+              >
+                <option value="all">Semua status</option>
+                <option value="pending">Pending</option>
+                <option value="success">Success</option>
+                <option value="failed">Failed</option>
+              </select>
+            </label>
+
+            <label class="space-y-2">
+              <span class="text-sm font-medium text-ink-700">Cari withdraw</span>
+              <input
+                bind:value={withdrawalSearchTerm}
+                class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300"
+                placeholder="Cari bank, account name, atau provider ref"
+              />
+            </label>
+          </div>
+
           <div class="mt-5 space-y-4">
             {#if withdrawals.length === 0}
-              <div class="rounded-3xl border border-ink-100 bg-canvas-50 px-4 py-4 text-sm text-ink-700">
-                Belum ada request withdraw untuk toko ini.
-              </div>
+              <EmptyState
+                eyebrow="Withdrawal History"
+                title="Belum ada request withdraw"
+                body="Request withdraw yang berhasil dibuat akan muncul di sini bersama status pending, success, atau failed."
+              />
+            {:else if filteredWithdrawals.length === 0}
+              <EmptyState
+                eyebrow="Filter Result"
+                title="Tidak ada withdraw yang cocok"
+                body={`Filter status ${withdrawalStatusFilter} dan kata kunci "${withdrawalSearchTerm}" belum menemukan hasil.`}
+              />
             {:else}
-              {#each withdrawals as withdrawal}
+              {#each filteredWithdrawals as withdrawal}
                 <article class="rounded-3xl border border-ink-100 bg-white p-4">
                   <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                     <div class="space-y-1">

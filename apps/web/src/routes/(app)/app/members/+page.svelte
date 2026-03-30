@@ -2,10 +2,19 @@
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
 
+  import EmptyState from '$lib/components/app/empty-state.svelte';
+  import Notice from '$lib/components/app/notice.svelte';
+  import PageSkeleton from '$lib/components/app/page-skeleton.svelte';
   import Button from '$lib/components/ui/button/button.svelte';
   import { authSession, hydrateAuthSession } from '$lib/auth/client';
   import { createStoreMember, fetchStoreMembers, type StoreMember } from '$lib/store-members/client';
   import { fetchStores, type Store } from '$lib/stores/client';
+  import {
+    hydratePreferredStoreID,
+    pickPreferredStoreID,
+    preferredStoreID,
+    setPreferredStoreID
+  } from '$lib/stores/preferences';
 
   let loading = true;
   let busy = false;
@@ -14,19 +23,55 @@
   let stores: Store[] = [];
   let members: StoreMember[] = [];
   let selectedStoreID = '';
+  let searchTerm = '';
   let createForm = {
     real_username: ''
   };
 
-  onMount(async () => {
-    hydrateAuthSession();
-
-    if (!$authSession) {
-      await goto('/login');
-      return;
+  $: normalizedSearchTerm = searchTerm.trim().toLowerCase();
+  $: createRealUsername = createForm.real_username.trim();
+  $: filteredMembers = members.filter((member) => {
+    if (normalizedSearchTerm === '') {
+      return true;
     }
 
-    await loadScreen();
+    return (
+      member.real_username.toLowerCase().includes(normalizedSearchTerm) ||
+      member.upstream_user_code.toLowerCase().includes(normalizedSearchTerm)
+    );
+  });
+
+  onMount(() => {
+    let active = true;
+    hydratePreferredStoreID();
+    const unsubscribe = preferredStoreID.subscribe(async (storeID) => {
+      if (!active || loading || stores.length === 0) {
+        return;
+      }
+
+      if (storeID !== '' && storeID !== selectedStoreID && stores.some((store) => store.id === storeID)) {
+        selectedStoreID = storeID;
+        errorMessage = '';
+        successMessage = '';
+        await loadMembers();
+      }
+    });
+
+    void (async () => {
+      hydrateAuthSession();
+
+      if (!$authSession) {
+        await goto('/login');
+        return;
+      }
+
+      await loadScreen();
+    })();
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   });
 
   async function loadScreen() {
@@ -45,9 +90,8 @@
     }
 
     stores = storesResponse.data;
-    if (selectedStoreID === '' || !stores.some((store) => store.id === selectedStoreID)) {
-      selectedStoreID = stores[0]?.id ?? '';
-    }
+    selectedStoreID = pickPreferredStoreID(stores, selectedStoreID);
+    setPreferredStoreID(selectedStoreID);
 
     await loadMembers();
     loading = false;
@@ -75,17 +119,28 @@
 
   async function handleStoreChange(event: Event) {
     selectedStoreID = (event.currentTarget as HTMLSelectElement).value;
+    setPreferredStoreID(selectedStoreID);
     errorMessage = '';
     successMessage = '';
     await loadMembers();
   }
 
   async function submitCreateMember() {
+    if (selectedStoreID === '') {
+      errorMessage = 'Pilih toko terlebih dahulu sebelum membuat member baru.';
+      return;
+    }
+
+    if (createRealUsername === '') {
+      errorMessage = 'Real username wajib diisi sebelum submit.';
+      return;
+    }
+
     busy = true;
     errorMessage = '';
     successMessage = '';
 
-    const response = await createStoreMember(selectedStoreID, createForm.real_username.trim());
+    const response = await createStoreMember(selectedStoreID, createRealUsername);
     busy = false;
 
     if (!(await ensureAuthorized(response.message))) {
@@ -146,9 +201,7 @@
 </svelte:head>
 
 {#if loading}
-  <div class="glass-panel rounded-4xl p-6">
-    <p class="text-sm text-ink-700">Memuat store members dan upstream mapping...</p>
-  </div>
+  <PageSkeleton blocks={4} />
 {:else}
   <div class="space-y-6">
     <section class="glass-panel rounded-4xl p-6">
@@ -176,18 +229,23 @@
     </section>
 
     {#if errorMessage}
-      <div class="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-        {errorMessage}
-      </div>
+      <Notice tone="error" title="Permintaan belum bisa diproses" message={errorMessage} />
     {/if}
 
     {#if successMessage}
-      <div class="rounded-3xl border border-brand-200 bg-brand-100/60 px-4 py-3 text-sm text-brand-700">
-        {successMessage}
-      </div>
+      <Notice tone="success" title="Perubahan tersimpan" message={successMessage} />
     {/if}
 
-    <section class="glass-panel rounded-4xl p-6">
+    {#if stores.length === 0}
+      <EmptyState
+        eyebrow="Store Scope"
+        title="Belum ada toko di sesi ini"
+        body="Member mapping baru bisa dibuat setelah ada toko yang masuk scope owner, dev, superadmin, atau assignment karyawan."
+        actionHref="/app/stores"
+        actionLabel="Buka Stores"
+      />
+    {:else}
+      <section class="glass-panel rounded-4xl p-6">
       <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
         <label class="space-y-2">
           <span class="text-sm font-medium text-ink-700">Pilih toko</span>
@@ -211,10 +269,10 @@
           <p>{selectedStoreName()}</p>
         </div>
       </div>
-    </section>
+      </section>
 
-    {#if canCreateMembers() && selectedStoreID !== ''}
-      <section class="glass-panel rounded-4xl p-6">
+      {#if canCreateMembers() && selectedStoreID !== ''}
+        <section class="glass-panel rounded-4xl p-6">
         <h2 class="font-display text-2xl font-bold text-ink-900">Buat member baru</h2>
         <p class="mt-2 text-sm leading-6 text-ink-700">
           Username asli hanya unik di dalam toko yang sama. Sistem akan membuat upstream user code
@@ -229,16 +287,19 @@
               class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300"
               placeholder="member-alpha"
             />
-          </label>
+              <p class="text-xs leading-5 text-ink-500">
+                Real username akan dipakai owner sebagai identitas utama member.
+              </p>
+            </label>
 
-          <Button variant="brand" size="lg" onclick={submitCreateMember} disabled={busy}>
+            <Button variant="brand" size="lg" onclick={submitCreateMember} disabled={busy || createRealUsername === ''}>
             Buat Member
           </Button>
         </div>
-      </section>
-    {/if}
+        </section>
+      {/if}
 
-    <section class="glass-panel rounded-4xl p-6">
+      <section class="glass-panel rounded-4xl p-6">
       <div class="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
           <h2 class="font-display text-2xl font-bold text-ink-900">Daftar member</h2>
@@ -246,15 +307,39 @@
             Mapping ini immutable. Untuk flow game, upstream hanya mengenal `upstream_user_code`.
           </p>
         </div>
+        <label class="space-y-2">
+          <span class="text-sm font-medium text-ink-700">Filter member</span>
+          <input
+            bind:value={searchTerm}
+            class="w-full min-w-64 rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300"
+            placeholder="Cari username atau upstream code"
+          />
+        </label>
       </div>
 
       {#if selectedStoreID === ''}
-        <div class="mt-5 rounded-3xl bg-canvas-100 px-4 py-4 text-sm text-ink-700">
-          Belum ada toko yang bisa dipilih.
+        <div class="mt-5">
+          <EmptyState
+            eyebrow="Store Switch"
+            title="Pilih toko lebih dulu"
+            body="Daftar member akan muncul setelah Anda memilih toko aktif dari store switch di halaman ini atau di app shell."
+          />
         </div>
       {:else if members.length === 0}
-        <div class="mt-5 rounded-3xl bg-canvas-100 px-4 py-4 text-sm text-ink-700">
-          Belum ada member untuk toko ini.
+        <div class="mt-5">
+          <EmptyState
+            eyebrow="Member List"
+            title="Belum ada member di toko ini"
+            body="Belum ada mapping member untuk store terpilih. Buat member pertama agar flow game dan QRIS member payment punya target username yang valid."
+          />
+        </div>
+      {:else if filteredMembers.length === 0}
+        <div class="mt-5">
+          <EmptyState
+            eyebrow="Filter Result"
+            title="Tidak ada member yang cocok"
+            body={`Tidak ada hasil untuk filter "${searchTerm}". Coba kata kunci lain atau kosongkan filter.`}
+          />
         </div>
       {:else}
         <div class="mt-5 overflow-x-auto">
@@ -268,7 +353,7 @@
               </tr>
             </thead>
             <tbody>
-              {#each members as member}
+              {#each filteredMembers as member}
                 <tr class="rounded-3xl bg-canvas-100 text-sm text-ink-800">
                   <td class="rounded-l-[1.5rem] px-3 py-4 font-medium text-ink-900">
                     {member.real_username}
@@ -288,6 +373,7 @@
           </table>
         </div>
       {/if}
-    </section>
+      </section>
+    {/if}
   </div>
 {/if}

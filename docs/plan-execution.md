@@ -1269,9 +1269,9 @@ Merapikan dashboard dari sisi UX.
 
 ### Checklist
 
-- [ ] loading jelas
-- [ ] error jelas
-- [ ] empty state jelas
+- [x] loading jelas
+- [x] error jelas
+- [x] empty state jelas
 
 ---
 

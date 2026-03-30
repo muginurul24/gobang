@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
 
   import Button from '$lib/components/ui/button/button.svelte';
+  import Notice from '$lib/components/app/notice.svelte';
   import {
     authSession,
     hydrateAuthSession,
@@ -14,10 +15,29 @@
     disconnectRealtime,
     realtimeState
   } from '$lib/realtime/client';
+  import {
+    fetchStores,
+    isStoreLowBalance,
+    parseMoney,
+    type Store
+  } from '$lib/stores/client';
+  import {
+    hydratePreferredStoreID,
+    pickPreferredStoreID,
+    preferredStoreID,
+    setPreferredStoreID
+  } from '$lib/stores/preferences';
 
   let ready = false;
+  let storeDirectoryLoading = true;
+  let storeDirectoryError = '';
+  let accessibleStores: Store[] = [];
+  let selectedStoreID = '';
 
   $: role = $authSession?.user.role ?? '';
+  $: currentStore = accessibleStores.find((store) => store.id === selectedStoreID) ?? null;
+  $: lowBalanceStores = accessibleStores.filter((store) => isStoreLowBalance(store));
+  $: selectedStoreIsLowBalance = currentStore ? isStoreLowBalance(currentStore) : false;
   $: nav = [
     { href: '/app', label: 'Dashboard' },
     { href: '/app/stores', label: 'Stores' },
@@ -38,6 +58,43 @@
 
   onMount(() => {
     let active = true;
+    hydratePreferredStoreID();
+
+    const unsubscribeStorePreference = preferredStoreID.subscribe((storeID) => {
+      if (!active) {
+        return;
+      }
+
+      if (storeID !== '' && accessibleStores.some((store) => store.id === storeID)) {
+        selectedStoreID = storeID;
+      }
+    });
+
+    async function loadAccessibleStores() {
+      storeDirectoryLoading = true;
+      storeDirectoryError = '';
+
+      const response = await fetchStores();
+      if (!active) {
+        return;
+      }
+
+      if (!response.status || response.message !== 'SUCCESS') {
+        storeDirectoryError =
+          response.message === 'FORBIDDEN'
+            ? 'Store switch tidak tersedia untuk role ini.'
+            : 'Store switch belum bisa dimuat. Halaman lain tetap bisa dipakai.';
+        accessibleStores = [];
+        selectedStoreID = '';
+        storeDirectoryLoading = false;
+        return;
+      }
+
+      accessibleStores = response.data ?? [];
+      selectedStoreID = pickPreferredStoreID(accessibleStores, selectedStoreID);
+      setPreferredStoreID(selectedStoreID);
+      storeDirectoryLoading = false;
+    }
 
     void (async () => {
       hydrateAuthSession();
@@ -60,11 +117,13 @@
       }
 
       connectRealtime();
+      await loadAccessibleStores();
       ready = true;
     })();
 
     return () => {
       active = false;
+      unsubscribeStorePreference();
       disconnectRealtime();
     };
   });
@@ -73,6 +132,28 @@
     disconnectRealtime();
     await logoutCurrentSession();
     await goto('/login');
+  }
+
+  function switchStore(storeID: string) {
+    selectedStoreID = storeID;
+    setPreferredStoreID(storeID);
+  }
+
+  function formatCurrency(value: string | null | undefined) {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(parseMoney(value));
+  }
+
+  function formatThreshold(value: string | null | undefined) {
+    if ((value ?? '').trim() === '') {
+      return '-';
+    }
+
+    return formatCurrency(value);
   }
 </script>
 
@@ -100,6 +181,69 @@
             {$realtimeState.channels.length} channel aktif
           </p>
         </div>
+
+        <div class="mt-4 rounded-3xl border border-ink-100 px-4 py-4 text-sm text-ink-700">
+          <p class="font-semibold text-ink-900">Quick Store Switch</p>
+          <p class="mt-1 text-xs leading-5 text-ink-500">
+            Dipakai sebagai default di halaman members, topups, bank accounts, dan withdrawals.
+          </p>
+
+          {#if storeDirectoryLoading}
+            <div class="mt-4 animate-pulse rounded-2xl bg-canvas-100 px-4 py-4">
+              <div class="h-3 w-24 rounded-full bg-white/80"></div>
+              <div class="mt-3 h-10 rounded-2xl bg-white/80"></div>
+            </div>
+          {:else if storeDirectoryError !== ''}
+            <div class="mt-4">
+              <Notice tone="warning" message={storeDirectoryError} />
+            </div>
+          {:else if accessibleStores.length === 0}
+            <div class="mt-4 rounded-2xl bg-canvas-100 px-4 py-4 text-xs leading-5 text-ink-600">
+              Belum ada toko di scope sesi ini.
+            </div>
+          {:else}
+            <label class="mt-4 block space-y-2">
+              <span class="text-xs font-semibold uppercase tracking-[0.18em] text-ink-500">
+                Store aktif
+              </span>
+              <select
+                bind:value={selectedStoreID}
+                class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300"
+                onchange={(event) => switchStore((event.currentTarget as HTMLSelectElement).value)}
+              >
+                {#each accessibleStores as store}
+                  <option value={store.id}>{store.name} · {store.slug}</option>
+                {/each}
+              </select>
+            </label>
+
+            {#if currentStore}
+              <div class="mt-4 rounded-2xl bg-canvas-100 px-4 py-4 text-xs leading-5 text-ink-700">
+                <p class="font-semibold text-ink-900">{currentStore.name}</p>
+                <p>Balance: {formatCurrency(currentStore.current_balance)}</p>
+                <p>Threshold: {formatThreshold(currentStore.low_balance_threshold)}</p>
+              </div>
+            {/if}
+          {/if}
+        </div>
+
+        {#if lowBalanceStores.length > 0}
+          <div class="mt-4 rounded-3xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
+            <p class="font-semibold">Low Balance Alert</p>
+            <p class="mt-2 leading-6">
+              {lowBalanceStores.length} toko berada di threshold atau di bawah threshold saldo.
+            </p>
+            {#if currentStore && selectedStoreIsLowBalance}
+              <p class="mt-2 text-xs leading-5">
+                Store aktif saat ini juga low balance: {currentStore.name} dengan saldo
+                {formatCurrency(currentStore.current_balance)}.
+              </p>
+            {/if}
+            <a class="mt-3 inline-flex text-xs font-semibold uppercase tracking-[0.18em] text-amber-800 underline-offset-4 hover:underline" href="/app/stores">
+              Review threshold
+            </a>
+          </div>
+        {/if}
       {/if}
 
       <nav class="mt-8 space-y-2">

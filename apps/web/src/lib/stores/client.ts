@@ -16,6 +16,22 @@ export type Store = {
   deleted_at: string | null;
 };
 
+export function parseMoney(value: string | number | null | undefined) {
+  const amount = Number(value ?? 0);
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+export function isStoreLowBalance(
+  store: Pick<Store, 'current_balance' | 'low_balance_threshold'>,
+) {
+  const threshold = parseMoney(store.low_balance_threshold);
+  if (threshold <= 0) {
+    return false;
+  }
+
+  return parseMoney(store.current_balance) <= threshold;
+}
+
 export type StaffUser = {
   id: string;
   email: string;

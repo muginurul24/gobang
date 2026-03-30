@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
 
   import { authSession } from '$lib/auth/client';
+  import EmptyState from '$lib/components/app/empty-state.svelte';
   import {
     fetchDashboardCards,
     type DashboardPlatformMetrics,
@@ -302,5 +303,11 @@
         </p>
       </article>
     </div>
+  {:else}
+    <EmptyState
+      eyebrow="Dashboard Scope"
+      title="Belum ada kartu yang bisa dirender"
+      body="Backend belum mengembalikan kartu store maupun platform untuk sesi ini. Coba refresh setelah scope role atau data toko berubah."
+    />
   {/if}
 </section>
