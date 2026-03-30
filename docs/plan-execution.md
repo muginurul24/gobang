@@ -539,8 +539,8 @@ Menyelesaikan create user game flow.
 - create user usable
 
 ### Checklist
-- [ ] duplicate reject
-- [ ] upstream mapping saved
+- [x] duplicate reject
+- [x] upstream mapping saved
 
 ---
 

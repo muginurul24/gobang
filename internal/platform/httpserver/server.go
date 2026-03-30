@@ -9,6 +9,7 @@ import (
 	"github.com/mugiew/onixggr/internal/modules/audit"
 	"github.com/mugiew/onixggr/internal/modules/auth"
 	"github.com/mugiew/onixggr/internal/modules/bankaccounts"
+	"github.com/mugiew/onixggr/internal/modules/game"
 	"github.com/mugiew/onixggr/internal/modules/storemembers"
 	"github.com/mugiew/onixggr/internal/modules/stores"
 	"github.com/mugiew/onixggr/internal/platform/bankdirectory"
@@ -16,6 +17,7 @@ import (
 	"github.com/mugiew/onixggr/internal/platform/crypto"
 	"github.com/mugiew/onixggr/internal/platform/health"
 	"github.com/mugiew/onixggr/internal/platform/middleware"
+	"github.com/mugiew/onixggr/internal/platform/nexusggr"
 	"github.com/mugiew/onixggr/internal/platform/security"
 	goredis "github.com/redis/go-redis/v9"
 )
@@ -53,6 +55,12 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 			TOTPEnrollmentTTL: cfg.Auth.TOTPEnrollmentTTL,
 		})
 		banks := bankdirectory.MustLoadDefault()
+		nexusClient := nexusggr.NewClient(nexusggr.Config{
+			BaseURL:    cfg.NexusGGR.BaseURL,
+			AgentCode:  cfg.NexusGGR.AgentCode,
+			AgentToken: cfg.NexusGGR.AgentToken,
+			Timeout:    cfg.NexusGGR.Timeout,
+		}, deps.Logger, nil)
 
 		auth.NewHandler(authService).Register(mux)
 		stores.NewHandler(
@@ -84,6 +92,9 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 		storemembers.NewHandler(
 			storemembers.NewService(storemembers.NewRepository(deps.DB), nil),
 			authService,
+		).Register(mux)
+		game.NewHandler(
+			game.NewService(game.NewRepository(deps.DB), nexusClient, nil),
 		).Register(mux)
 		audit.NewHandler(audit.NewService(audit.NewRepository(deps.DB)), authService).Register(mux)
 	}

@@ -81,6 +81,12 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `internal/platform/nexusggr` wraps `provider_list`, `game_list`, `game_launch`, `money_info`, `user_create`, `user_deposit`, `user_withdraw`, `user_withdraw_reset`, and `transfer_status`.
 - NexusGGR business failures are normalized even when upstream still returns HTTP `200`, request/response logs are masked, and `NEXUSGGR_TIMEOUT` controls the transport timeout.
 
+## Store API Game User
+
+- `POST /v1/store-api/game/users`: create a game user via Bearer `store_token` with body `{"username":"member-alpha"}`.
+- The flow follows `docs/blueprint.md`: reject duplicate `(store_id, username)`, generate a 12-char immutable `upstream_user_code`, call NexusGGR `user_create`, then persist the mapping only on upstream success.
+- Store API token auth is scoped by `stores.api_token_hash`, and inactive or deleted stores are blocked before upstream calls.
+
 ## Notes
 
 - `backend/` and `frontend/` are legacy placeholder directories; new work should go into `apps/`.
