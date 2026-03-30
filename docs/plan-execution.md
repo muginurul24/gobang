@@ -718,9 +718,9 @@ Menyelesaikan topup balance toko via dashboard.
 - owner bisa topup store balance
 
 ### Checklist
-- [ ] multiple pending allowed
-- [ ] qris image tampil
-- [ ] list status benar
+- [x] multiple pending allowed
+- [x] qris image tampil
+- [x] list status benar
 
 ---
 

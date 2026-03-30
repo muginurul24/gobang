@@ -11,6 +11,7 @@ import (
 	"github.com/mugiew/onixggr/internal/modules/bankaccounts"
 	"github.com/mugiew/onixggr/internal/modules/game"
 	"github.com/mugiew/onixggr/internal/modules/ledger"
+	"github.com/mugiew/onixggr/internal/modules/paymentsqris"
 	"github.com/mugiew/onixggr/internal/modules/providercatalog"
 	"github.com/mugiew/onixggr/internal/modules/storemembers"
 	"github.com/mugiew/onixggr/internal/modules/stores"
@@ -20,6 +21,7 @@ import (
 	"github.com/mugiew/onixggr/internal/platform/health"
 	"github.com/mugiew/onixggr/internal/platform/middleware"
 	"github.com/mugiew/onixggr/internal/platform/nexusggr"
+	"github.com/mugiew/onixggr/internal/platform/qris"
 	"github.com/mugiew/onixggr/internal/platform/security"
 	goredis "github.com/redis/go-redis/v9"
 )
@@ -64,6 +66,13 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 			AgentToken: cfg.NexusGGR.AgentToken,
 			Timeout:    cfg.NexusGGR.Timeout,
 		}, deps.Logger, nil)
+		qrisClient := qris.NewClient(qris.Config{
+			BaseURL:              cfg.QRIS.BaseURL,
+			Client:               cfg.QRIS.Client,
+			ClientKey:            cfg.QRIS.ClientKey,
+			GlobalUUID:           cfg.QRIS.GlobalUUID,
+			DefaultExpireSeconds: cfg.QRIS.DefaultExpireSeconds,
+		}, deps.Logger, nil)
 
 		auth.NewHandler(authService).Register(mux)
 		stores.NewHandler(
@@ -100,6 +109,14 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 			providercatalog.NewService(providercatalog.Options{
 				Repository: providercatalog.NewRepository(deps.DB),
 				Upstream:   nexusClient,
+			}),
+			authService,
+		).Register(mux)
+		paymentsqris.NewHandler(
+			paymentsqris.NewService(paymentsqris.Options{
+				Repository:           paymentsqris.NewRepository(deps.DB),
+				Upstream:             qrisClient,
+				DefaultExpireSeconds: cfg.QRIS.DefaultExpireSeconds,
 			}),
 			authService,
 		).Register(mux)
