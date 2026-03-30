@@ -340,9 +340,9 @@ Menutup UX auth di frontend.
 - dashboard auth usable
 
 ### Checklist
-- [ ] guard jalan
-- [ ] logout jalan
-- [ ] expired state jelas
+- [x] guard jalan
+- [x] logout jalan
+- [x] expired state jelas
 
 ---
 
@@ -363,9 +363,9 @@ Menyelesaikan manajemen toko.
 - store domain dasar selesai
 
 ### Checklist
-- [ ] scoped list benar
-- [ ] soft delete benar
-- [ ] audit ada
+- [x] scoped list benar
+- [x] soft delete benar
+- [x] audit ada
 
 ---
 
@@ -388,10 +388,10 @@ Menyelesaikan integration settings toko.
 - store integration ready
 
 ### Checklist
-- [ ] token hash
-- [ ] rotate works
-- [ ] callback validated
-- [ ] visibility sesuai role
+- [x] token hash
+- [x] rotate works
+- [x] callback validated
+- [x] visibility sesuai role
 
 ---
 
@@ -411,9 +411,9 @@ Menyelesaikan model tim owner.
 - model owner → karyawan → toko selesai
 
 ### Checklist
-- [ ] many-to-many jalan
-- [ ] cross-owner relation ditolak
-- [ ] audit assign ada
+- [x] many-to-many jalan
+- [x] cross-owner relation ditolak
+- [x] audit assign ada
 
 ---
 
@@ -463,9 +463,9 @@ Menampilkan data toko yang benar.
 - dashboard mulai bernilai
 
 ### Checklist
-- [ ] owner scoped audit
-- [ ] superadmin/dev full audit
-- [ ] karyawan blocked
+- [x] owner scoped audit
+- [x] superadmin/dev full audit
+- [x] karyawan blocked
 
 ---
 

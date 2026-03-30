@@ -49,14 +49,30 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `POST /v1/auth/2fa/disable`: disable 2FA with a valid TOTP code or recovery code.
 - `PUT /v1/auth/ip-allowlist`: set or clear the single-IP dashboard allowlist.
 
+## Store & Audit APIs
+
+- `GET /v1/stores`: list stores by role scope.
+- `POST /v1/stores`: owner-only store creation and returns one-time `api_token`.
+- `PATCH /v1/stores/{storeID}`: update store name, status, and low balance threshold.
+- `DELETE /v1/stores/{storeID}`: soft delete a store.
+- `POST /v1/stores/{storeID}/token`: rotate store token and return the new plaintext token once.
+- `PUT /v1/stores/{storeID}/callback-url`: set or clear the callback URL.
+- `GET /v1/stores/{storeID}/staff`: list store staff for non-karyawan roles in scope.
+- `GET /v1/staff/users`: owner-only employee list.
+- `POST /v1/staff/users`: owner-only employee creation.
+- `POST /v1/stores/{storeID}/staff`: owner-only staff assignment.
+- `DELETE /v1/stores/{storeID}/staff/{userID}`: owner-only staff unassignment.
+- `GET /v1/audit/logs`: owner-scoped audit feed, or global for `dev` and `superadmin`.
+
 ## Notes
 
 - `backend/` and `frontend/` are legacy placeholder directories; new work should go into `apps/`.
 - Use `make hooks` after the repository is initialized with Git to enable the local hooks in `.githooks/`.
 - API readiness is exposed at `/health/ready` and `/readyz`; liveness is exposed at `/health/live` and `/healthz`.
-- Demo seed rows create one `dev` user, one `owner` user, one store, and one audit log entry for local development.
+- Demo seed rows create one `dev` user, one `owner` user, one `karyawan` user, one store, one store-staff relation, and one audit log entry for local development.
 - Demo dashboard credentials after `./appctl migrate fresh --seed`:
 - `dev@example.com` or `dev-demo` with password `DevDemo123!`
 - `owner@example.com` or `owner-demo` with password `OwnerDemo123!`
-- `apps/web` now contains a working login page plus `/app/security` for TOTP enrollment, recovery code handoff, and dashboard IP allowlist management.
+- `staff@example.com` or `staff-demo` with password `StaffDemo123!`
+- `apps/web` now contains a working login page plus `/app/stores`, `/app/audit`, and `/app/security` for store ops, scoped audit, TOTP enrollment, recovery code handoff, and dashboard IP allowlist management.
 - Set `PUBLIC_API_BASE_URL` only when the web shell should talk to a different API origin; otherwise dev mode proxies `/v1` to `http://127.0.0.1:8080`.

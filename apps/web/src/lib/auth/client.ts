@@ -35,13 +35,13 @@ export type TOTPEnrollment = {
   expires_at: string;
 };
 
-type ApiEnvelope<T> = {
+export type ApiEnvelope<T> = {
   status: boolean;
   message: string;
   data: T;
 };
 
-type RequestOptions = {
+export type RequestOptions = {
   method?: string;
   body?: unknown;
   authenticated?: boolean;
@@ -206,6 +206,14 @@ export async function syncProfile() {
   });
 
   return response;
+}
+
+export async function apiRequest<T>(
+  path: string,
+  options: RequestOptions = {},
+  retryOnUnauthorized = true,
+) {
+  return request<T>(path, options, retryOnUnauthorized);
 }
 
 async function request<T>(

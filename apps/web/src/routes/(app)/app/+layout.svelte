@@ -10,14 +10,17 @@
     syncProfile
   } from '$lib/auth/client';
 
-  const nav = [
+  let ready = false;
+
+  $: role = $authSession?.user.role ?? '';
+  $: nav = [
     { href: '/app', label: 'Dashboard' },
+    { href: '/app/stores', label: 'Stores' },
+    ...(role === 'karyawan' ? [] : [{ href: '/app/audit', label: 'Audit' }]),
     { href: '/app/security', label: 'Security' },
     { href: '/app/chat', label: 'Global Chat' },
     { href: '/', label: 'Back to Public' }
   ];
-
-  let ready = false;
 
   onMount(async () => {
     hydrateAuthSession();
@@ -48,8 +51,8 @@
       <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">App Shell</p>
       <h1 class="mt-3 font-display text-3xl font-bold tracking-tight text-ink-900">onixggr</h1>
       <p class="mt-3 text-sm leading-6 text-ink-700">
-        Dashboard sekarang sudah membaca session dashboard, memaksa auth di area app, dan
-        menyediakan halaman security untuk 2FA serta allowlist login.
+        Area app sekarang menutup auth, store management, audit viewer, dan security hardening dari
+        blueprint awal.
       </p>
 
       {#if $authSession}

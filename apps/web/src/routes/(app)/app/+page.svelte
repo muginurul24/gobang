@@ -8,14 +8,14 @@
       note: 'JWT access token, refresh rotation, Redis session, dan one-device enforcement sudah aktif'
     },
     {
-      title: '2FA Hardening',
+      title: 'Store Ops',
       value: 'Ready',
-      note: 'TOTP enrollment, recovery code, dan IP allowlist bisa dikelola dari halaman security'
+      note: 'CRUD toko, token rotation, callback URL, serta relasi staff owner sudah aktif di dashboard'
     },
     {
-      title: 'Next Domain',
-      value: 'Stores',
-      note: 'langkah berikutnya tinggal masuk store token, callback URL, dan staff scope'
+      title: 'Audit Scope',
+      value: 'Scoped',
+      note: 'owner scoped audit viewer dan global audit untuk superadmin atau dev sudah tersedia'
     }
   ];
 </script>
@@ -30,11 +30,12 @@
       Dashboard Secure Area
     </p>
     <h2 class="mt-3 font-display text-4xl font-bold tracking-tight text-ink-900">
-      Command center auth dan security
+      Command center auth, toko, dan audit
     </h2>
     <p class="mt-3 max-w-3xl text-sm leading-7 text-ink-700">
-      Halaman app sekarang sudah menjadi area aman berbasis session dashboard. Gunakan halaman
-      Security untuk menyalakan TOTP dan mengunci login ke satu IP bila diperlukan.
+      Halaman app sekarang sudah menjadi area aman berbasis session dashboard. Gunakan menu Stores
+      untuk mengelola toko dan staff, Audit untuk meninjau jejak aksi, serta Security untuk TOTP
+      dan IP allowlist.
     </p>
 
     {#if $authSession}

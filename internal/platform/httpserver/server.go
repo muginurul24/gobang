@@ -6,7 +6,9 @@ import (
 	"net/http"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mugiew/onixggr/internal/modules/audit"
 	"github.com/mugiew/onixggr/internal/modules/auth"
+	"github.com/mugiew/onixggr/internal/modules/stores"
 	"github.com/mugiew/onixggr/internal/platform/config"
 	"github.com/mugiew/onixggr/internal/platform/crypto"
 	"github.com/mugiew/onixggr/internal/platform/health"
@@ -33,12 +35,13 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 	mux := http.NewServeMux()
 
 	if deps.DB != nil && deps.Redis != nil {
+		passwordHasher := security.NewPasswordHasher(cfg.Auth.BcryptCost)
 		authService := auth.NewService(auth.Options{
 			Repository:        auth.NewRepository(deps.DB),
 			Sessions:          auth.NewRedisSessionStore(deps.Redis),
 			Enrollments:       auth.NewRedisEnrollmentStore(deps.Redis),
 			Limiter:           auth.NewRedisLoginLimiter(deps.Redis, cfg.Auth.LoginAttemptWindow, cfg.Auth.LoginMaxAttemptsPerIP, cfg.Auth.LoginMaxAttemptsPerIdentifier),
-			Passwords:         security.NewPasswordHasher(cfg.Auth.BcryptCost),
+			Passwords:         passwordHasher,
 			Tokens:            security.NewAccessTokenManager(cfg.Auth.JWTAccessSecret, cfg.Auth.JWTAccessTTL, cfg.App.Name, nil),
 			Sealer:            crypto.NewSealer(cfg.Auth.EncryptionKey),
 			TwoFactor:         security.NewTOTPManager(cfg.App.Name),
@@ -47,6 +50,16 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 		})
 
 		auth.NewHandler(authService).Register(mux)
+		stores.NewHandler(
+			stores.NewService(
+				stores.NewRepository(deps.DB),
+				passwordHasher,
+				nil,
+				cfg.Business.StoreLowBalanceThreshold,
+			),
+			authService,
+		).Register(mux)
+		audit.NewHandler(audit.NewService(audit.NewRepository(deps.DB)), authService).Register(mux)
 	}
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {

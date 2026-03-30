@@ -6,6 +6,7 @@ INSERT INTO users (
   role,
   is_active,
   totp_enabled,
+  created_by_user_id,
   created_at,
   updated_at
 ) VALUES
@@ -17,6 +18,7 @@ INSERT INTO users (
     'dev',
     true,
     false,
+    NULL,
     now(),
     now()
   ),
@@ -28,6 +30,19 @@ INSERT INTO users (
     'owner',
     true,
     false,
+    NULL,
+    now(),
+    now()
+  ),
+  (
+    'dddddddd-dddd-dddd-dddd-dddddddddddd',
+    'staff@example.com',
+    'staff-demo',
+    crypt('StaffDemo123!', gen_salt('bf', 12)),
+    'karyawan',
+    true,
+    false,
+    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
     now(),
     now()
   )
@@ -38,6 +53,7 @@ SET
   role = EXCLUDED.role,
   is_active = EXCLUDED.is_active,
   totp_enabled = EXCLUDED.totp_enabled,
+  created_by_user_id = EXCLUDED.created_by_user_id,
   updated_at = now();
 
 INSERT INTO stores (
@@ -66,6 +82,19 @@ INSERT INTO stores (
   now()
 )
 ON CONFLICT (slug) DO NOTHING;
+
+INSERT INTO store_staff (
+  store_id,
+  user_id,
+  created_by_owner_id,
+  created_at
+) VALUES (
+  'cccccccc-cccc-cccc-cccc-cccccccccccc',
+  'dddddddd-dddd-dddd-dddd-dddddddddddd',
+  'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+  now()
+)
+ON CONFLICT (store_id, user_id) DO NOTHING;
 
 INSERT INTO audit_logs (
   actor_user_id,
