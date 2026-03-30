@@ -9,6 +9,11 @@
     logoutCurrentSession,
     syncProfile
   } from '$lib/auth/client';
+  import {
+    connectRealtime,
+    disconnectRealtime,
+    realtimeState
+  } from '$lib/realtime/client';
 
   let ready = false;
 
@@ -31,24 +36,41 @@
     { href: '/', label: 'Back to Public' }
   ];
 
-  onMount(async () => {
-    hydrateAuthSession();
+  onMount(() => {
+    let active = true;
 
-    if (!$authSession) {
-      await goto('/login');
-      return;
-    }
+    void (async () => {
+      hydrateAuthSession();
 
-    const profile = await syncProfile();
-    if (!profile.status || profile.message !== 'SUCCESS') {
-      await goto('/login');
-      return;
-    }
+      if (!$authSession) {
+        disconnectRealtime();
+        await goto('/login');
+        return;
+      }
 
-    ready = true;
+      const profile = await syncProfile();
+      if (!active) {
+        return;
+      }
+
+      if (!profile.status || profile.message !== 'SUCCESS') {
+        disconnectRealtime();
+        await goto('/login');
+        return;
+      }
+
+      connectRealtime();
+      ready = true;
+    })();
+
+    return () => {
+      active = false;
+      disconnectRealtime();
+    };
   });
 
   async function signOut() {
+    disconnectRealtime();
     await logoutCurrentSession();
     await goto('/login');
   }
@@ -69,6 +91,14 @@
           <p class="font-semibold text-ink-900">Signed In</p>
           <p class="mt-1">{$authSession.user.username}</p>
           <p>{$authSession.user.role}</p>
+        </div>
+
+        <div class="mt-4 rounded-[1.5rem] border border-ink-100 px-4 py-4 text-sm text-ink-700">
+          <p class="font-semibold text-ink-900">Realtime</p>
+          <p class="mt-1 uppercase tracking-[0.18em] text-brand-700">{$realtimeState.status}</p>
+          <p class="mt-2 text-xs text-ink-500">
+            {$realtimeState.channels.length} channel aktif
+          </p>
         </div>
       {/if}
 

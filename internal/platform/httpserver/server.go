@@ -15,6 +15,7 @@ import (
 	"github.com/mugiew/onixggr/internal/modules/ledger"
 	"github.com/mugiew/onixggr/internal/modules/paymentsqris"
 	"github.com/mugiew/onixggr/internal/modules/providercatalog"
+	modulerealtime "github.com/mugiew/onixggr/internal/modules/realtime"
 	"github.com/mugiew/onixggr/internal/modules/storemembers"
 	"github.com/mugiew/onixggr/internal/modules/stores"
 	"github.com/mugiew/onixggr/internal/modules/withdrawals"
@@ -25,15 +26,17 @@ import (
 	"github.com/mugiew/onixggr/internal/platform/middleware"
 	"github.com/mugiew/onixggr/internal/platform/nexusggr"
 	"github.com/mugiew/onixggr/internal/platform/qris"
+	platformrealtime "github.com/mugiew/onixggr/internal/platform/realtime"
 	"github.com/mugiew/onixggr/internal/platform/security"
 	goredis "github.com/redis/go-redis/v9"
 )
 
 type Dependencies struct {
-	Health health.Service
-	Logger *slog.Logger
-	DB     *pgxpool.Pool
-	Redis  *goredis.Client
+	Health   health.Service
+	Logger   *slog.Logger
+	DB       *pgxpool.Pool
+	Redis    *goredis.Client
+	Realtime *platformrealtime.Hub
 }
 
 type infoResponse struct {
@@ -99,6 +102,17 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 		}, deps.Logger, nil)
 
 		auth.NewHandler(authService).Register(mux)
+		if deps.Realtime != nil {
+			modulerealtime.NewHandler(
+				modulerealtime.NewService(modulerealtime.Options{
+					Repository:       modulerealtime.NewRepository(deps.DB),
+					Authenticator:    authService,
+					HeartbeatSeconds: cfg.Realtime.HeartbeatSeconds,
+				}),
+				deps.Realtime,
+				cfg.App.URL,
+			).Register(mux)
+		}
 		stores.NewHandler(
 			stores.NewService(
 				stores.NewRepository(deps.DB),

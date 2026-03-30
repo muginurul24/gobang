@@ -8,7 +8,10 @@ export default defineConfig({
   plugins: [tailwindcss(), sveltekit()],
   server: {
     proxy: {
-      '/v1': apiProxyTarget,
+      '/v1': {
+        target: apiProxyTarget,
+        ws: true,
+      },
       '/health': apiProxyTarget,
       '/readyz': apiProxyTarget,
       '/healthz': apiProxyTarget,

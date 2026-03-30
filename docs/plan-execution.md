@@ -917,9 +917,9 @@ Menyiapkan transport realtime tunggal.
 - realtime backbone siap
 
 ### Checklist
-- [ ] websocket auth
-- [ ] pub/sub works
-- [ ] reconnect works
+- [x] websocket auth
+- [x] pub/sub works
+- [x] reconnect works
 
 ---
 

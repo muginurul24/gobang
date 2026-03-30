@@ -15,6 +15,7 @@ import (
 	"github.com/mugiew/onixggr/internal/platform/health"
 	"github.com/mugiew/onixggr/internal/platform/httpserver"
 	"github.com/mugiew/onixggr/internal/platform/observability"
+	platformrealtime "github.com/mugiew/onixggr/internal/platform/realtime"
 	redisclient "github.com/mugiew/onixggr/internal/platform/redis"
 )
 
@@ -52,6 +53,19 @@ func run() error {
 		}
 	}()
 
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	realtimeHub, err := platformrealtime.NewHub(ctx, redis)
+	if err != nil {
+		return fmt.Errorf("bootstrap realtime hub: %w", err)
+	}
+	defer func() {
+		if err := realtimeHub.Close(); err != nil {
+			log.Printf("close realtime hub: %v", err)
+		}
+	}()
+
 	healthService := health.New(
 		cfg.App.Name,
 		cfg.App.Env,
@@ -68,16 +82,14 @@ func run() error {
 	server := &http.Server{
 		Addr: cfg.HTTP.Address,
 		Handler: httpserver.NewHandler(cfg, httpserver.Dependencies{
-			Health: healthService,
-			Logger: logger,
-			DB:     postgres,
-			Redis:  redis,
+			Health:   healthService,
+			Logger:   logger,
+			DB:       postgres,
+			Redis:    redis,
+			Realtime: realtimeHub,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
 
 	serverErrors := make(chan error, 1)
 
