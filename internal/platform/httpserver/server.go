@@ -16,6 +16,7 @@ import (
 	"github.com/mugiew/onixggr/internal/modules/providercatalog"
 	"github.com/mugiew/onixggr/internal/modules/storemembers"
 	"github.com/mugiew/onixggr/internal/modules/stores"
+	"github.com/mugiew/onixggr/internal/modules/withdrawals"
 	"github.com/mugiew/onixggr/internal/platform/bankdirectory"
 	"github.com/mugiew/onixggr/internal/platform/config"
 	"github.com/mugiew/onixggr/internal/platform/crypto"
@@ -104,6 +105,22 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 				sealer,
 				nil,
 			),
+			authService,
+		).Register(mux)
+		withdrawals.NewHandler(
+			withdrawals.NewService(withdrawals.Options{
+				Repository: withdrawals.NewRepository(deps.DB),
+				Provider: withdrawals.NewProvider(withdrawals.ProviderConfig{
+					BaseURL:      cfg.QRIS.BaseURL,
+					Client:       cfg.QRIS.Client,
+					ClientKey:    cfg.QRIS.ClientKey,
+					GlobalUUID:   cfg.QRIS.GlobalUUID,
+					TransferType: cfg.QRIS.BankInquiryType,
+				}, banks),
+				Ledger:             ledgerService,
+				AccountOpener:      sealer,
+				PlatformFeePercent: cfg.Business.StoreWithdrawPlatformFeePct,
+			}),
 			authService,
 		).Register(mux)
 		storemembers.NewHandler(

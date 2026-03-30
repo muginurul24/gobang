@@ -19,10 +19,11 @@
     { href: '/app/catalog', label: 'Catalog' },
     { href: '/app/members', label: 'Members' },
     ...(role === 'karyawan'
-      ? []
-      : [
+        ? []
+        : [
           { href: '/app/topups', label: 'Topups' },
           { href: '/app/bank-accounts', label: 'Bank Accounts' },
+          { href: '/app/withdrawals', label: 'Withdrawals' },
           { href: '/app/audit', label: 'Audit' }
         ]),
     { href: '/app/security', label: 'Security' },
@@ -59,8 +60,8 @@
       <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">App Shell</p>
       <h1 class="mt-3 font-display text-3xl font-bold tracking-tight text-ink-900">onixggr</h1>
       <p class="mt-3 text-sm leading-6 text-ink-700">
-        Area app sekarang menutup auth, store management, store members, audit viewer, dan security
-        hardening dari blueprint awal.
+        Area app sekarang menutup auth, store management, topup, withdraw, store members, audit
+        viewer, dan security hardening dari blueprint awal.
       </p>
 
       {#if $authSession}

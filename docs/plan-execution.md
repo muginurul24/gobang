@@ -853,6 +853,7 @@ Menyelesaikan request withdraw ke bank.
 
 ### Kerjakan
 - owner pilih rekening
+- dashboard kirim `idempotency_key`
 - owner input **net amount**
 - inquiry dulu
 - hitung:
@@ -869,9 +870,9 @@ Menyelesaikan request withdraw ke bank.
 - withdraw request end-to-end selesai
 
 ### Checklist
-- [ ] fee formula benar
-- [ ] reserve sebelum transfer
-- [ ] balance cukup dicek setelah inquiry
+- [x] fee formula benar
+- [x] reserve sebelum transfer
+- [x] balance cukup dicek setelah inquiry
 
 ---
 

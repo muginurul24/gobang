@@ -446,6 +446,7 @@ Index:
 | id | uuid pk | |
 | store_id | uuid fk stores(id) | |
 | store_bank_account_id | uuid fk store_bank_accounts(id) | |
+| idempotency_key | text | unique per `(store_id, idempotency_key)` |
 | net_requested_amount | numeric(20,2) | owner input |
 | platform_fee_amount | numeric(20,2) | 12% × net |
 | external_fee_amount | numeric(20,2) | hasil inquiry |
@@ -461,6 +462,7 @@ Index:
 Index:
 - index(store_id, created_at desc)
 - index(status)
+- unique(store_id, idempotency_key)
 - unique(provider_partner_ref_no)
 
 ### T. `withdrawal_status_checks`
@@ -708,4 +710,3 @@ Urutan kerja paling tepat setelah dokumen ini:
 7. implement **withdraw store balance**
 8. implement **realtime + dashboard + chat**
 9. implement **ops & observability**
-

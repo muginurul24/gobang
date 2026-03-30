@@ -1,0 +1,326 @@
+package withdrawals
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+type Repository struct {
+	pool *pgxpool.Pool
+}
+
+func NewRepository(pool *pgxpool.Pool) *Repository {
+	return &Repository{pool: pool}
+}
+
+func (r *Repository) GetStoreScope(ctx context.Context, storeID string) (StoreScope, error) {
+	var store StoreScope
+	err := r.pool.QueryRow(ctx, `
+		SELECT id, owner_user_id, name, slug, status, deleted_at
+		FROM stores
+		WHERE id = $1
+		LIMIT 1
+	`, strings.TrimSpace(storeID)).Scan(
+		&store.ID,
+		&store.OwnerUserID,
+		&store.Name,
+		&store.Slug,
+		&store.Status,
+		&store.DeletedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return StoreScope{}, ErrNotFound
+		}
+
+		return StoreScope{}, fmt.Errorf("get store scope: %w", err)
+	}
+
+	return store, nil
+}
+
+func (r *Repository) GetStoreBankAccount(ctx context.Context, storeID string, bankAccountID string) (StoreBankAccount, error) {
+	var account StoreBankAccount
+	err := r.pool.QueryRow(ctx, `
+		SELECT
+			id,
+			store_id,
+			bank_code,
+			bank_name,
+			account_name,
+			account_number_masked,
+			account_number_encrypted,
+			is_active
+		FROM store_bank_accounts
+		WHERE store_id = $1 AND id = $2
+		LIMIT 1
+	`, strings.TrimSpace(storeID), strings.TrimSpace(bankAccountID)).Scan(
+		&account.ID,
+		&account.StoreID,
+		&account.BankCode,
+		&account.BankName,
+		&account.AccountName,
+		&account.AccountNumberMasked,
+		&account.AccountNumberEncrypted,
+		&account.IsActive,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return StoreBankAccount{}, ErrNotFound
+		}
+
+		return StoreBankAccount{}, fmt.Errorf("get store bank account: %w", err)
+	}
+
+	return account, nil
+}
+
+func (r *Repository) FindByIdempotencyKey(ctx context.Context, storeID string, idempotencyKey string) (StoreWithdrawal, error) {
+	return r.getWithdrawal(ctx, `
+		SELECT
+			w.id,
+			w.store_id,
+			w.store_bank_account_id,
+			w.idempotency_key,
+			a.bank_code,
+			a.bank_name,
+			a.account_name,
+			a.account_number_masked,
+			w.net_requested_amount::text,
+			w.platform_fee_amount::text,
+			w.external_fee_amount::text,
+			w.total_store_debit::text,
+			w.provider_partner_ref_no,
+			w.provider_inquiry_id,
+			w.status,
+			w.created_at,
+			w.updated_at
+		FROM store_withdrawals w
+		INNER JOIN store_bank_accounts a ON a.id = w.store_bank_account_id
+		WHERE w.store_id = $1 AND w.idempotency_key = $2
+		LIMIT 1
+	`, strings.TrimSpace(storeID), strings.TrimSpace(idempotencyKey))
+}
+
+func (r *Repository) GetByID(ctx context.Context, withdrawalID string) (StoreWithdrawal, error) {
+	return r.getWithdrawal(ctx, `
+		SELECT
+			w.id,
+			w.store_id,
+			w.store_bank_account_id,
+			w.idempotency_key,
+			a.bank_code,
+			a.bank_name,
+			a.account_name,
+			a.account_number_masked,
+			w.net_requested_amount::text,
+			w.platform_fee_amount::text,
+			w.external_fee_amount::text,
+			w.total_store_debit::text,
+			w.provider_partner_ref_no,
+			w.provider_inquiry_id,
+			w.status,
+			w.created_at,
+			w.updated_at
+		FROM store_withdrawals w
+		INNER JOIN store_bank_accounts a ON a.id = w.store_bank_account_id
+		WHERE w.id = $1
+		LIMIT 1
+	`, strings.TrimSpace(withdrawalID))
+}
+
+func (r *Repository) ListStoreWithdrawals(ctx context.Context, storeID string) ([]StoreWithdrawal, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT
+			w.id,
+			w.store_id,
+			w.store_bank_account_id,
+			w.idempotency_key,
+			a.bank_code,
+			a.bank_name,
+			a.account_name,
+			a.account_number_masked,
+			w.net_requested_amount::text,
+			w.platform_fee_amount::text,
+			w.external_fee_amount::text,
+			w.total_store_debit::text,
+			w.provider_partner_ref_no,
+			w.provider_inquiry_id,
+			w.status,
+			w.created_at,
+			w.updated_at
+		FROM store_withdrawals w
+		INNER JOIN store_bank_accounts a ON a.id = w.store_bank_account_id
+		WHERE w.store_id = $1
+		ORDER BY w.created_at DESC
+	`, strings.TrimSpace(storeID))
+	if err != nil {
+		return nil, fmt.Errorf("list store withdrawals: %w", err)
+	}
+	defer rows.Close()
+
+	var withdrawals []StoreWithdrawal
+	for rows.Next() {
+		withdrawal, err := scanWithdrawal(rows)
+		if err != nil {
+			return nil, err
+		}
+
+		withdrawals = append(withdrawals, withdrawal)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate store withdrawals: %w", err)
+	}
+
+	return withdrawals, nil
+}
+
+func (r *Repository) CreateStoreWithdrawal(ctx context.Context, params CreateStoreWithdrawalParams) (StoreWithdrawal, error) {
+	var withdrawalID string
+	err := r.pool.QueryRow(ctx, `
+		INSERT INTO store_withdrawals (
+			store_id,
+			store_bank_account_id,
+			idempotency_key,
+			net_requested_amount,
+			platform_fee_amount,
+			external_fee_amount,
+			total_store_debit,
+			provider_partner_ref_no,
+			provider_inquiry_id,
+			status,
+			request_payload_masked,
+			provider_payload_masked,
+			created_at,
+			updated_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12::jsonb, $13, $13)
+		RETURNING id
+	`, params.StoreID, params.StoreBankAccountID, params.IdempotencyKey, params.NetRequestedAmount, params.PlatformFeeAmount, params.ExternalFeeAmount, params.TotalStoreDebit, params.ProviderPartnerRefNo, params.ProviderInquiryID, params.Status, toJSON(params.RequestPayload), toJSON(params.ProviderPayload), params.OccurredAt).Scan(&withdrawalID)
+	if err != nil {
+		return StoreWithdrawal{}, fmt.Errorf("create store withdrawal: %w", err)
+	}
+
+	return r.GetByID(ctx, withdrawalID)
+}
+
+func (r *Repository) UpdateStoreWithdrawal(ctx context.Context, params UpdateStoreWithdrawalParams) (StoreWithdrawal, error) {
+	var providerPayload *string
+	if params.ProviderPayload != nil {
+		encoded := toJSON(params.ProviderPayload)
+		providerPayload = &encoded
+	}
+
+	_, err := r.pool.Exec(ctx, `
+		UPDATE store_withdrawals
+		SET
+			platform_fee_amount = COALESCE($2, platform_fee_amount),
+			external_fee_amount = COALESCE($3, external_fee_amount),
+			total_store_debit = COALESCE($4, total_store_debit),
+			provider_partner_ref_no = COALESCE($5, provider_partner_ref_no),
+			provider_inquiry_id = COALESCE($6, provider_inquiry_id),
+			status = COALESCE($7, status),
+			provider_payload_masked = COALESCE($8::jsonb, provider_payload_masked),
+			updated_at = $9
+		WHERE id = $1
+	`, params.WithdrawalID, params.PlatformFeeAmount, params.ExternalFeeAmount, params.TotalStoreDebit, params.ProviderPartnerRefNo, params.ProviderInquiryID, params.Status, providerPayload, params.OccurredAt)
+	if err != nil {
+		return StoreWithdrawal{}, fmt.Errorf("update store withdrawal: %w", err)
+	}
+
+	return r.GetByID(ctx, params.WithdrawalID)
+}
+
+func (r *Repository) InsertAuditLog(
+	ctx context.Context,
+	actorUserID *string,
+	actorRole string,
+	storeID *string,
+	action string,
+	targetType string,
+	targetID *string,
+	payload map[string]any,
+	ipAddress string,
+	userAgent string,
+	occurredAt time.Time,
+) error {
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		encoded = []byte("{}")
+	}
+
+	_, err = r.pool.Exec(ctx, `
+		INSERT INTO audit_logs (
+			actor_user_id,
+			actor_role,
+			store_id,
+			action,
+			target_type,
+			target_id,
+			payload_masked,
+			ip_address,
+			user_agent,
+			created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10)
+	`, actorUserID, actorRole, storeID, action, targetType, targetID, string(encoded), nullableString(ipAddress), nullableString(userAgent), occurredAt)
+	if err != nil {
+		return fmt.Errorf("insert withdrawal audit log: %w", err)
+	}
+
+	return nil
+}
+
+func (r *Repository) getWithdrawal(ctx context.Context, query string, args ...any) (StoreWithdrawal, error) {
+	row := r.pool.QueryRow(ctx, query, args...)
+	withdrawal, err := scanWithdrawal(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return StoreWithdrawal{}, ErrNotFound
+		}
+
+		return StoreWithdrawal{}, err
+	}
+
+	return withdrawal, nil
+}
+
+type scanner interface {
+	Scan(dest ...any) error
+}
+
+func scanWithdrawal(row scanner) (StoreWithdrawal, error) {
+	var withdrawal StoreWithdrawal
+	err := row.Scan(
+		&withdrawal.ID,
+		&withdrawal.StoreID,
+		&withdrawal.StoreBankAccountID,
+		&withdrawal.IdempotencyKey,
+		&withdrawal.BankCode,
+		&withdrawal.BankName,
+		&withdrawal.AccountName,
+		&withdrawal.AccountNumberMasked,
+		&withdrawal.NetRequestedAmount,
+		&withdrawal.PlatformFeeAmount,
+		&withdrawal.ExternalFeeAmount,
+		&withdrawal.TotalStoreDebit,
+		&withdrawal.ProviderPartnerRefNo,
+		&withdrawal.ProviderInquiryID,
+		&withdrawal.Status,
+		&withdrawal.CreatedAt,
+		&withdrawal.UpdatedAt,
+	)
+	if err != nil {
+		return StoreWithdrawal{}, err
+	}
+
+	return withdrawal, nil
+}

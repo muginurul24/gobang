@@ -105,6 +105,8 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `qris_transactions` now exists for both `store_topup` and the later `member_payment` milestone, with `provider_trx_id`, `custom_ref`, `status`, expiry, and masked provider payload persistence.
 - `GET /v1/stores/{storeID}/topups/qris`: list QRIS store topup history for the selected store in dashboard scope.
 - `POST /v1/stores/{storeID}/topups/qris`: create a pending `store_topup`, call provider `generate` with the owner username plus internal `custom_ref`, then persist `provider_trx_id` and QR payload on success.
+- `GET /v1/stores/{storeID}/withdrawals`: list dashboard store-withdraw requests for the selected store.
+- `POST /v1/stores/{storeID}/withdrawals`: create a dashboard withdraw intent with body `{"bank_account_id":"uuid","amount":1000000,"idempotency_key":"uuid-or-ulid"}`.
 - Ambiguous generate responses currently stay in `pending` with `provider_state=pending_provider_response`; hard provider/config errors mark the topup `failed` without touching the ledger.
 - `apps/web` now includes `/app/topups` so owners, `dev`, and `superadmin` can generate QRIS topups, render the QR image, and inspect pending, success, failed, or expired history per store.
 
@@ -128,6 +130,12 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - Reconcile backoff follows the execution plan: first retry after 30 seconds, then 60 seconds, then 120 seconds, then every 5 minutes, with attempts logged in `qris_reconcile_attempts`.
 - Provider `success` finalizes through the same idempotent payment finalizer used by webhook handling, so store credit cannot be posted twice.
 - Provider `pending` becomes `expired` once the local `expires_at` has passed; transient upstream errors only record the attempt and keep the transaction pending for the next retry.
+
+## Store Withdrawals
+
+- Dashboard withdraw now uses one `idempotency_key` per intent. The first request is persisted in `store_withdrawals`, and duplicate requests with the same key return the existing row instead of making a second inquiry or transfer.
+- The request path follows the blueprint: inquiry first, compute `platform_fee_amount` at 12% of the requested net amount, add provider `external_fee_amount`, check available balance, reserve `total_store_debit`, then call transfer.
+- Immediate provider transfer failures release the reservation and mark the row `failed`; ambiguous provider failures stay `pending` for the later webhook/check-status milestone.
 
 ## Outbound Callbacks
 
@@ -162,5 +170,5 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `dev@example.com` or `dev-demo` with password `DevDemo123!`
 - `owner@example.com` or `owner-demo` with password `OwnerDemo123!`
 - `staff@example.com` or `staff-demo` with password `StaffDemo123!`
-- `apps/web` now contains a working login page plus `/app/stores`, `/app/topups`, `/app/members`, `/app/bank-accounts`, `/app/audit`, and `/app/security` for store ops, QRIS topup generation, member mapping, verified bank accounts, scoped audit, TOTP enrollment, recovery code handoff, and dashboard IP allowlist management.
+- `apps/web` now contains a working login page plus `/app/stores`, `/app/topups`, `/app/withdrawals`, `/app/members`, `/app/bank-accounts`, `/app/audit`, and `/app/security` for store ops, QRIS topup generation, store withdraw requests, member mapping, verified bank accounts, scoped audit, TOTP enrollment, recovery code handoff, and dashboard IP allowlist management.
 - Set `PUBLIC_API_BASE_URL` only when the web shell should talk to a different API origin; otherwise dev mode proxies `/v1` to `http://127.0.0.1:8080`.
