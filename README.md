@@ -64,6 +64,14 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `DELETE /v1/stores/{storeID}/staff/{userID}`: owner-only staff unassignment.
 - `GET /v1/audit/logs`: owner-scoped audit feed, or global for `dev` and `superadmin`.
 
+## Bank Account APIs
+
+- `GET /v1/banks?query=bca&limit=15`: search Bank RTOL directory by `bank_code` or `bank_name`.
+- `GET /v1/stores/{storeID}/bank-accounts`: list masked bank accounts for the selected store.
+- `POST /v1/stores/{storeID}/bank-accounts`: verify account with inquiry first, then store encrypted account number plus masked UI snapshot.
+- `PATCH /v1/stores/{storeID}/bank-accounts/{bankAccountID}`: activate or deactivate a saved bank account.
+- Local development falls back to a deterministic mock inquiry verifier whenever `QRIS_CLIENT`, `QRIS_CLIENT_KEY`, or `QRIS_GLOBAL_UUID` are still empty or `QRIS_BASE_URL` is still the placeholder value.
+
 ## Notes
 
 - `backend/` and `frontend/` are legacy placeholder directories; new work should go into `apps/`.
@@ -74,5 +82,5 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `dev@example.com` or `dev-demo` with password `DevDemo123!`
 - `owner@example.com` or `owner-demo` with password `OwnerDemo123!`
 - `staff@example.com` or `staff-demo` with password `StaffDemo123!`
-- `apps/web` now contains a working login page plus `/app/stores`, `/app/audit`, and `/app/security` for store ops, scoped audit, TOTP enrollment, recovery code handoff, and dashboard IP allowlist management.
+- `apps/web` now contains a working login page plus `/app/stores`, `/app/bank-accounts`, `/app/audit`, and `/app/security` for store ops, verified bank accounts, scoped audit, TOTP enrollment, recovery code handoff, and dashboard IP allowlist management.
 - Set `PUBLIC_API_BASE_URL` only when the web shell should talk to a different API origin; otherwise dev mode proxies `/v1` to `http://127.0.0.1:8080`.

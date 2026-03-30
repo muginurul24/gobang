@@ -839,10 +839,10 @@ Menyelesaikan setup bank account per store.
 - rekening tujuan withdraw valid
 
 ### Checklist
-- [ ] bank_code valid
-- [ ] inquiry verification works
-- [ ] account saved
-- [ ] visibility role correct
+- [x] bank_code valid
+- [x] inquiry verification works
+- [x] account saved
+- [x] visibility role correct
 
 ---
 

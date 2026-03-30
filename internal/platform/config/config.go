@@ -70,6 +70,8 @@ type QRISConfig struct {
 	ClientKey            string
 	GlobalUUID           string
 	DefaultExpireSeconds int
+	BankInquiryAmount    int64
+	BankInquiryType      int
 	WebhookSharedSecret  string
 }
 
@@ -159,6 +161,8 @@ func Load() (Config, error) {
 			ClientKey:            envString("QRIS_CLIENT_KEY", ""),
 			GlobalUUID:           envString("QRIS_GLOBAL_UUID", "GLOBAL_QRIS_UUID"),
 			DefaultExpireSeconds: envInt("QRIS_DEFAULT_EXPIRE_SECONDS", 300),
+			BankInquiryAmount:    envInt64("QRIS_BANK_INQUIRY_AMOUNT", 10000),
+			BankInquiryType:      envInt("QRIS_BANK_INQUIRY_TYPE", 2),
 			WebhookSharedSecret:  envString("QRIS_WEBHOOK_SHARED_SECRET", ""),
 		},
 		NexusGGR: NexusGGRConfig{

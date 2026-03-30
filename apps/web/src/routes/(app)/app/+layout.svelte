@@ -16,7 +16,12 @@
   $: nav = [
     { href: '/app', label: 'Dashboard' },
     { href: '/app/stores', label: 'Stores' },
-    ...(role === 'karyawan' ? [] : [{ href: '/app/audit', label: 'Audit' }]),
+    ...(role === 'karyawan'
+      ? []
+      : [
+          { href: '/app/bank-accounts', label: 'Bank Accounts' },
+          { href: '/app/audit', label: 'Audit' }
+        ]),
     { href: '/app/security', label: 'Security' },
     { href: '/app/chat', label: 'Global Chat' },
     { href: '/', label: 'Back to Public' }

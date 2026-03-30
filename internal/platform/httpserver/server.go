@@ -8,7 +8,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mugiew/onixggr/internal/modules/audit"
 	"github.com/mugiew/onixggr/internal/modules/auth"
+	"github.com/mugiew/onixggr/internal/modules/bankaccounts"
 	"github.com/mugiew/onixggr/internal/modules/stores"
+	"github.com/mugiew/onixggr/internal/platform/bankdirectory"
 	"github.com/mugiew/onixggr/internal/platform/config"
 	"github.com/mugiew/onixggr/internal/platform/crypto"
 	"github.com/mugiew/onixggr/internal/platform/health"
@@ -36,6 +38,7 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 
 	if deps.DB != nil && deps.Redis != nil {
 		passwordHasher := security.NewPasswordHasher(cfg.Auth.BcryptCost)
+		sealer := crypto.NewSealer(cfg.Auth.EncryptionKey)
 		authService := auth.NewService(auth.Options{
 			Repository:        auth.NewRepository(deps.DB),
 			Sessions:          auth.NewRedisSessionStore(deps.Redis),
@@ -43,11 +46,12 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 			Limiter:           auth.NewRedisLoginLimiter(deps.Redis, cfg.Auth.LoginAttemptWindow, cfg.Auth.LoginMaxAttemptsPerIP, cfg.Auth.LoginMaxAttemptsPerIdentifier),
 			Passwords:         passwordHasher,
 			Tokens:            security.NewAccessTokenManager(cfg.Auth.JWTAccessSecret, cfg.Auth.JWTAccessTTL, cfg.App.Name, nil),
-			Sealer:            crypto.NewSealer(cfg.Auth.EncryptionKey),
+			Sealer:            sealer,
 			TwoFactor:         security.NewTOTPManager(cfg.App.Name),
 			SessionTTL:        cfg.Auth.SessionTTL,
 			TOTPEnrollmentTTL: cfg.Auth.TOTPEnrollmentTTL,
 		})
+		banks := bankdirectory.MustLoadDefault()
 
 		auth.NewHandler(authService).Register(mux)
 		stores.NewHandler(
@@ -56,6 +60,23 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 				passwordHasher,
 				nil,
 				cfg.Business.StoreLowBalanceThreshold,
+			),
+			authService,
+		).Register(mux)
+		bankaccounts.NewHandler(
+			bankaccounts.NewService(
+				bankaccounts.NewRepository(deps.DB),
+				banks,
+				bankaccounts.NewInquiryVerifier(bankaccounts.InquiryVerifierConfig{
+					BaseURL:      cfg.QRIS.BaseURL,
+					Client:       cfg.QRIS.Client,
+					ClientKey:    cfg.QRIS.ClientKey,
+					GlobalUUID:   cfg.QRIS.GlobalUUID,
+					Amount:       cfg.QRIS.BankInquiryAmount,
+					TransferType: cfg.QRIS.BankInquiryType,
+				}, banks),
+				sealer,
+				nil,
 			),
 			authService,
 		).Register(mux)
