@@ -1149,8 +1149,9 @@ Menyelesaikan chat global.
 ### Checklist
 
 - [ ] one room only
-- [ ] retention cleanup
-- [ ] dev moderation works
+- [x] one room only
+- [x] retention cleanup
+- [x] dev moderation works
 
 ---
 

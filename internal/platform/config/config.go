@@ -19,6 +19,7 @@ type Config struct {
 	NexusGGR        NexusGGRConfig
 	ProviderCatalog ProviderCatalogConfig
 	Worker          WorkerConfig
+	Chat            ChatConfig
 	Realtime        RealtimeConfig
 	Observability   ObservabilityConfig
 }
@@ -105,6 +106,11 @@ type WorkerConfig struct {
 	CallbackRetryBatchSize     int
 }
 
+type ChatConfig struct {
+	RetentionPeriod time.Duration
+	PruneInterval   time.Duration
+}
+
 type RealtimeConfig struct {
 	HeartbeatSeconds int
 }
@@ -171,6 +177,16 @@ func Load() (Config, error) {
 	}
 
 	callbackRetryInterval, err := envDuration("CALLBACK_RETRY_INTERVAL", 15*time.Second)
+	if err != nil {
+		return Config{}, err
+	}
+
+	chatRetentionPeriod, err := envDuration("CHAT_RETENTION_PERIOD", 168*time.Hour)
+	if err != nil {
+		return Config{}, err
+	}
+
+	chatPruneInterval, err := envDuration("CHAT_PRUNE_INTERVAL", time.Hour)
 	if err != nil {
 		return Config{}, err
 	}
@@ -246,6 +262,10 @@ func Load() (Config, error) {
 			WithdrawReconcileBatchSize: envInt("WITHDRAW_RECONCILE_BATCH_SIZE", 50),
 			CallbackRetryInterval:      callbackRetryInterval,
 			CallbackRetryBatchSize:     envInt("CALLBACK_RETRY_BATCH_SIZE", 50),
+		},
+		Chat: ChatConfig{
+			RetentionPeriod: chatRetentionPeriod,
+			PruneInterval:   chatPruneInterval,
 		},
 		Realtime: RealtimeConfig{
 			HeartbeatSeconds: envInt("WS_HEARTBEAT_SECONDS", 30),

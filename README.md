@@ -151,8 +151,16 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `GET /v1/realtime/ws`: authenticated websocket endpoint for dashboard sessions. Browser clients pass the dashboard access token as `?access_token=...`, and the API validates it against the same Redis-backed session state used by HTTP auth.
 - Current channel routing follows the blueprint backbone: `user:{userId}`, owner or karyawan `store:{storeId}` scopes, `role:dev` or `role:superadmin`, plus `global_chat`.
 - The API now keeps one Redis pub/sub subscription fanout in `internal/platform/realtime`; every websocket connection gets a local subscription set, a `hello` frame, periodic heartbeat frames, and a Redis-delivered `realtime.connection.ready` event.
-- `/app/chat` now acts as a realtime diagnostics surface: it shows connection state, subscribed channels, latest events, and a ping action that publishes `realtime.pong` through Redis pub/sub to prove reconnect and fanout wiring.
+- `/app/chat` now hosts the one-room global chat required by the blueprint. Messages are created over HTTP and fanned out through the `global_chat` websocket channel in realtime.
 - Local tuning uses `WS_HEARTBEAT_SECONDS`. The Vite dev proxy now forwards websocket upgrades on `/v1`, so local web sessions can connect through the same origin in development.
+
+## Chat Global
+
+- `GET /v1/chat/messages`: list active messages in the single global room, capped by the 7-day retention window.
+- `POST /v1/chat/messages`: send one message to the global room with body `{"body":"halo semua"}`.
+- `DELETE /v1/chat/messages/{messageID}`: dev-only moderation delete. Regular users cannot edit or delete messages.
+- `apps/scheduler` prunes `chat_messages` older than 7 days on a configurable interval via `CHAT_RETENTION_PERIOD` and `CHAT_PRUNE_INTERVAL`.
+- There is no DM flow and no multi-room support. All realtime chat events publish through `global_chat`.
 
 ## Dashboard Cards
 

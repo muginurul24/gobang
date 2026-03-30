@@ -51,6 +51,8 @@ func TestLoadDefaults(t *testing.T) {
 		"WITHDRAW_RECONCILE_BATCH_SIZE",
 		"CALLBACK_RETRY_INTERVAL",
 		"CALLBACK_RETRY_BATCH_SIZE",
+		"CHAT_RETENTION_PERIOD",
+		"CHAT_PRUNE_INTERVAL",
 		"WS_HEARTBEAT_SECONDS",
 		"METRICS_ENABLED",
 		"PROMETHEUS_PORT",
@@ -101,6 +103,8 @@ func TestLoadOverrides(t *testing.T) {
 	t.Setenv("WITHDRAW_RECONCILE_BATCH_SIZE", "17")
 	t.Setenv("CALLBACK_RETRY_INTERVAL", "20s")
 	t.Setenv("CALLBACK_RETRY_BATCH_SIZE", "31")
+	t.Setenv("CHAT_RETENTION_PERIOD", "200h")
+	t.Setenv("CHAT_PRUNE_INTERVAL", "2h")
 	t.Setenv("METRICS_ENABLED", "false")
 
 	cfg, err := Load()
@@ -170,6 +174,14 @@ func TestLoadOverrides(t *testing.T) {
 
 	if cfg.Worker.CallbackRetryBatchSize != 31 {
 		t.Fatalf("Worker.CallbackRetryBatchSize = %d, want 31", cfg.Worker.CallbackRetryBatchSize)
+	}
+
+	if cfg.Chat.RetentionPeriod != 200*time.Hour {
+		t.Fatalf("Chat.RetentionPeriod = %v, want 200h", cfg.Chat.RetentionPeriod)
+	}
+
+	if cfg.Chat.PruneInterval != 2*time.Hour {
+		t.Fatalf("Chat.PruneInterval = %v, want 2h", cfg.Chat.PruneInterval)
 	}
 
 	if cfg.Observability.MetricsEnabled {
