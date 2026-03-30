@@ -1412,9 +1412,9 @@ Menguji sistem saat gangguan.
 
 ### Checklist
 
-- [ ] degraded mode reviewed
-- [ ] no double ledger mutation
-- [ ] alerts fire
+- [x] degraded mode reviewed
+- [x] no double ledger mutation
+- [x] alerts fire
 
 ---
 

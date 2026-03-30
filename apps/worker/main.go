@@ -11,6 +11,7 @@ import (
 	"github.com/mugiew/onixggr/internal/modules/callbacks"
 	"github.com/mugiew/onixggr/internal/modules/game"
 	"github.com/mugiew/onixggr/internal/modules/ledger"
+	"github.com/mugiew/onixggr/internal/modules/notifications"
 	"github.com/mugiew/onixggr/internal/modules/paymentsqris"
 	"github.com/mugiew/onixggr/internal/modules/withdrawals"
 	"github.com/mugiew/onixggr/internal/platform/config"
@@ -37,6 +38,13 @@ func main() {
 	defer pool.Close()
 
 	ledgerService := ledger.NewService(ledger.NewRepository(pool))
+	notificationService := notifications.NewService(notifications.Options{
+		Repository: notifications.NewRepository(pool),
+		Logger:     slog.Default(),
+	})
+	storeNotifier := notifications.NewStoreEmitter(
+		notifications.NewAsyncEmitter(notificationService, slog.Default()),
+	)
 	reconcileService := game.NewReconcileService(game.ReconcileOptions{
 		Repository: game.NewRepository(pool),
 		Upstream: nexusggr.NewClient(nexusggr.Config{
@@ -50,6 +58,7 @@ func main() {
 	callbackService := callbacks.NewService(callbacks.Options{
 		Repository:    callbacks.NewRepository(pool),
 		Dispatcher:    callbacks.NewHTTPDispatcher(cfg.Callback.DeliveryTimeout),
+		Notifications: storeNotifier,
 		SigningSecret: cfg.Callback.SigningSecret,
 	})
 	qrisClient := qris.NewClient(qris.Config{
@@ -63,6 +72,7 @@ func main() {
 		Repository:          paymentsqris.NewRepository(pool),
 		Ledger:              ledgerService,
 		Callbacks:           callbackService,
+		Notifications:       storeNotifier,
 		MemberPaymentFeePct: cfg.Business.MemberPaymentPlatformFeePct,
 	})
 	qrisReconcileService := paymentsqris.NewReconcileService(paymentsqris.ReconcileOptions{
@@ -80,6 +90,7 @@ func main() {
 			TransferType: cfg.QRIS.BankInquiryType,
 		}, nil),
 		Ledger:              ledgerService,
+		Notifications:       storeNotifier,
 		PlatformFeePercent:  cfg.Business.StoreWithdrawPlatformFeePct,
 		StatusCheckInterval: cfg.Worker.WithdrawReconcileInterval,
 	})

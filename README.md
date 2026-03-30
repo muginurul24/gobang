@@ -193,6 +193,7 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - Health readiness now distinguishes degraded upstream configuration from hard dependency failure: PostgreSQL or Redis failure keeps `/health/ready` as `503`, while missing QRIS or NexusGGR credentials marks readiness payload as `degraded` but keeps the API bootable.
 - Starter PromQL panels live in [`basic-dashboard.md`](/home/mugiew/project/onixggr/deploy/monitoring/basic-dashboard.md).
 - Starter alert rules for Hari 38 live in [`alerts.rules.yml`](/home/mugiew/project/onixggr/deploy/monitoring/alerts.rules.yml) and cover webhook failure spike, callback failure spike, Redis down, DB down, NexusGGR error spike, and QRIS error spike.
+- Hari 44 failure drill is scripted in [`run-failure-drill.sh`](/home/mugiew/project/onixggr/scripts/run-failure-drill.sh), with the latest baseline and expected outcomes documented in [`failure-drill.md`](/home/mugiew/project/onixggr/deploy/monitoring/failure-drill.md).
 
 ## Store API Game Flows
 

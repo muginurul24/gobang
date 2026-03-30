@@ -287,6 +287,11 @@ func (r *Repository) NextReconcileAttemptNo(ctx context.Context, transactionID s
 }
 
 func (r *Repository) ListDueReconcileTransactions(ctx context.Context, now time.Time, limit int) ([]ReconcileCandidate, error) {
+	firstAttemptDue := now.UTC().Add(-30 * time.Second)
+	secondAttemptDue := now.UTC().Add(-60 * time.Second)
+	thirdAttemptDue := now.UTC().Add(-120 * time.Second)
+	steadyStateDue := now.UTC().Add(-5 * time.Minute)
+
 	rows, err := r.pool.Query(ctx, `
 		SELECT
 			qt.id,
@@ -319,14 +324,14 @@ func (r *Repository) ListDueReconcileTransactions(ctx context.Context, now time.
 			AND qt.provider_trx_id IS NOT NULL
 			AND s.deleted_at IS NULL
 			AND (
-				(last_attempt.attempt_no IS NULL AND qt.updated_at <= $1 - interval '30 seconds')
-				OR (last_attempt.attempt_no = 1 AND last_attempt.created_at <= $1 - interval '60 seconds')
-				OR (last_attempt.attempt_no = 2 AND last_attempt.created_at <= $1 - interval '120 seconds')
-				OR (last_attempt.attempt_no >= 3 AND last_attempt.created_at <= $1 - interval '5 minutes')
+				(last_attempt.attempt_no IS NULL AND qt.updated_at <= $1)
+				OR (last_attempt.attempt_no = 1 AND last_attempt.created_at <= $2)
+				OR (last_attempt.attempt_no = 2 AND last_attempt.created_at <= $3)
+				OR (last_attempt.attempt_no >= 3 AND last_attempt.created_at <= $4)
 			)
 		ORDER BY COALESCE(last_attempt.created_at, qt.updated_at) ASC
-		LIMIT $2
-	`, now.UTC(), limit)
+		LIMIT $5
+	`, firstAttemptDue, secondAttemptDue, thirdAttemptDue, steadyStateDue, limit)
 	if err != nil {
 		return nil, fmt.Errorf("list due qris reconcile transactions: %w", err)
 	}

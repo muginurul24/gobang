@@ -21,7 +21,8 @@ type server struct {
 	client     string
 	clientKey  string
 	globalUUID string
-	delay      time.Duration
+	nexusDelay atomic.Int64
+	qrisDelay  atomic.Int64
 
 	users         map[string]float64
 	transfers     map[string]transferRecord
@@ -68,13 +69,13 @@ type disbursementRecord struct {
 }
 
 func main() {
+	defaultDelay := envDuration("MOCK_UPSTREAM_DELAY", 0)
 	srv := &server{
 		agentCode:     envString("MOCK_NEXUSGGR_AGENT_CODE", "demo-agent"),
 		agentToken:    envString("MOCK_NEXUSGGR_AGENT_TOKEN", "demo-token"),
 		client:        envString("MOCK_QRIS_CLIENT", "demo-client"),
 		clientKey:     envString("MOCK_QRIS_CLIENT_KEY", "demo-key"),
 		globalUUID:    envString("MOCK_QRIS_GLOBAL_UUID", "demo-uuid"),
-		delay:         envDuration("MOCK_UPSTREAM_DELAY", 0),
 		users:         map[string]float64{},
 		transfers:     map[string]transferRecord{},
 		payments:      map[string]paymentRecord{},
@@ -85,6 +86,8 @@ func main() {
 	srv.nextPartnerRefNo.Store(9000)
 	srv.nextInquiryID.Store(2949800)
 	srv.nextVendorRefNo.Store(7000)
+	srv.nexusDelay.Store(defaultDelay.Milliseconds())
+	srv.qrisDelay.Store(defaultDelay.Milliseconds())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /", srv.handleNexus)
@@ -93,18 +96,24 @@ func main() {
 	mux.HandleFunc("POST /api/inquiry", srv.handleInquiry)
 	mux.HandleFunc("POST /api/transfer", srv.handleTransfer)
 	mux.HandleFunc("POST /api/disbursement/check-status/{partnerRefNo}", srv.handleDisbursementStatus)
+	mux.HandleFunc("GET /_admin/state", srv.handleAdminState)
+	mux.HandleFunc("POST /_admin/nexus/delay", srv.handleAdminNexusDelay)
+	mux.HandleFunc("POST /_admin/qris/delay", srv.handleAdminQRISDelay)
+	mux.HandleFunc("POST /_admin/qris/payments/{trxID}", srv.handleAdminPaymentStatus)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"status": "ok"})
 	})
 
 	address := envString("MOCK_UPSTREAM_ADDRESS", ":18081")
 	log.Printf("mock upstream listening on %s", address)
-	if err := http.ListenAndServe(address, withDelay(srv.delay, mux)); err != nil {
+	if err := http.ListenAndServe(address, mux); err != nil {
 		log.Fatal(err)
 	}
 }
 
 func (s *server) handleNexus(w http.ResponseWriter, r *http.Request) {
+	s.sleepNexus()
+
 	var request struct {
 		Method       string      `json:"method"`
 		AgentCode    string      `json:"agent_code"`
@@ -231,7 +240,7 @@ func (s *server) handleNexus(w http.ResponseWriter, r *http.Request) {
 		s.storeTransfer(agentSign, transferRecord{
 			UserCode:    userCode,
 			Amount:      amount,
-			Type:        "deposit",
+			Type:        "user_deposit",
 			UserBalance: userBalance,
 		})
 		writeJSON(w, http.StatusOK, map[string]any{
@@ -261,7 +270,7 @@ func (s *server) handleNexus(w http.ResponseWriter, r *http.Request) {
 		s.transfers[agentSign] = transferRecord{
 			UserCode:    userCode,
 			Amount:      amount,
-			Type:        "withdraw",
+			Type:        "user_withdraw",
 			UserBalance: current,
 		}
 		s.mu.Unlock()
@@ -339,6 +348,8 @@ func (s *server) handleNexus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleGenerate(w http.ResponseWriter, r *http.Request) {
+	s.sleepQRIS()
+
 	var request struct {
 		Username  string `json:"username"`
 		Amount    int64  `json:"amount"`
@@ -382,6 +393,8 @@ func (s *server) handleGenerate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleCheckStatus(w http.ResponseWriter, r *http.Request) {
+	s.sleepQRIS()
+
 	trxID := strings.TrimSpace(r.PathValue("trxID"))
 	if trxID == "" {
 		writeJSON(w, http.StatusOK, map[string]any{"status": false, "error": "INVALID_REQUEST"})
@@ -413,6 +426,8 @@ func (s *server) handleCheckStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleInquiry(w http.ResponseWriter, r *http.Request) {
+	s.sleepQRIS()
+
 	var request struct {
 		Client        string `json:"client"`
 		ClientKey     string `json:"client_key"`
@@ -468,6 +483,8 @@ func (s *server) handleInquiry(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleTransfer(w http.ResponseWriter, r *http.Request) {
+	s.sleepQRIS()
+
 	var request struct {
 		Client        string `json:"client"`
 		ClientKey     string `json:"client_key"`
@@ -510,6 +527,8 @@ func (s *server) handleTransfer(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleDisbursementStatus(w http.ResponseWriter, r *http.Request) {
+	s.sleepQRIS()
+
 	partnerRefNo := strings.TrimSpace(r.PathValue("partnerRefNo"))
 	if partnerRefNo == "" {
 		writeJSON(w, http.StatusOK, map[string]any{"status": false, "error": "INVALID_REQUEST"})
@@ -559,17 +578,6 @@ func (s *server) storeTransfer(agentSign string, record transferRecord) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.transfers[agentSign] = record
-}
-
-func withDelay(delay time.Duration, next http.Handler) http.Handler {
-	if delay <= 0 {
-		return next
-	}
-
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(delay)
-		next.ServeHTTP(w, r)
-	})
 }
 
 func decodeJSON(r *http.Request, target any) error {
@@ -623,4 +631,93 @@ func envDuration(key string, fallback time.Duration) time.Duration {
 	}
 
 	return parsed
+}
+
+func (s *server) sleepNexus() {
+	delay := time.Duration(s.nexusDelay.Load()) * time.Millisecond
+	if delay > 0 {
+		time.Sleep(delay)
+	}
+}
+
+func (s *server) sleepQRIS() {
+	delay := time.Duration(s.qrisDelay.Load()) * time.Millisecond
+	if delay > 0 {
+		time.Sleep(delay)
+	}
+}
+
+func (s *server) handleAdminState(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status": "ok",
+		"delays": map[string]any{
+			"nexus_ms": s.nexusDelay.Load(),
+			"qris_ms":  s.qrisDelay.Load(),
+		},
+	})
+}
+
+func (s *server) handleAdminNexusDelay(w http.ResponseWriter, r *http.Request) {
+	s.handleAdminDelay(w, r, &s.nexusDelay)
+}
+
+func (s *server) handleAdminQRISDelay(w http.ResponseWriter, r *http.Request) {
+	s.handleAdminDelay(w, r, &s.qrisDelay)
+}
+
+func (s *server) handleAdminDelay(w http.ResponseWriter, r *http.Request, target *atomic.Int64) {
+	var request struct {
+		Milliseconds int64 `json:"milliseconds"`
+	}
+	if err := decodeJSON(r, &request); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"status": "invalid_request"})
+		return
+	}
+	if request.Milliseconds < 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"status": "invalid_delay"})
+		return
+	}
+
+	target.Store(request.Milliseconds)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":       "ok",
+		"milliseconds": request.Milliseconds,
+	})
+}
+
+func (s *server) handleAdminPaymentStatus(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		Status string `json:"status"`
+	}
+	if err := decodeJSON(r, &request); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"status": "invalid_request"})
+		return
+	}
+
+	trxID := strings.TrimSpace(r.PathValue("trxID"))
+	status := strings.ToLower(strings.TrimSpace(request.Status))
+	if trxID == "" || status == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"status": "invalid_request"})
+		return
+	}
+
+	s.mu.Lock()
+	record, ok := s.payments[trxID]
+	if !ok {
+		s.mu.Unlock()
+		writeJSON(w, http.StatusNotFound, map[string]any{"status": "not_found"})
+		return
+	}
+
+	record.Status = status
+	now := time.Now().UTC()
+	record.FinishedAt = &now
+	s.payments[trxID] = record
+	s.mu.Unlock()
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":  "ok",
+		"trx_id":  trxID,
+		"payment": record,
+	})
 }
