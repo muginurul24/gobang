@@ -55,6 +55,10 @@ type AccountOpener interface {
 	Open(cipherText string) (string, error)
 }
 
+type NotificationEmitter interface {
+	Emit(storeID string, eventType string, title string, body string)
+}
+
 type Service interface {
 	ListStoreWithdrawals(ctx context.Context, subject auth.Subject, storeID string) ([]StoreWithdrawal, error)
 	CreateStoreWithdrawal(ctx context.Context, subject auth.Subject, storeID string, input CreateWithdrawInput, metadata auth.RequestMetadata) (StoreWithdrawal, bool, error)
@@ -67,6 +71,7 @@ type Options struct {
 	Provider            Provider
 	Ledger              LedgerContract
 	AccountOpener       AccountOpener
+	Notifications       NotificationEmitter
 	Clock               clock.Clock
 	PlatformFeePercent  float64
 	StatusCheckInterval time.Duration
@@ -77,6 +82,7 @@ type service struct {
 	provider            Provider
 	ledger              LedgerContract
 	opener              AccountOpener
+	notifications       NotificationEmitter
 	clock               clock.Clock
 	platformFeePercent  float64
 	statusCheckInterval time.Duration
@@ -98,11 +104,17 @@ func NewService(options Options) Service {
 		statusCheckInterval = 30 * time.Second
 	}
 
+	notifs := options.Notifications
+	if notifs == nil {
+		notifs = noopNotificationEmitter{}
+	}
+
 	return &service{
 		repository:          options.Repository,
 		provider:            options.Provider,
 		ledger:              options.Ledger,
 		opener:              options.AccountOpener,
+		notifications:       notifs,
 		clock:               now,
 		platformFeePercent:  feePercent,
 		statusCheckInterval: statusCheckInterval,
@@ -479,3 +491,7 @@ func statusPtr(value WithdrawalStatus) *WithdrawalStatus {
 	result := value
 	return &result
 }
+
+type noopNotificationEmitter struct{}
+
+func (noopNotificationEmitter) Emit(string, string, string, string) {}

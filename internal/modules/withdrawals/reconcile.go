@@ -255,6 +255,19 @@ func (s *service) finalizeTransferStatusLocked(ctx context.Context, withdrawal S
 		return StoreWithdrawal{}, auditErr
 	}
 
+	switch finalized.Status {
+	case WithdrawalStatusSuccess:
+		s.notifications.Emit(finalized.StoreID, "withdraw.success",
+			"Withdraw berhasil",
+			fmt.Sprintf("Withdraw %s ke %s (%s) berhasil.", finalized.NetRequestedAmount, finalized.AccountName, finalized.BankName),
+		)
+	case WithdrawalStatusFailed:
+		s.notifications.Emit(finalized.StoreID, "withdraw.failed",
+			"Withdraw gagal",
+			fmt.Sprintf("Withdraw %s ke %s (%s) gagal.", finalized.NetRequestedAmount, finalized.AccountName, finalized.BankName),
+		)
+	}
+
 	return finalized, nil
 }
 

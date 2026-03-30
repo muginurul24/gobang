@@ -3,6 +3,7 @@
 > Dokumen ini adalah **rencana perjalanan implementasi** dari nol sampai project siap staging dan production.
 >
 > Fokus dokumen ini:
+>
 > - urutan kerja yang jelas
 > - target harian
 > - hasil akhir per hari
@@ -110,9 +111,11 @@ Project akhir harus punya:
 ## Hari 1 — Inisialisasi repo dan workspace
 
 ### Target
+
 Menyiapkan fondasi workspace yang tidak berubah-ubah lagi.
 
 ### Kerjakan
+
 - Buat repo
 - Buat folder utama
 - Buat `.editorconfig`, `.gitignore`, `.env.example`
@@ -123,12 +126,14 @@ Menyiapkan fondasi workspace yang tidak berubah-ubah lagi.
 - Buat `Makefile` atau `Taskfile`
 
 ### Deliverable
+
 - repo bersih
 - frontend jalan
 - backend jalan
 - struktur folder final terkunci
 
 ### Checklist
+
 - [x] `apps/web` bisa start
 - [x] `apps/api` bisa start
 - [x] `.env.example` ada
@@ -139,9 +144,11 @@ Menyiapkan fondasi workspace yang tidak berubah-ubah lagi.
 ## Hari 2 — Setup frontend dasar
 
 ### Target
+
 Membuat shell UI final.
 
 ### Kerjakan
+
 - Install Tailwind CSS v4
 - Install shadcn-svelte
 - Buat theme token
@@ -157,10 +164,12 @@ Membuat shell UI final.
   - `/app/chat`
 
 ### Deliverable
+
 - app shell frontend siap
 - arah visual sudah terkunci
 
 ### Checklist
+
 - [x] Tailwind aktif
 - [x] shadcn-svelte aktif
 - [x] layout terpisah
@@ -171,9 +180,11 @@ Membuat shell UI final.
 ## Hari 3 — Setup backend Go dasar
 
 ### Target
+
 Menyiapkan runtime API yang benar dari awal.
 
 ### Kerjakan
+
 - HTTP server
 - graceful shutdown
 - request ID middleware
@@ -184,9 +195,11 @@ Menyiapkan runtime API yang benar dari awal.
   - `/health/ready`
 
 ### Deliverable
+
 - API server siap jadi fondasi
 
 ### Checklist
+
 - [x] health endpoints
 - [x] structured logging
 - [x] config from env
@@ -197,9 +210,11 @@ Menyiapkan runtime API yang benar dari awal.
 ## Hari 4 — Docker Compose, PostgreSQL, Redis, migration
 
 ### Target
+
 Menyatukan dependency lokal.
 
 ### Kerjakan
+
 - Setup Docker Compose:
   - postgres
   - redis
@@ -217,9 +232,11 @@ Menyatukan dependency lokal.
   - `appctl seed demo`
 
 ### Deliverable
+
 - environment dev lokal stabil
 
 ### Checklist
+
 - [x] postgres hidup
 - [x] redis hidup
 - [x] migration jalan
@@ -230,10 +247,13 @@ Menyatukan dependency lokal.
 ## Hari 5 — Migration batch 1: akun, toko, audit
 
 ### Target
+
 Membuat fondasi database utama.
 
 ### Kerjakan
+
 Buat tabel:
+
 - `users`
 - `user_recovery_codes`
 - `user_sessions`
@@ -243,9 +263,11 @@ Buat tabel:
 - `audit_logs`
 
 ### Deliverable
+
 - fondasi auth/store/audit siap
 
 ### Checklist
+
 - [x] unique email global
 - [x] unique username global
 - [x] FK benar
@@ -256,9 +278,11 @@ Buat tabel:
 ## Hari 6 — Login dasar dashboard
 
 ### Target
+
 Menyelesaikan login tanpa 2FA dulu.
 
 ### Kerjakan
+
 - login email/username + password
 - password hashing
 - access token
@@ -267,9 +291,11 @@ Menyelesaikan login tanpa 2FA dulu.
 - forced invalidate session lama saat login baru
 
 ### Deliverable
+
 - login dasar jalan end-to-end
 
 ### Checklist
+
 - [x] login via email
 - [x] login via username
 - [x] session Redis jalan
@@ -280,9 +306,11 @@ Menyelesaikan login tanpa 2FA dulu.
 ## Hari 7 — 2FA TOTP + recovery code
 
 ### Target
+
 Menutup keamanan auth.
 
 ### Kerjakan
+
 - enrollment TOTP
 - verify TOTP
 - secret encrypted
@@ -291,9 +319,11 @@ Menutup keamanan auth.
 - UX rekomendasi aktifkan 2FA
 
 ### Deliverable
+
 - 2FA usable
 
 ### Checklist
+
 - [x] QR / secret enrollment
 - [x] verify code
 - [x] recovery code sekali pakai
@@ -304,9 +334,11 @@ Menutup keamanan auth.
 ## Hari 8 — IP allowlist + login rate limit
 
 ### Target
+
 Menutup hardening login.
 
 ### Kerjakan
+
 - allowlist single IP per user dashboard
 - rate limit login:
   - per IP
@@ -314,9 +346,11 @@ Menutup hardening login.
 - audit login success/fail
 
 ### Deliverable
+
 - login hardening baseline siap
 
 ### Checklist
+
 - [x] IP allowlist jalan
 - [x] rate limit jalan
 - [x] login audit jalan
@@ -326,9 +360,11 @@ Menutup hardening login.
 ## Hari 9 — Frontend auth, guards, session UX
 
 ### Target
+
 Menutup UX auth di frontend.
 
 ### Kerjakan
+
 - route guard
 - protected layout
 - session bootstrap
@@ -337,9 +373,11 @@ Menutup UX auth di frontend.
 - unauthorized states
 
 ### Deliverable
+
 - dashboard auth usable
 
 ### Checklist
+
 - [x] guard jalan
 - [x] logout jalan
 - [x] expired state jelas
@@ -349,9 +387,11 @@ Menutup UX auth di frontend.
 ## Hari 10 — Store CRUD
 
 ### Target
+
 Menyelesaikan manajemen toko.
 
 ### Kerjakan
+
 - create store
 - update store
 - soft delete store
@@ -360,9 +400,11 @@ Menyelesaikan manajemen toko.
 - audit create/update/delete
 
 ### Deliverable
+
 - store domain dasar selesai
 
 ### Checklist
+
 - [x] scoped list benar
 - [x] soft delete benar
 - [x] audit ada
@@ -372,9 +414,11 @@ Menyelesaikan manajemen toko.
 ## Hari 11 — Token toko + callback URL
 
 ### Target
+
 Menyelesaikan integration settings toko.
 
 ### Kerjakan
+
 - 1 toko = 1 token
 - generate token
 - rotate token -> token lama mati
@@ -385,9 +429,11 @@ Menyelesaikan integration settings toko.
 - audit token & callback change
 
 ### Deliverable
+
 - store integration ready
 
 ### Checklist
+
 - [x] token hash
 - [x] rotate works
 - [x] callback validated
@@ -398,9 +444,11 @@ Menyelesaikan integration settings toko.
 ## Hari 12 — Akun karyawan dan relasi toko
 
 ### Target
+
 Menyelesaikan model tim owner.
 
 ### Kerjakan
+
 - owner create karyawan
 - pivot many-to-many ke toko
 - pastikan satu karyawan hanya dalam scope owner yang sama
@@ -408,9 +456,11 @@ Menyelesaikan model tim owner.
 - audit relation change
 
 ### Deliverable
+
 - model owner → karyawan → toko selesai
 
 ### Checklist
+
 - [x] many-to-many jalan
 - [x] cross-owner relation ditolak
 - [x] audit assign ada
@@ -420,15 +470,19 @@ Menyelesaikan model tim owner.
 ## Hari 13 — Ledger engine
 
 ### Target
+
 Membuat engine saldo toko final.
 
 ### Kerjakan
+
 Buat tabel:
+
 - `ledger_accounts`
 - `ledger_entries`
 - `ledger_reservations`
 
 Buat service:
+
 - credit
 - debit
 - reserve
@@ -437,9 +491,11 @@ Buat service:
 - current balance read
 
 ### Deliverable
+
 - semua mutasi uang nanti sudah punya fondasi benar
 
 ### Checklist
+
 - [x] no negative balance
 - [x] reserve/commit/release
 - [x] balance_after benar
@@ -449,9 +505,11 @@ Buat service:
 ## Hari 14 — Dashboard balance + audit viewer
 
 ### Target
+
 Menampilkan data toko yang benar.
 
 ### Kerjakan
+
 - card balance toko
 - histori ledger dasar
 - audit log viewer:
@@ -460,9 +518,11 @@ Menampilkan data toko yang benar.
   - karyawan tidak boleh lihat audit
 
 ### Deliverable
+
 - dashboard mulai bernilai
 
 ### Checklist
+
 - [x] owner scoped audit
 - [x] superadmin/dev full audit
 - [x] karyawan blocked
@@ -472,9 +532,11 @@ Menampilkan data toko yang benar.
 ## Hari 15 — Store members + upstream mapping
 
 ### Target
+
 Menyelesaikan member toko.
 
 ### Kerjakan
+
 - tabel `store_members`
 - `(store_id, real_username)` unique
 - generate `upstream_user_code` 12 char immutable
@@ -482,9 +544,11 @@ Menyelesaikan member toko.
 - duplicate handling
 
 ### Deliverable
+
 - member domain siap dihubungkan ke game
 
 ### Checklist
+
 - [x] username unique per store
 - [x] upstream user code unique global
 - [x] immutable
@@ -494,10 +558,13 @@ Menyelesaikan member toko.
 ## Hari 16 — Wrapper NexusGGR
 
 ### Target
+
 Membungkus API game upstream dengan benar.
 
 ### Kerjakan
+
 Buat wrapper:
+
 - `user_create`
 - `user_deposit`
 - `user_withdraw`
@@ -509,15 +576,18 @@ Buat wrapper:
 - `transfer_status`
 
 Tambahkan:
+
 - normalize `msg` / `error`
 - normalize business failure pada HTTP 200
 - timeout strategy
 - masked logging
 
 ### Deliverable
+
 - adapter NexusGGR final
 
 ### Checklist
+
 - [x] semua method siap
 - [x] error normalized
 - [x] timeout handled
@@ -527,18 +597,22 @@ Tambahkan:
 ## Hari 17 — Game create user
 
 ### Target
+
 Menyelesaikan create user game flow.
 
 ### Kerjakan
+
 - endpoint create user
 - kalau duplicate -> error
 - kalau sukses -> simpan mapping
 - audit/event basic
 
 ### Deliverable
+
 - create user usable
 
 ### Checklist
+
 - [x] duplicate reject
 - [x] upstream mapping saved
 
@@ -547,9 +621,11 @@ Menyelesaikan create user game flow.
 ## Hari 18 — Game deposit
 
 ### Target
+
 Menyelesaikan deposit game.
 
 ### Kerjakan
+
 - endpoint store API deposit:
   - token
   - username
@@ -566,9 +642,11 @@ Menyelesaikan deposit game.
 - timeout -> pending reconcile
 
 ### Deliverable
+
 - game deposit end-to-end selesai
 
 ### Checklist
+
 - [x] insufficient balance reject
 - [x] duplicate trx_id reject
 - [x] success debit ledger
@@ -579,9 +657,11 @@ Menyelesaikan deposit game.
 ## Hari 19 — Game withdraw
 
 ### Target
+
 Menyelesaikan withdraw game.
 
 ### Kerjakan
+
 - endpoint store API withdraw:
   - token
   - username
@@ -593,9 +673,11 @@ Menyelesaikan withdraw game.
 - timeout -> pending reconcile
 
 ### Deliverable
+
 - game withdraw selesai
 
 ### Checklist
+
 - [x] success credit ledger
 - [x] pending reconcile jalan
 - [x] retry same trx_id returns old result
@@ -605,9 +687,11 @@ Menyelesaikan withdraw game.
 ## Hari 20 — Game balance + launch
 
 ### Target
+
 Menyelesaikan read flow game.
 
 ### Kerjakan
+
 - endpoint get balance
 - cache Redis 5 detik
 - request coalescing
@@ -617,9 +701,11 @@ Menyelesaikan read flow game.
 - `lang` optional default `id`
 
 ### Deliverable
+
 - game integration usable untuk owner website
 
 ### Checklist
+
 - [x] balance cache 5 detik
 - [x] launch no idempotency
 - [x] launch without deposit allowed
@@ -630,9 +716,11 @@ Menyelesaikan read flow game.
 ## Hari 21 — Provider sync dan game catalog
 
 ### Target
+
 Menyediakan catalog lokal untuk validasi.
 
 ### Kerjakan
+
 - sync provider list
 - sync game list
 - simpan ke DB
@@ -640,9 +728,11 @@ Menyediakan catalog lokal untuk validasi.
 - dashboard browse/search
 
 ### Deliverable
+
 - provider/game source lokal siap
 
 ### Checklist
+
 - [x] provider sync
 - [x] game sync
 - [x] search/filter ada
@@ -652,9 +742,11 @@ Menyediakan catalog lokal untuk validasi.
 ## Hari 22 — Reconcile worker game
 
 ### Target
+
 Menutup timeout ambigu untuk transaksi game.
 
 ### Kerjakan
+
 - scan transaksi pending
 - call `transfer_status`
 - finalisasi success/fail
@@ -662,9 +754,11 @@ Menutup timeout ambigu untuk transaksi game.
 - emit notification
 
 ### Deliverable
+
 - game timeout aman
 
 ### Checklist
+
 - [x] reconcile scan
 - [x] finalize safe
 - [x] duplicate finalize blocked
@@ -674,9 +768,11 @@ Menutup timeout ambigu untuk transaksi game.
 ## Hari 23 — Wrapper QRIS / VA provider
 
 ### Target
+
 Membungkus API QRIS/VA secara rapi.
 
 ### Kerjakan
+
 - wrapper:
   - generate
   - check-status
@@ -688,9 +784,11 @@ Membungkus API QRIS/VA secara rapi.
 - masked payload logging
 
 ### Deliverable
+
 - adapter QRIS/VA siap
 
 ### Checklist
+
 - [x] generate wrapper
 - [x] check-status wrapper
 - [x] inquiry wrapper
@@ -701,9 +799,11 @@ Membungkus API QRIS/VA secara rapi.
 ## Hari 24 — Store topup QRIS
 
 ### Target
+
 Menyelesaikan topup balance toko via dashboard.
 
 ### Kerjakan
+
 - owner input nominal
 - create pending topup
 - generate QRIS:
@@ -715,9 +815,11 @@ Menyelesaikan topup balance toko via dashboard.
 - histori pending/success/failed/expired
 
 ### Deliverable
+
 - owner bisa topup store balance
 
 ### Checklist
+
 - [x] multiple pending allowed
 - [x] qris image tampil
 - [x] list status benar
@@ -727,9 +829,11 @@ Menyelesaikan topup balance toko via dashboard.
 ## Hari 25 — Member payment QRIS
 
 ### Target
+
 Menyelesaikan QRIS untuk member payment.
 
 ### Kerjakan
+
 - store API generate member payment
 - username external = unique internal member
 - custom_ref internal
@@ -737,9 +841,11 @@ Menyelesaikan QRIS untuk member payment.
 - return QR data
 
 ### Deliverable
+
 - member payment QRIS siap dipakai
 
 ### Checklist
+
 - [x] dipisah dari store_topup
 - [x] fee belum diterapkan sampai success
 
@@ -748,9 +854,11 @@ Menyelesaikan QRIS untuk member payment.
 ## Hari 26 — Webhook inbound global QRIS
 
 ### Target
+
 Menyelesaikan webhook global untuk semua transaksi QRIS/withdraw status.
 
 ### Kerjakan
+
 - endpoint webhook global
 - dispatcher:
   - store_topup
@@ -763,9 +871,11 @@ Menyelesaikan webhook global untuk semua transaksi QRIS/withdraw status.
   - member_payment success -> credit after 3% fee
 
 ### Deliverable
+
 - inbound webhook final
 
 ### Checklist
+
 - [x] one endpoint global
 - [x] duplicate safe
 - [x] idempotent ledger posting
@@ -775,9 +885,11 @@ Menyelesaikan webhook global untuk semua transaksi QRIS/withdraw status.
 ## Hari 27 — Callback outbound ke website owner
 
 ### Target
+
 Menyelesaikan callback ke callback_url toko.
 
 ### Kerjakan
+
 - payload event member_payment
 - HMAC signature
 - callback attempt log
@@ -785,9 +897,11 @@ Menyelesaikan callback ke callback_url toko.
 - failure notification
 
 ### Deliverable
+
 - callback outbound reliable
 
 ### Checklist
+
 - [x] HMAC active
 - [x] retry worker active
 - [x] failed attempt logged
@@ -797,9 +911,11 @@ Menyelesaikan callback ke callback_url toko.
 ## Hari 28 — Reconcile worker QRIS
 
 ### Target
+
 Menutup kasus webhook QRIS tidak datang.
 
 ### Kerjakan
+
 - scan pending transactions
 - check-status dengan backoff:
   - 30 detik
@@ -809,9 +925,11 @@ Menutup kasus webhook QRIS tidak datang.
 - finalisasi status final
 
 ### Deliverable
+
 - QRIS reconcile aman
 
 ### Checklist
+
 - [x] check-status worker
 - [x] no double credit
 - [x] expire final
@@ -821,9 +939,11 @@ Menutup kasus webhook QRIS tidak datang.
 ## Hari 29 — Verifikasi rekening tujuan withdraw
 
 ### Target
+
 Menyelesaikan setup bank account per store.
 
 ### Kerjakan
+
 - load bank list dari JSON
 - searchable bank select
 - input account number
@@ -836,9 +956,11 @@ Menyelesaikan setup bank account per store.
 - history account options per store
 
 ### Deliverable
+
 - rekening tujuan withdraw valid
 
 ### Checklist
+
 - [x] bank_code valid
 - [x] inquiry verification works
 - [x] account saved
@@ -849,9 +971,11 @@ Menyelesaikan setup bank account per store.
 ## Hari 30 — Withdraw balance toko
 
 ### Target
+
 Menyelesaikan request withdraw ke bank.
 
 ### Kerjakan
+
 - owner pilih rekening
 - dashboard kirim `idempotency_key`
 - owner input **net amount**
@@ -867,9 +991,11 @@ Menyelesaikan request withdraw ke bank.
   - transfer
 
 ### Deliverable
+
 - withdraw request end-to-end selesai
 
 ### Checklist
+
 - [x] fee formula benar
 - [x] reserve sebelum transfer
 - [x] balance cukup dicek setelah inquiry
@@ -879,9 +1005,11 @@ Menyelesaikan request withdraw ke bank.
 ## Hari 31 — Withdraw webhook + status checker
 
 ### Target
+
 Menutup finalisasi withdraw.
 
 ### Kerjakan
+
 - webhook inbound global tangani withdraw
 - check-status tiap 30 detik
 - success -> commit reserve
@@ -889,9 +1017,11 @@ Menutup finalisasi withdraw.
 - check-status success walau webhook tidak datang -> tetap final success
 
 ### Deliverable
+
 - withdraw domain final
 
 ### Checklist
+
 - [x] pending success failed works
 - [x] reserve released on fail
 - [x] final success idempotent
@@ -901,9 +1031,11 @@ Menutup finalisasi withdraw.
 ## Hari 32 — WebSocket realtime foundation
 
 ### Target
+
 Menyiapkan transport realtime tunggal.
 
 ### Kerjakan
+
 - websocket endpoint
 - auth websocket
 - channel:
@@ -914,9 +1046,11 @@ Menyiapkan transport realtime tunggal.
 - Redis pub/sub fanout
 
 ### Deliverable
+
 - realtime backbone siap
 
 ### Checklist
+
 - [x] websocket auth
 - [x] pub/sub works
 - [x] reconnect works
@@ -926,9 +1060,11 @@ Menyiapkan transport realtime tunggal.
 ## Hari 33 — Notification stream realtime
 
 ### Target
+
 Menyelesaikan stream event realtime.
 
 ### Kerjakan
+
 - event model
 - emit untuk:
   - member_payment success
@@ -943,22 +1079,27 @@ Menyelesaikan stream event realtime.
 - push via websocket
 
 ### Deliverable
+
 - notification stream usable
 
 ### Checklist
-- [ ] owner scoped
-- [ ] karyawan scoped
-- [ ] dev/superadmin global
+
+- [x] owner scoped
+- [x] karyawan scoped
+- [x] dev/superadmin global
 
 ---
 
 ## Hari 34 — Realtime dashboard cards
 
 ### Target
+
 Menyelesaikan angka dashboard.
 
 ### Kerjakan
+
 Owner/karyawan:
+
 - balance toko
 - pending QRIS
 - transaksi success hari ini
@@ -966,6 +1107,7 @@ Owner/karyawan:
 - pendapatan toko bulan ini
 
 Dev:
+
 - income platform hari ini/bulan ini
 - total semua toko
 - total pending withdraw
@@ -973,9 +1115,11 @@ Dev:
 - callback failure rate
 
 ### Deliverable
+
 - dashboard cards realtime final
 
 ### Checklist
+
 - [ ] owner/karyawan cards benar
 - [ ] dev cards benar
 - [ ] dev-only metrics hidden dari role lain
@@ -985,9 +1129,11 @@ Dev:
 ## Hari 35 — Chat global
 
 ### Target
+
 Menyelesaikan chat global.
 
 ### Kerjakan
+
 - one global room
 - send/receive realtime
 - retention 7 hari
@@ -997,9 +1143,11 @@ Menyelesaikan chat global.
 - dev moderation delete
 
 ### Deliverable
+
 - global chat usable
 
 ### Checklist
+
 - [ ] one room only
 - [ ] retention cleanup
 - [ ] dev moderation works
@@ -1009,10 +1157,13 @@ Menyelesaikan chat global.
 ## Hari 36 — Audit log final
 
 ### Target
+
 Menutup audit coverage penuh.
 
 ### Kerjakan
+
 Pastikan event berikut masuk audit:
+
 - login success/fail
 - create/update/delete store
 - token create/rotate/revoke
@@ -1022,13 +1173,16 @@ Pastikan event berikut masuk audit:
 - manual actions dev/superadmin
 
 Tambahkan:
+
 - audit filter UI
 - retention 90 hari
 
 ### Deliverable
+
 - audit log siap operasional
 
 ### Checklist
+
 - [ ] audit coverage penuh
 - [ ] owner scoped viewer
 - [ ] superadmin/dev full viewer
@@ -1038,9 +1192,11 @@ Tambahkan:
 ## Hari 37 — Observability dan metrics
 
 ### Target
+
 Menyiapkan visibilitas sistem.
 
 ### Kerjakan
+
 - request count
 - latency
 - upstream latency
@@ -1051,9 +1207,11 @@ Menyiapkan visibilitas sistem.
 - metrics export
 
 ### Deliverable
+
 - observability dasar siap
 
 ### Checklist
+
 - [ ] metrics exported
 - [ ] dashboards basic
 - [ ] provider latency visible
@@ -1063,10 +1221,13 @@ Menyiapkan visibilitas sistem.
 ## Hari 38 — Alerts
 
 ### Target
+
 Membuat sistem tidak buta saat error.
 
 ### Kerjakan
+
 Buat alert:
+
 - webhook failure spike
 - callback failure spike
 - Redis down
@@ -1075,9 +1236,11 @@ Buat alert:
 - QRIS provider error spike
 
 ### Deliverable
+
 - alerting baseline siap
 
 ### Checklist
+
 - [ ] alert rules dibuat
 - [ ] test alert minimal
 
@@ -1086,9 +1249,11 @@ Buat alert:
 ## Hari 39 — UX hardening
 
 ### Target
+
 Merapikan dashboard dari sisi UX.
 
 ### Kerjakan
+
 - better loading states
 - better error messages
 - form validation UX
@@ -1098,9 +1263,11 @@ Merapikan dashboard dari sisi UX.
 - store switch UX
 
 ### Deliverable
+
 - UI terasa matang
 
 ### Checklist
+
 - [ ] loading jelas
 - [ ] error jelas
 - [ ] empty state jelas
@@ -1110,9 +1277,11 @@ Merapikan dashboard dari sisi UX.
 ## Hari 40 — Security hardening
 
 ### Target
+
 Melakukan hardening akhir.
 
 ### Kerjakan
+
 - CSRF untuk browser mutation
 - cookie hardening
 - secret review
@@ -1122,9 +1291,11 @@ Melakukan hardening akhir.
 - sensitive field access review
 
 ### Deliverable
+
 - baseline security final
 
 ### Checklist
+
 - [ ] CSRF aktif
 - [ ] secret aman
 - [ ] masking aman
@@ -1135,10 +1306,13 @@ Melakukan hardening akhir.
 ## Hari 41 — Test suite kritikal
 
 ### Target
+
 Menutup flow uang dengan test.
 
 ### Kerjakan
+
 Test:
+
 - ledger reserve/commit/release
 - game deposit success/fail/pending
 - game withdraw success/fail/pending
@@ -1149,9 +1323,11 @@ Test:
 - one-session-only auth
 
 ### Deliverable
+
 - safety net domain uang siap
 
 ### Checklist
+
 - [ ] all money flows tested
 - [ ] timeout tested
 - [ ] duplicate tested
@@ -1161,9 +1337,11 @@ Test:
 ## Hari 42 — Seed demo dan staging bootstrap
 
 ### Target
+
 Membuat project gampang didemokan dan dites.
 
 ### Kerjakan
+
 - seed dev
 - seed superadmin
 - seed owner
@@ -1174,9 +1352,11 @@ Membuat project gampang didemokan dan dites.
 - seed catalog provider/game
 
 ### Deliverable
+
 - staging/demo mudah dinyalakan
 
 ### Checklist
+
 - [ ] seed usable
 - [ ] demo accounts ready
 
@@ -1185,9 +1365,11 @@ Membuat project gampang didemokan dan dites.
 ## Hari 43 — Performance test k6
 
 ### Target
+
 Mengukur bottleneck awal.
 
 ### Kerjakan
+
 - login load test
 - game deposit load test
 - game withdraw load test
@@ -1197,9 +1379,11 @@ Mengukur bottleneck awal.
 - websocket concurrency test
 
 ### Deliverable
+
 - bottleneck awal ketahuan
 
 ### Checklist
+
 - [ ] p95 noted
 - [ ] p99 noted
 - [ ] bottleneck documented
@@ -1209,9 +1393,11 @@ Mengukur bottleneck awal.
 ## Hari 44 — Failure drill
 
 ### Target
+
 Menguji sistem saat gangguan.
 
 ### Kerjakan
+
 - Redis down
 - DB slow
 - NexusGGR timeout
@@ -1220,9 +1406,11 @@ Menguji sistem saat gangguan.
 - worker down
 
 ### Deliverable
+
 - perilaku sistem saat gagal sudah diketahui
 
 ### Checklist
+
 - [ ] degraded mode reviewed
 - [ ] no double ledger mutation
 - [ ] alerts fire
@@ -1232,9 +1420,11 @@ Menguji sistem saat gangguan.
 ## Hari 45 — Staging release
 
 ### Target
+
 Membuat staging release candidate.
 
 ### Kerjakan
+
 - Docker Compose final
 - env staging
 - reverse proxy
@@ -1245,9 +1435,11 @@ Membuat staging release candidate.
 - smoke test penuh
 
 ### Deliverable
+
 - staging RC siap
 
 ### Checklist
+
 - [ ] deploy success
 - [ ] smoke test pass
 - [ ] backup restore pass
@@ -1257,9 +1449,11 @@ Membuat staging release candidate.
 ## Hari 46 — Production checklist
 
 ### Target
+
 Siap go-live.
 
 ### Kerjakan
+
 - secret review
 - domain review
 - TLS review
@@ -1270,9 +1464,11 @@ Siap go-live.
 - access review final
 
 ### Deliverable
+
 - project siap production
 
 ### Checklist
+
 - [ ] secrets rotated
 - [ ] monitoring active
 - [ ] rollback ready
@@ -1316,6 +1512,7 @@ Kalau ingin build cepat tapi tetap aman, urutannya harus:
 # 7. Definition of done untuk flow uang
 
 Sebuah flow uang dianggap selesai hanya jika:
+
 - [ ] business row tersimpan
 - [ ] ledger mutation/reserve benar
 - [ ] timeout strategy ada
@@ -1331,6 +1528,7 @@ Sebuah flow uang dianggap selesai hanya jika:
 
 Dokumen ini adalah **panduan build**, bukan sekadar dokumen ide.
 Kalau Anda mengikuti urutannya, project akan dibangun:
+
 - lebih teratur
 - lebih aman
 - lebih mudah di-debug

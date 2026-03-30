@@ -51,11 +51,16 @@ type Service interface {
 	Withdraw(ctx context.Context, storeToken string, input CreateWithdrawInput, metadata RequestMetadata) (WithdrawResult, error)
 }
 
+type NotificationEmitter interface {
+	Emit(storeID string, eventType string, title string, body string)
+}
+
 type Options struct {
 	Repository           RepositoryContract
 	Upstream             UpstreamClient
 	Ledger               LedgerService
 	BalanceCache         BalanceCache
+	Notifications        NotificationEmitter
 	Clock                clock.Clock
 	MinTransactionAmount int64
 }
@@ -65,6 +70,7 @@ type service struct {
 	upstream             UpstreamClient
 	ledger               LedgerService
 	balanceCache         BalanceCache
+	notifications        NotificationEmitter
 	clock                clock.Clock
 	codeFactory          func() (string, error)
 	agentSignFactory     func() (string, error)
@@ -94,11 +100,17 @@ func NewService(options Options) Service {
 		cache = noopBalanceCache{}
 	}
 
+	notifs := options.Notifications
+	if notifs == nil {
+		notifs = noopNotificationEmitter{}
+	}
+
 	return &service{
 		repository:           options.Repository,
 		upstream:             upstream,
 		ledger:               ledgerService,
 		balanceCache:         cache,
+		notifications:        notifs,
 		clock:                now,
 		codeFactory:          newUpstreamUserCode,
 		agentSignFactory:     newAgentSign,
@@ -416,6 +428,11 @@ func (s *service) Deposit(ctx context.Context, storeToken string, input CreateDe
 			return DepositResult{}, err
 		}
 
+		s.notifications.Emit(store.ID, "game.deposit.success",
+			"Game deposit berhasil",
+			fmt.Sprintf("Deposit %s untuk %s berhasil (trx: %s)", amount.String(), member.RealUsername, transaction.TrxID),
+		)
+
 		return DepositResult{
 			Transaction: transaction,
 			Balance: &BalanceSnapshot{
@@ -586,6 +603,11 @@ func (s *service) Withdraw(ctx context.Context, storeToken string, input CreateW
 		}, metadata.IPAddress, metadata.UserAgent, now); err != nil {
 			return WithdrawResult{}, err
 		}
+
+		s.notifications.Emit(store.ID, "game.withdraw.success",
+			"Game withdraw berhasil",
+			fmt.Sprintf("Withdraw %s untuk %s berhasil (trx: %s)", amount.String(), member.RealUsername, transaction.TrxID),
+		)
 
 		return WithdrawResult{
 			Transaction: transaction,
@@ -880,3 +902,7 @@ func (noopLedger) CommitReservation(context.Context, string, ledger.CommitReserv
 func (noopLedger) ReleaseReservation(context.Context, string, ledger.ReleaseReservationInput) (ledger.ReservationResult, error) {
 	return ledger.ReservationResult{}, ledger.ErrNotFound
 }
+
+type noopNotificationEmitter struct{}
+
+func (noopNotificationEmitter) Emit(string, string, string, string) {}

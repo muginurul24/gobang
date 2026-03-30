@@ -29,18 +29,24 @@ type Service interface {
 	RunPending(ctx context.Context, limit int) (RunSummary, error)
 }
 
+type NotificationEmitter interface {
+	Emit(storeID string, eventType string, title string, body string)
+}
+
 type Options struct {
 	Repository    RepositoryContract
 	Dispatcher    Dispatcher
+	Notifications NotificationEmitter
 	Clock         clock.Clock
 	SigningSecret string
 }
 
 type service struct {
-	repository RepositoryContract
-	dispatcher Dispatcher
-	clock      clock.Clock
-	signer     signer
+	repository    RepositoryContract
+	dispatcher    Dispatcher
+	notifications NotificationEmitter
+	clock         clock.Clock
+	signer        signer
 }
 
 func NewService(options Options) Service {
@@ -54,16 +60,22 @@ func NewService(options Options) Service {
 		dispatcher = noopDispatcher{}
 	}
 
+	notifs := options.Notifications
+	if notifs == nil {
+		notifs = noopNotificationEmitter{}
+	}
+
 	secret := strings.TrimSpace(options.SigningSecret)
 	if secret == "" {
 		secret = "change-me-callback-signing-secret"
 	}
 
 	return &service{
-		repository: options.Repository,
-		dispatcher: dispatcher,
-		clock:      now,
-		signer:     newSigner(secret),
+		repository:    options.Repository,
+		dispatcher:    dispatcher,
+		notifications: notifs,
+		clock:         now,
+		signer:        newSigner(secret),
 	}
 }
 
@@ -204,6 +216,10 @@ func (s *service) processCallback(ctx context.Context, callback DueOutboundCallb
 	}
 
 	if status == StatusFailed {
+		s.notifications.Emit(callback.StoreID, "callback.delivery_failed",
+			notification.Title,
+			notification.Body,
+		)
 		summary.Failed++
 	} else {
 		summary.Retrying++
@@ -217,3 +233,7 @@ type noopDispatcher struct{}
 func (noopDispatcher) Dispatch(context.Context, DueOutboundCallback) (DispatchResult, error) {
 	return DispatchResult{}, ErrNotFound
 }
+
+type noopNotificationEmitter struct{}
+
+func (noopNotificationEmitter) Emit(string, string, string, string) {}

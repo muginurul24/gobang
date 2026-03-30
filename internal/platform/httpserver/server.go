@@ -13,6 +13,7 @@ import (
 	"github.com/mugiew/onixggr/internal/modules/callbacks"
 	"github.com/mugiew/onixggr/internal/modules/game"
 	"github.com/mugiew/onixggr/internal/modules/ledger"
+	"github.com/mugiew/onixggr/internal/modules/notifications"
 	"github.com/mugiew/onixggr/internal/modules/paymentsqris"
 	"github.com/mugiew/onixggr/internal/modules/providercatalog"
 	modulerealtime "github.com/mugiew/onixggr/internal/modules/realtime"
@@ -83,10 +84,6 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 		})
 		banks := bankdirectory.MustLoadDefault()
 		ledgerService := ledger.NewService(ledger.NewRepository(deps.DB))
-		callbackService := callbacks.NewService(callbacks.Options{
-			Repository:    callbacks.NewRepository(deps.DB),
-			SigningSecret: cfg.Callback.SigningSecret,
-		})
 		nexusClient := nexusggr.NewClient(nexusggr.Config{
 			BaseURL:    cfg.NexusGGR.BaseURL,
 			AgentCode:  cfg.NexusGGR.AgentCode,
@@ -113,6 +110,23 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 				cfg.App.URL,
 			).Register(mux)
 		}
+
+		notificationService := notifications.NewService(notifications.Options{
+			Repository: notifications.NewRepository(deps.DB),
+			Hub:        deps.Realtime,
+			Logger:     deps.Logger,
+		})
+		notifications.NewHandler(notificationService, authService).Register(mux)
+		storeNotifier := notifications.NewStoreEmitter(
+			notifications.NewAsyncEmitter(notificationService, deps.Logger),
+		)
+
+		callbackService := callbacks.NewService(callbacks.Options{
+			Repository:    callbacks.NewRepository(deps.DB),
+			Notifications: storeNotifier,
+			SigningSecret: cfg.Callback.SigningSecret,
+		})
+
 		stores.NewHandler(
 			stores.NewService(
 				stores.NewRepository(deps.DB),
@@ -150,6 +164,7 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 			}, banks),
 			Ledger:              ledgerService,
 			AccountOpener:       sealer,
+			Notifications:       storeNotifier,
 			PlatformFeePercent:  cfg.Business.StoreWithdrawPlatformFeePct,
 			StatusCheckInterval: cfg.Worker.WithdrawReconcileInterval,
 		})
@@ -171,6 +186,7 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 				Upstream:             qrisClient,
 				Ledger:               ledgerService,
 				Callbacks:            callbackService,
+				Notifications:        storeNotifier,
 				DefaultExpireSeconds: cfg.QRIS.DefaultExpireSeconds,
 				MemberPaymentFeePct:  cfg.Business.MemberPaymentPlatformFeePct,
 				TransferWebhooks:     withdrawalTransferWebhookAdapter{service: withdrawalService},
@@ -183,6 +199,7 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 				Upstream:             nexusClient,
 				Ledger:               ledgerService,
 				BalanceCache:         game.NewRedisBalanceCache(deps.Redis),
+				Notifications:        storeNotifier,
 				MinTransactionAmount: cfg.Business.MinTransactionAmount,
 			}),
 		).Register(mux)

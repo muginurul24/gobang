@@ -67,11 +67,16 @@ type Service interface {
 	HandleTransferWebhook(ctx context.Context, payload qris.TransferWebhook, metadata auth.RequestMetadata) (WebhookDispatchResult, error)
 }
 
+type NotificationEmitter interface {
+	Emit(storeID string, eventType string, title string, body string)
+}
+
 type Options struct {
 	Repository           RepositoryContract
 	Upstream             UpstreamClient
 	Ledger               LedgerContract
 	Callbacks            CallbackContract
+	Notifications        NotificationEmitter
 	Clock                clock.Clock
 	DefaultExpireSeconds int
 	MemberPaymentFeePct  float64
@@ -83,6 +88,7 @@ type service struct {
 	upstream             UpstreamClient
 	ledger               LedgerContract
 	callbacks            CallbackContract
+	notifications        NotificationEmitter
 	clock                clock.Clock
 	topupRefFactory      func() (string, error)
 	memberPaymentFactory func() (string, error)
@@ -113,6 +119,10 @@ func NewService(options Options) Service {
 	if transferWebhooks == nil {
 		transferWebhooks = noopTransferWebhookHandler{}
 	}
+	notifs := options.Notifications
+	if notifs == nil {
+		notifs = noopNotificationEmitter{}
+	}
 	memberPaymentFeePct := options.MemberPaymentFeePct
 	if memberPaymentFeePct <= 0 {
 		memberPaymentFeePct = 3
@@ -123,6 +133,7 @@ func NewService(options Options) Service {
 		upstream:             upstream,
 		ledger:               ledgerService,
 		callbacks:            callbackService,
+		notifications:        notifs,
 		clock:                now,
 		topupRefFactory:      newCustomRef,
 		memberPaymentFactory: newMemberPaymentRef,
@@ -472,6 +483,21 @@ func (s *service) HandlePaymentWebhook(ctx context.Context, payload qris.Payment
 		}
 	}
 
+	if updated.Status == TransactionStatusSuccess {
+		switch updated.Type {
+		case TransactionTypeStoreTopup:
+			s.notifications.Emit(updated.StoreID, "store_topup.success",
+				"Store topup berhasil",
+				fmt.Sprintf("Topup %s berhasil dikreditkan ke saldo toko.", updated.AmountGross),
+			)
+		case TransactionTypeMemberPayment:
+			s.notifications.Emit(updated.StoreID, "member_payment.success",
+				"Member payment berhasil",
+				fmt.Sprintf("Payment %s berhasil dikreditkan (kredit: %s).", updated.AmountGross, storeCreditAmount),
+			)
+		}
+	}
+
 	result.Processed = true
 	result.Status = &updated.Status
 	return result, nil
@@ -696,6 +722,10 @@ func (noopTransferWebhookHandler) HandleTransferWebhook(_ context.Context, paylo
 		Reference: strings.TrimSpace(payload.PartnerRefNo),
 	}, nil
 }
+
+type noopNotificationEmitter struct{}
+
+func (noopNotificationEmitter) Emit(string, string, string, string) {}
 
 func entryTypeForTransaction(transactionType TransactionType) ledger.EntryType {
 	switch transactionType {
