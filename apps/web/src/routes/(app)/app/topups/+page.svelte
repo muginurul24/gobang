@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
   import QRCode from 'qrcode';
 
-  import { authSession, hydrateAuthSession } from '$lib/auth/client';
+  import { authSession, initializeAuthSession } from '$lib/auth/client';
   import EmptyState from '$lib/components/app/empty-state.svelte';
   import Notice from '$lib/components/app/notice.svelte';
   import PageSkeleton from '$lib/components/app/page-skeleton.svelte';
@@ -69,7 +69,7 @@
     });
 
     void (async () => {
-      hydrateAuthSession();
+      await initializeAuthSession();
 
       if (!$authSession) {
         await goto('/login');

@@ -2,6 +2,7 @@ import { browser } from '$app/environment';
 import { get, writable } from 'svelte/store';
 
 const storageKey = 'onixggr.dashboard.auth';
+const csrfCookieName = 'onixggr_csrf_token';
 
 export type AuthUser = {
   id: string;
@@ -17,8 +18,6 @@ export type AuthSession = {
   token_type: string;
   access_token: string;
   access_token_expires_at: string;
-  refresh_token: string;
-  refresh_token_expires_at: string;
   session_jti: string;
 };
 
@@ -49,6 +48,7 @@ export type RequestOptions = {
 };
 
 let hydrated = false;
+let initializePromise: Promise<AuthSession | null> | null = null;
 
 export const authSession = writable<AuthSession | null>(null);
 
@@ -59,25 +59,52 @@ export function hydrateAuthSession() {
 
   hydrated = true;
 
-  const raw = window.localStorage.getItem(storageKey);
+  const raw = window.sessionStorage.getItem(storageKey);
   if (!raw) {
+    clearLegacyAuthStorage();
     authSession.set(null);
     return;
   }
 
   try {
+    clearLegacyAuthStorage();
     authSession.set(JSON.parse(raw) as AuthSession);
   } catch {
-    window.localStorage.removeItem(storageKey);
+    window.sessionStorage.removeItem(storageKey);
+    clearLegacyAuthStorage();
     authSession.set(null);
   }
+}
+
+export async function initializeAuthSession() {
+  hydrateAuthSession();
+
+  const current = get(authSession);
+  if (current) {
+    return current;
+  }
+
+  if (!browser) {
+    return null;
+  }
+
+  if (initializePromise) {
+    return initializePromise;
+  }
+
+  initializePromise = refreshStoredSession().finally(() => {
+    initializePromise = null;
+  });
+
+  return initializePromise;
 }
 
 export function saveAuthSession(session: AuthSession) {
   authSession.set(session);
 
   if (browser) {
-    window.localStorage.setItem(storageKey, JSON.stringify(session));
+    window.sessionStorage.setItem(storageKey, JSON.stringify(session));
+    clearLegacyAuthStorage();
   }
 }
 
@@ -85,7 +112,8 @@ export function clearAuthSession() {
   authSession.set(null);
 
   if (browser) {
-    window.localStorage.removeItem(storageKey);
+    window.sessionStorage.removeItem(storageKey);
+    clearLegacyAuthStorage();
   }
 }
 
@@ -103,18 +131,10 @@ export async function login(payload: {
 }
 
 export async function refreshStoredSession() {
-  const session = get(authSession);
-  if (!session) {
-    return null;
-  }
-
   const response = await request<AuthSession>(
     '/v1/auth/refresh',
     {
       method: 'POST',
-      body: {
-        refresh_token: session.refresh_token,
-      },
       authenticated: false,
       allowRefresh: false,
     },
@@ -225,15 +245,22 @@ async function request<T>(
   const headers = new Headers({
     'Content-Type': 'application/json',
   });
+  const method = options.method ?? 'GET';
 
   if (options.authenticated !== false && session?.access_token) {
     headers.set('Authorization', `Bearer ${session.access_token}`);
   }
 
+  const csrfToken = mutationCSRFToken(method);
+  if (csrfToken !== '') {
+    headers.set('X-CSRF-Token', csrfToken);
+  }
+
   const response = await fetch(resolveURL(path), {
-    method: options.method ?? 'GET',
+    method,
     headers,
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    credentials: 'include',
   });
 
   if (
@@ -249,6 +276,47 @@ async function request<T>(
   }
 
   return readEnvelope<T>(response);
+}
+
+function mutationCSRFToken(method: string) {
+  if (!browser) {
+    return '';
+  }
+
+  switch (method.toUpperCase()) {
+    case 'GET':
+    case 'HEAD':
+    case 'OPTIONS':
+      return '';
+    default:
+      return readCookie(csrfCookieName);
+  }
+}
+
+function readCookie(name: string) {
+  if (!browser) {
+    return '';
+  }
+
+  const pattern = `${name}=`;
+  for (const chunk of document.cookie.split(';')) {
+    const entry = chunk.trim();
+    if (!entry.startsWith(pattern)) {
+      continue;
+    }
+
+    return decodeURIComponent(entry.slice(pattern.length));
+  }
+
+  return '';
+}
+
+function clearLegacyAuthStorage() {
+  if (!browser) {
+    return;
+  }
+
+  window.localStorage.removeItem(storageKey);
 }
 
 async function readEnvelope<T>(response: Response): Promise<ApiEnvelope<T>> {

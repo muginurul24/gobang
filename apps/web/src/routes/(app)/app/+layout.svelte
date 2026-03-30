@@ -6,7 +6,7 @@
   import Notice from '$lib/components/app/notice.svelte';
   import {
     authSession,
-    hydrateAuthSession,
+    initializeAuthSession,
     logoutCurrentSession,
     syncProfile
   } from '$lib/auth/client';
@@ -97,7 +97,7 @@
     }
 
     void (async () => {
-      hydrateAuthSession();
+      await initializeAuthSession();
 
       if (!$authSession) {
         disconnectRealtime();

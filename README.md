@@ -43,8 +43,8 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 
 ## Auth Core
 
-- `POST /v1/auth/login`: login with `{"login":"dev@example.com","password":"DevDemo123!"}` or `{"login":"owner-demo","password":"OwnerDemo123!"}`.
-- `POST /v1/auth/refresh`: rotate the refresh token with `{"refresh_token":"..."}`.
+- `POST /v1/auth/login`: login with `{"login":"dev@example.com","password":"DevDemo123!"}` or `{"login":"owner-demo","password":"OwnerDemo123!"}`. Browser login now returns the access token in JSON, and rotates the refresh token into an `HttpOnly` cookie plus a readable CSRF cookie.
+- `POST /v1/auth/refresh`: browser refresh now reads the refresh token from the `HttpOnly` cookie. Dashboard mutations send `X-CSRF-Token` from the CSRF cookie automatically.
 - `GET /v1/auth/me`: read the current dashboard user with `Authorization: Bearer <access_token>`.
 - `POST /v1/auth/logout`: revoke the current session.
 - `POST /v1/auth/logout-all`: revoke every active session for the current account.

@@ -2,7 +2,7 @@
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
 
-  import { authSession, hydrateAuthSession } from '$lib/auth/client';
+  import { authSession, initializeAuthSession } from '$lib/auth/client';
   import {
     fetchCatalogGames,
     fetchCatalogProviders,
@@ -20,7 +20,7 @@
   let errorMessage = '';
 
   onMount(async () => {
-    hydrateAuthSession();
+    await initializeAuthSession();
 
     if (!$authSession) {
       await goto('/login');

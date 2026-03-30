@@ -10,10 +10,11 @@ import (
 
 type Handler struct {
 	service Service
+	appURL  string
 }
 
-func NewHandler(service Service) *Handler {
-	return &Handler{service: service}
+func NewHandler(service Service, appURL string) *Handler {
+	return &Handler{service: service, appURL: appURL}
 }
 
 func (h *Handler) Register(mux *http.ServeMux) {
@@ -30,6 +31,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 }
 
 func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
+	setNoStoreHeaders(w)
+
 	var request struct {
 		Login        string `json:"login"`
 		Password     string `json:"password"`
@@ -81,20 +84,39 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeEnvelope(w, http.StatusOK, true, "SUCCESS", session)
+	if _, err := issueBrowserSessionCookies(w, h.appURL, session.RefreshToken, session.RefreshTokenExpiresAt); err != nil {
+		writeEnvelope(w, http.StatusInternalServerError, false, "INTERNAL_ERROR", nil)
+		return
+	}
+
+	writeEnvelope(w, http.StatusOK, true, "SUCCESS", sanitizeBrowserSession(session))
 }
 
 func (h *Handler) handleRefresh(w http.ResponseWriter, r *http.Request) {
+	setNoStoreHeaders(w)
+
 	var request struct {
 		RefreshToken string `json:"refresh_token"`
 	}
 
-	if err := decodeJSONBody(w, r, &request); err != nil {
-		writeEnvelope(w, http.StatusBadRequest, false, "INVALID_REQUEST", nil)
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	if shouldDecodeRequestBody(r) {
+		if err := decodeJSONBody(w, r, &request); err != nil {
+			writeEnvelope(w, http.StatusBadRequest, false, "INVALID_REQUEST", nil)
+			return
+		}
+	}
+
+	refreshToken := strings.TrimSpace(request.RefreshToken)
+	if refreshToken == "" {
+		refreshToken = refreshTokenFromRequest(r)
+	}
+	if refreshToken == "" {
+		writeEnvelope(w, http.StatusUnauthorized, false, "INVALID_REFRESH_TOKEN", nil)
 		return
 	}
 
-	session, err := h.service.Refresh(r.Context(), request.RefreshToken, RequestMetadata{
+	session, err := h.service.Refresh(r.Context(), refreshToken, RequestMetadata{
 		IPAddress: clientIP(r),
 		UserAgent: r.UserAgent(),
 	})
@@ -110,10 +132,17 @@ func (h *Handler) handleRefresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeEnvelope(w, http.StatusOK, true, "SUCCESS", session)
+	if _, err := issueBrowserSessionCookies(w, h.appURL, session.RefreshToken, session.RefreshTokenExpiresAt); err != nil {
+		writeEnvelope(w, http.StatusInternalServerError, false, "INTERNAL_ERROR", nil)
+		return
+	}
+
+	writeEnvelope(w, http.StatusOK, true, "SUCCESS", sanitizeBrowserSession(session))
 }
 
 func (h *Handler) handleMe(w http.ResponseWriter, r *http.Request) {
+	setNoStoreHeaders(w)
+
 	subject, ok := SubjectFromContext(r.Context())
 	if !ok {
 		writeEnvelope(w, http.StatusUnauthorized, false, "UNAUTHORIZED", nil)
@@ -135,6 +164,8 @@ func (h *Handler) handleMe(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
+	setNoStoreHeaders(w)
+
 	subject, ok := SubjectFromContext(r.Context())
 	if !ok {
 		writeEnvelope(w, http.StatusUnauthorized, false, "UNAUTHORIZED", nil)
@@ -149,10 +180,13 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	clearBrowserSessionCookies(w, h.appURL)
 	writeEnvelope(w, http.StatusOK, true, "SUCCESS", nil)
 }
 
 func (h *Handler) handleLogoutAll(w http.ResponseWriter, r *http.Request) {
+	setNoStoreHeaders(w)
+
 	subject, ok := SubjectFromContext(r.Context())
 	if !ok {
 		writeEnvelope(w, http.StatusUnauthorized, false, "UNAUTHORIZED", nil)
@@ -168,12 +202,15 @@ func (h *Handler) handleLogoutAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	clearBrowserSessionCookies(w, h.appURL)
 	writeEnvelope(w, http.StatusOK, true, "SUCCESS", map[string]int{
 		"revoked_sessions": revoked,
 	})
 }
 
 func (h *Handler) handleSecurity(w http.ResponseWriter, r *http.Request) {
+	setNoStoreHeaders(w)
+
 	subject, ok := SubjectFromContext(r.Context())
 	if !ok {
 		writeEnvelope(w, http.StatusUnauthorized, false, "UNAUTHORIZED", nil)
@@ -195,6 +232,8 @@ func (h *Handler) handleSecurity(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleBeginTOTPEnrollment(w http.ResponseWriter, r *http.Request) {
+	setNoStoreHeaders(w)
+
 	subject, ok := SubjectFromContext(r.Context())
 	if !ok {
 		writeEnvelope(w, http.StatusUnauthorized, false, "UNAUTHORIZED", nil)
@@ -218,6 +257,8 @@ func (h *Handler) handleBeginTOTPEnrollment(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *Handler) handleEnableTOTP(w http.ResponseWriter, r *http.Request) {
+	setNoStoreHeaders(w)
+
 	subject, ok := SubjectFromContext(r.Context())
 	if !ok {
 		writeEnvelope(w, http.StatusUnauthorized, false, "UNAUTHORIZED", nil)
@@ -260,6 +301,8 @@ func (h *Handler) handleEnableTOTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleDisableTOTP(w http.ResponseWriter, r *http.Request) {
+	setNoStoreHeaders(w)
+
 	subject, ok := SubjectFromContext(r.Context())
 	if !ok {
 		writeEnvelope(w, http.StatusUnauthorized, false, "UNAUTHORIZED", nil)
@@ -304,6 +347,8 @@ func (h *Handler) handleDisableTOTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleUpdateIPAllowlist(w http.ResponseWriter, r *http.Request) {
+	setNoStoreHeaders(w)
+
 	subject, ok := SubjectFromContext(r.Context())
 	if !ok {
 		writeEnvelope(w, http.StatusUnauthorized, false, "UNAUTHORIZED", nil)
@@ -364,6 +409,23 @@ func decodeJSONBody(w http.ResponseWriter, r *http.Request, target any) error {
 	decoder.DisallowUnknownFields()
 
 	return decoder.Decode(target)
+}
+
+func shouldDecodeRequestBody(r *http.Request) bool {
+	if r == nil || r.Body == nil {
+		return false
+	}
+
+	if r.ContentLength > 0 {
+		return true
+	}
+
+	switch strings.TrimSpace(r.Header.Get("Transfer-Encoding")) {
+	case "chunked", "Chunked":
+		return true
+	default:
+		return false
+	}
 }
 
 func clientIP(r *http.Request) string {

@@ -1297,10 +1297,10 @@ Melakukan hardening akhir.
 
 ### Checklist
 
-- [ ] CSRF aktif
-- [ ] secret aman
-- [ ] masking aman
-- [ ] permissions audited
+- [x] CSRF aktif
+- [x] secret aman
+- [x] masking aman
+- [x] permissions audited
 
 ---
 

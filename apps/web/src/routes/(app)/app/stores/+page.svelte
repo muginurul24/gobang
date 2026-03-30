@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
 
   import Button from '$lib/components/ui/button/button.svelte';
-  import { authSession, hydrateAuthSession } from '$lib/auth/client';
+  import { authSession, initializeAuthSession } from '$lib/auth/client';
   import {
     assignStoreStaff,
     createEmployee,
@@ -49,7 +49,7 @@
   };
 
   onMount(async () => {
-    hydrateAuthSession();
+    await initializeAuthSession();
 
     if (!$authSession) {
       await goto('/login');

@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
 
   import Button from '$lib/components/ui/button/button.svelte';
-  import { authSession, hydrateAuthSession } from '$lib/auth/client';
+  import { authSession, initializeAuthSession } from '$lib/auth/client';
   import { fetchAuditLogs, type AuditLogEntry } from '$lib/audit/client';
   import { fetchStores, type Store } from '$lib/stores/client';
 
@@ -19,7 +19,7 @@
   let selectedTargetType = '';
 
   onMount(async () => {
-    hydrateAuthSession();
+    await initializeAuthSession();
 
     if (!$authSession) {
       await goto('/login');

@@ -72,6 +72,12 @@ func TestCreateStoreWithdrawalSuccess(t *testing.T) {
 	if len(ledgerService.calls) == 0 || ledgerService.calls[0] != "balance" || ledgerService.calls[1] != "reserve" {
 		t.Fatalf("ledger calls = %#v, want balance then reserve", ledgerService.calls)
 	}
+	if repository.lastCreated.RequestPayload["account_number_masked"] != "******7890" {
+		t.Fatalf("request payload masked account = %v, want ******7890", repository.lastCreated.RequestPayload["account_number_masked"])
+	}
+	if _, ok := repository.lastCreated.RequestPayload["account_number"]; ok {
+		t.Fatalf("request payload unexpectedly contains raw account number: %#v", repository.lastCreated.RequestPayload)
+	}
 }
 
 func TestCreateStoreWithdrawalReturnsExistingByIdempotencyKey(t *testing.T) {
@@ -236,6 +242,24 @@ func TestCreateStoreWithdrawalTransferFailureReleasesReservation(t *testing.T) {
 	}
 }
 
+func TestListStoreWithdrawalsBlocksKaryawan(t *testing.T) {
+	repository := newStubRepository(time.Now().UTC())
+	service := NewService(Options{
+		Repository:    repository,
+		Provider:      &stubProvider{},
+		Ledger:        &stubLedger{},
+		AccountOpener: stubOpener{value: "1234567890"},
+	})
+
+	_, err := service.ListStoreWithdrawals(context.Background(), auth.Subject{
+		UserID: "employee-1",
+		Role:   auth.RoleKaryawan,
+	}, "store-1")
+	if !errors.Is(err, ErrForbidden) {
+		t.Fatalf("error = %v, want ErrForbidden", err)
+	}
+}
+
 type fixedClock struct {
 	now time.Time
 }
@@ -251,6 +275,7 @@ type stubRepository struct {
 	byID        map[string]StoreWithdrawal
 	audits      []string
 	checks      []RecordStatusCheckParams
+	lastCreated CreateStoreWithdrawalParams
 	now         time.Time
 }
 
@@ -395,6 +420,8 @@ func (r *stubRepository) ListDueStatusCheckWithdrawals(_ context.Context, cutoff
 }
 
 func (r *stubRepository) CreateStoreWithdrawal(_ context.Context, params CreateStoreWithdrawalParams) (StoreWithdrawal, error) {
+	r.lastCreated = params
+
 	withdrawal := StoreWithdrawal{
 		ID:                   "withdrawal-" + params.IdempotencyKey,
 		StoreID:              params.StoreID,

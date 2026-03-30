@@ -10,7 +10,7 @@
     disableTOTP,
     enableTOTP,
     fetchSecuritySettings,
-    hydrateAuthSession,
+    initializeAuthSession,
     type SecuritySettings,
     type TOTPEnrollment,
     updateIPAllowlist
@@ -30,7 +30,7 @@
   let recoveryCodes: string[] = [];
 
   onMount(async () => {
-    hydrateAuthSession();
+    await initializeAuthSession();
 
     if (!$authSession) {
       await goto('/login');

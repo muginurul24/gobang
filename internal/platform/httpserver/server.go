@@ -102,7 +102,7 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 			DefaultExpireSeconds: cfg.QRIS.DefaultExpireSeconds,
 		}, deps.Logger, nil, deps.Metrics)
 
-		auth.NewHandler(authService).Register(mux)
+		auth.NewHandler(authService, cfg.App.URL).Register(mux)
 		chat.NewHandler(
 			chat.NewService(chat.Options{
 				Repository:      chat.NewRepository(deps.DB),
@@ -272,7 +272,13 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 		})
 	})
 
-	return middleware.RequestID(middleware.Logging(deps.Logger, deps.Metrics, mux))
+	return middleware.RequestID(
+		middleware.Logging(
+			deps.Logger,
+			deps.Metrics,
+			middleware.RequireCSRF(cfg.App.URL, auth.CSRFCookieName, auth.CSRFHeaderName, mux),
+		),
+	)
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {

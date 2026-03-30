@@ -6,7 +6,7 @@
   import Notice from '$lib/components/app/notice.svelte';
   import PageSkeleton from '$lib/components/app/page-skeleton.svelte';
   import Button from '$lib/components/ui/button/button.svelte';
-  import { authSession, hydrateAuthSession } from '$lib/auth/client';
+  import { authSession, initializeAuthSession } from '$lib/auth/client';
   import { fetchBankAccounts, type BankAccount } from '$lib/bank-accounts/client';
   import { fetchStores, isStoreLowBalance, type Store } from '$lib/stores/client';
   import {
@@ -69,7 +69,7 @@
     });
 
     void (async () => {
-      hydrateAuthSession();
+      await initializeAuthSession();
 
       if (!$authSession) {
         await goto('/login');

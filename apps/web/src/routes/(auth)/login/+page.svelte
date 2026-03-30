@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
 
   import Button from '$lib/components/ui/button/button.svelte';
-  import { authSession, hydrateAuthSession, login, saveAuthSession } from '$lib/auth/client';
+  import { authSession, initializeAuthSession, login, saveAuthSession } from '$lib/auth/client';
 
   let loginValue = 'owner-demo';
   let password = 'OwnerDemo123!';
@@ -15,7 +15,7 @@
   let requiresTOTP = false;
 
   onMount(async () => {
-    hydrateAuthSession();
+    await initializeAuthSession();
 
     if ($authSession) {
       await goto('/app');
