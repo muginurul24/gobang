@@ -79,6 +79,7 @@ type NexusGGRConfig struct {
 	BaseURL    string
 	AgentCode  string
 	AgentToken string
+	Timeout    time.Duration
 }
 
 type RealtimeConfig struct {
@@ -112,6 +113,11 @@ func Load() (Config, error) {
 	}
 
 	loginAttemptWindow, err := envDuration("LOGIN_ATTEMPT_WINDOW", 15*time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
+
+	nexusTimeout, err := envDuration("NEXUSGGR_TIMEOUT", 10*time.Second)
 	if err != nil {
 		return Config{}, err
 	}
@@ -169,6 +175,7 @@ func Load() (Config, error) {
 			BaseURL:    envString("NEXUSGGR_BASE_URL", "https://api.nexusggr.com"),
 			AgentCode:  envString("NEXUSGGR_AGENT_CODE", ""),
 			AgentToken: envString("NEXUSGGR_AGENT_TOKEN", ""),
+			Timeout:    nexusTimeout,
 		},
 		Realtime: RealtimeConfig{
 			HeartbeatSeconds: envInt("WS_HEARTBEAT_SECONDS", 30),

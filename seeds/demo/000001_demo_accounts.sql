@@ -94,6 +94,25 @@ INSERT INTO ledger_accounts (
 )
 ON CONFLICT (store_id) DO NOTHING;
 
+INSERT INTO store_members (
+  id,
+  store_id,
+  real_username,
+  upstream_user_code,
+  status,
+  created_at,
+  updated_at
+) VALUES (
+  'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
+  'cccccccc-cccc-cccc-cccc-cccccccccccc',
+  'member-demo',
+  'MEMBER000001',
+  'active',
+  now(),
+  now()
+)
+ON CONFLICT (store_id, real_username) DO NOTHING;
+
 INSERT INTO store_staff (
   store_id,
   user_id,

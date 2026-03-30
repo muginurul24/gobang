@@ -485,9 +485,9 @@ Menyelesaikan member toko.
 - member domain siap dihubungkan ke game
 
 ### Checklist
-- [ ] username unique per store
-- [ ] upstream user code unique global
-- [ ] immutable
+- [x] username unique per store
+- [x] upstream user code unique global
+- [x] immutable
 
 ---
 
@@ -518,9 +518,9 @@ Tambahkan:
 - adapter NexusGGR final
 
 ### Checklist
-- [ ] semua method siap
-- [ ] error normalized
-- [ ] timeout handled
+- [x] semua method siap
+- [x] error normalized
+- [x] timeout handled
 
 ---
 

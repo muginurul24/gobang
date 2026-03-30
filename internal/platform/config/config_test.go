@@ -39,6 +39,7 @@ func TestLoadDefaults(t *testing.T) {
 		"NEXUSGGR_BASE_URL",
 		"NEXUSGGR_AGENT_CODE",
 		"NEXUSGGR_AGENT_TOKEN",
+		"NEXUSGGR_TIMEOUT",
 		"WS_HEARTBEAT_SECONDS",
 		"METRICS_ENABLED",
 		"PROMETHEUS_PORT",
@@ -77,6 +78,7 @@ func TestLoadOverrides(t *testing.T) {
 	t.Setenv("HTTP_ADDRESS", ":9090")
 	t.Setenv("JWT_ACCESS_TTL", "2h")
 	t.Setenv("STORE_WITHDRAW_PLATFORM_FEE_PERCENT", "10.5")
+	t.Setenv("NEXUSGGR_TIMEOUT", "25s")
 	t.Setenv("METRICS_ENABLED", "false")
 
 	cfg, err := Load()
@@ -98,6 +100,10 @@ func TestLoadOverrides(t *testing.T) {
 
 	if cfg.Business.StoreWithdrawPlatformFeePct != 10.5 {
 		t.Fatalf("Business.StoreWithdrawPlatformFeePct = %v, want 10.5", cfg.Business.StoreWithdrawPlatformFeePct)
+	}
+
+	if cfg.NexusGGR.Timeout != 25*time.Second {
+		t.Fatalf("NexusGGR.Timeout = %v, want 25s", cfg.NexusGGR.Timeout)
 	}
 
 	if cfg.Observability.MetricsEnabled {

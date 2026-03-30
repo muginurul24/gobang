@@ -9,6 +9,7 @@ import (
 	"github.com/mugiew/onixggr/internal/modules/audit"
 	"github.com/mugiew/onixggr/internal/modules/auth"
 	"github.com/mugiew/onixggr/internal/modules/bankaccounts"
+	"github.com/mugiew/onixggr/internal/modules/storemembers"
 	"github.com/mugiew/onixggr/internal/modules/stores"
 	"github.com/mugiew/onixggr/internal/platform/bankdirectory"
 	"github.com/mugiew/onixggr/internal/platform/config"
@@ -78,6 +79,10 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 				sealer,
 				nil,
 			),
+			authService,
+		).Register(mux)
+		storemembers.NewHandler(
+			storemembers.NewService(storemembers.NewRepository(deps.DB), nil),
 			authService,
 		).Register(mux)
 		audit.NewHandler(audit.NewService(audit.NewRepository(deps.DB)), authService).Register(mux)

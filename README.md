@@ -62,6 +62,8 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `POST /v1/staff/users`: owner-only employee creation.
 - `POST /v1/stores/{storeID}/staff`: owner-only staff assignment.
 - `DELETE /v1/stores/{storeID}/staff/{userID}`: owner-only staff unassignment.
+- `GET /v1/stores/{storeID}/members`: list store members in tenant scope.
+- `POST /v1/stores/{storeID}/members`: create a member mapping with a generated immutable 12-char `upstream_user_code`.
 - `GET /v1/audit/logs`: owner-scoped audit feed, or global for `dev` and `superadmin`.
 
 ## Bank Account APIs
@@ -72,15 +74,22 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `PATCH /v1/stores/{storeID}/bank-accounts/{bankAccountID}`: activate or deactivate a saved bank account.
 - Local development falls back to a deterministic mock inquiry verifier whenever `QRIS_CLIENT`, `QRIS_CLIENT_KEY`, or `QRIS_GLOBAL_UUID` are still empty or `QRIS_BASE_URL` is still the placeholder value.
 
+## Ledger & NexusGGR Foundation
+
+- `ledger_accounts`, `ledger_entries`, and `ledger_reservations` now exist and keep `stores.current_balance` as a projection cache.
+- `store_members` now exists with unique `(store_id, real_username)` plus globally unique immutable `upstream_user_code`.
+- `internal/platform/nexusggr` wraps `provider_list`, `game_list`, `game_launch`, `money_info`, `user_create`, `user_deposit`, `user_withdraw`, `user_withdraw_reset`, and `transfer_status`.
+- NexusGGR business failures are normalized even when upstream still returns HTTP `200`, request/response logs are masked, and `NEXUSGGR_TIMEOUT` controls the transport timeout.
+
 ## Notes
 
 - `backend/` and `frontend/` are legacy placeholder directories; new work should go into `apps/`.
 - Use `make hooks` after the repository is initialized with Git to enable the local hooks in `.githooks/`.
 - API readiness is exposed at `/health/ready` and `/readyz`; liveness is exposed at `/health/live` and `/healthz`.
-- Demo seed rows create one `dev` user, one `owner` user, one `karyawan` user, one store, one store-staff relation, and one audit log entry for local development.
+- Demo seed rows create one `dev` user, one `owner` user, one `karyawan` user, one store, one demo member, one store-staff relation, and one audit log entry for local development.
 - Demo dashboard credentials after `./appctl migrate fresh --seed`:
 - `dev@example.com` or `dev-demo` with password `DevDemo123!`
 - `owner@example.com` or `owner-demo` with password `OwnerDemo123!`
 - `staff@example.com` or `staff-demo` with password `StaffDemo123!`
-- `apps/web` now contains a working login page plus `/app/stores`, `/app/bank-accounts`, `/app/audit`, and `/app/security` for store ops, verified bank accounts, scoped audit, TOTP enrollment, recovery code handoff, and dashboard IP allowlist management.
+- `apps/web` now contains a working login page plus `/app/stores`, `/app/members`, `/app/bank-accounts`, `/app/audit`, and `/app/security` for store ops, member mapping, verified bank accounts, scoped audit, TOTP enrollment, recovery code handoff, and dashboard IP allowlist management.
 - Set `PUBLIC_API_BASE_URL` only when the web shell should talk to a different API origin; otherwise dev mode proxies `/v1` to `http://127.0.0.1:8080`.
