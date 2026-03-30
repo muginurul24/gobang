@@ -250,6 +250,175 @@ func TestDepositTimeoutMovesToPendingReconcile(t *testing.T) {
 	}
 }
 
+func TestWithdrawSuccessCreditsLedger(t *testing.T) {
+	repository := newFakeRepository(time.Date(2026, 3, 30, 22, 0, 0, 0, time.UTC))
+	upstream := &fakeUpstream{}
+	ledgerService := newFakeLedger("100000.00")
+
+	service := NewService(Options{
+		Repository:           repository,
+		Upstream:             upstream,
+		Ledger:               ledgerService,
+		Clock:                fixedClock{now: repository.now},
+		MinTransactionAmount: 5000,
+	}).(*service)
+	service.agentSignFactory = func() (string, error) {
+		return "AGTWITHDRAW00001", nil
+	}
+
+	result, err := service.Withdraw(context.Background(), "store_live_demo", CreateWithdrawInput{
+		Username: "member-demo",
+		Amount:   json.Number("10000"),
+		TrxID:    "trx-withdraw-success",
+	}, RequestMetadata{
+		IPAddress: "127.0.0.1",
+		UserAgent: "game-withdraw-test",
+	})
+	if err != nil {
+		t.Fatalf("Withdraw returned error: %v", err)
+	}
+
+	if result.Transaction.Status != TransactionStatusSuccess {
+		t.Fatalf("Transaction.Status = %s, want success", result.Transaction.Status)
+	}
+
+	if result.Transaction.Action != GameActionWithdraw {
+		t.Fatalf("Transaction.Action = %s, want withdraw", result.Transaction.Action)
+	}
+
+	if ledgerService.creditCalls != 1 {
+		t.Fatalf("credit calls = %d, want 1", ledgerService.creditCalls)
+	}
+
+	if result.Balance == nil || result.Balance.CurrentBalance != "110000.00" {
+		t.Fatalf("Balance.CurrentBalance = %#v, want 110000.00", result.Balance)
+	}
+
+	if upstream.withdrawCalls != 1 {
+		t.Fatalf("withdraw calls = %d, want 1", upstream.withdrawCalls)
+	}
+}
+
+func TestWithdrawTimeoutMovesToPendingReconcile(t *testing.T) {
+	repository := newFakeRepository(time.Date(2026, 3, 30, 22, 10, 0, 0, time.UTC))
+	upstream := &fakeUpstream{withdrawErr: nexusggr.ErrTimeout}
+	ledgerService := newFakeLedger("100000.00")
+
+	service := NewService(Options{
+		Repository:           repository,
+		Upstream:             upstream,
+		Ledger:               ledgerService,
+		Clock:                fixedClock{now: repository.now},
+		MinTransactionAmount: 5000,
+	}).(*service)
+	service.agentSignFactory = func() (string, error) {
+		return "AGTTIMEOUTWD0001", nil
+	}
+
+	result, err := service.Withdraw(context.Background(), "store_live_demo", CreateWithdrawInput{
+		Username: "member-demo",
+		Amount:   json.Number("8000"),
+		TrxID:    "trx-withdraw-timeout",
+	}, RequestMetadata{
+		IPAddress: "127.0.0.1",
+		UserAgent: "game-withdraw-timeout-test",
+	})
+	if err != nil {
+		t.Fatalf("Withdraw returned error: %v", err)
+	}
+
+	if result.Transaction.ReconcileStatus == nil || *result.Transaction.ReconcileStatus != ReconcileStatusPending {
+		t.Fatalf("ReconcileStatus = %#v, want pending_reconcile", result.Transaction.ReconcileStatus)
+	}
+
+	if ledgerService.creditCalls != 0 {
+		t.Fatalf("credit calls = %d, want 0", ledgerService.creditCalls)
+	}
+
+	if repository.auditActions[len(repository.auditActions)-1] != "game.withdraw_pending_reconcile" {
+		t.Fatalf("last audit action = %q, want game.withdraw_pending_reconcile", repository.auditActions[len(repository.auditActions)-1])
+	}
+}
+
+func TestWithdrawRetrySameTrxIDReturnsOldResult(t *testing.T) {
+	repository := newFakeRepository(time.Date(2026, 3, 30, 22, 20, 0, 0, time.UTC))
+	repository.transactions["tx-existing-wd"] = GameTransaction{
+		ID:               "tx-existing-wd",
+		StoreID:          "store-1",
+		StoreMemberID:    "member-1",
+		Action:           GameActionWithdraw,
+		TrxID:            "trx-withdraw-dup",
+		UpstreamUserCode: "MEMBER000001",
+		Amount:           "8000.00",
+		Status:           TransactionStatusSuccess,
+	}
+	upstream := &fakeUpstream{}
+
+	service := NewService(Options{
+		Repository:           repository,
+		Upstream:             upstream,
+		Ledger:               newFakeLedger("100000.00"),
+		Clock:                fixedClock{now: repository.now},
+		MinTransactionAmount: 5000,
+	})
+
+	result, err := service.Withdraw(context.Background(), "store_live_demo", CreateWithdrawInput{
+		Username: "member-demo",
+		Amount:   json.Number("8000"),
+		TrxID:    "trx-withdraw-dup",
+	}, RequestMetadata{})
+	if err != nil {
+		t.Fatalf("Withdraw returned error: %v", err)
+	}
+
+	if result.Transaction.ID != "tx-existing-wd" {
+		t.Fatalf("Transaction.ID = %s, want tx-existing-wd", result.Transaction.ID)
+	}
+
+	if upstream.withdrawCalls != 0 {
+		t.Fatalf("withdraw calls = %d, want 0 (should be idempotent)", upstream.withdrawCalls)
+	}
+}
+
+func TestWithdrawFailNoLedgerChange(t *testing.T) {
+	repository := newFakeRepository(time.Date(2026, 3, 30, 22, 30, 0, 0, time.UTC))
+	upstream := &fakeUpstream{withdrawErr: &nexusggr.BusinessError{Code: "USER_NOT_FOUND", Message: "user not found"}}
+	ledgerService := newFakeLedger("100000.00")
+
+	service := NewService(Options{
+		Repository:           repository,
+		Upstream:             upstream,
+		Ledger:               ledgerService,
+		Clock:                fixedClock{now: repository.now},
+		MinTransactionAmount: 5000,
+	}).(*service)
+	service.agentSignFactory = func() (string, error) {
+		return "AGTFAILWD0000001", nil
+	}
+
+	_, err := service.Withdraw(context.Background(), "store_live_demo", CreateWithdrawInput{
+		Username: "member-demo",
+		Amount:   json.Number("5000"),
+		TrxID:    "trx-withdraw-fail",
+	}, RequestMetadata{
+		IPAddress: "127.0.0.1",
+		UserAgent: "game-withdraw-fail-test",
+	})
+
+	var businessErr *nexusggr.BusinessError
+	if !errors.As(err, &businessErr) {
+		t.Fatalf("Withdraw error = %v, want BusinessError", err)
+	}
+
+	if ledgerService.creditCalls != 0 {
+		t.Fatalf("credit calls = %d, want 0", ledgerService.creditCalls)
+	}
+
+	if repository.auditActions[len(repository.auditActions)-1] != "game.withdraw_failed" {
+		t.Fatalf("last audit action = %q, want game.withdraw_failed", repository.auditActions[len(repository.auditActions)-1])
+	}
+}
+
 type fixedClock struct {
 	now time.Time
 }
@@ -403,10 +572,12 @@ func (r *fakeRepository) InsertAuditLog(_ context.Context, _ string, action stri
 }
 
 type fakeUpstream struct {
-	calls        int
-	err          error
-	depositCalls int
-	depositErr   error
+	calls         int
+	err           error
+	depositCalls  int
+	depositErr    error
+	withdrawCalls int
+	withdrawErr   error
 }
 
 func (u *fakeUpstream) UserCreate(_ context.Context, input nexusggr.UserCreateInput) (nexusggr.UserCreateResult, error) {
@@ -434,11 +605,25 @@ func (u *fakeUpstream) UserDeposit(_ context.Context, input nexusggr.TransferInp
 	}, nil
 }
 
+func (u *fakeUpstream) UserWithdraw(_ context.Context, input nexusggr.TransferInput) (nexusggr.TransferResult, error) {
+	u.withdrawCalls++
+	if u.withdrawErr != nil {
+		return nexusggr.TransferResult{}, u.withdrawErr
+	}
+
+	return nexusggr.TransferResult{
+		Message:      "SUCCESS",
+		AgentBalance: 250000,
+		UserBalance:  input.Amount,
+	}, nil
+}
+
 type fakeLedger struct {
 	balance      ledger.BalanceSnapshot
 	reserveCalls int
 	commitCalls  int
 	releaseCalls int
+	creditCalls  int
 }
 
 func newFakeLedger(available string) *fakeLedger {
@@ -456,6 +641,25 @@ func newFakeLedger(available string) *fakeLedger {
 
 func (l *fakeLedger) GetBalance(_ context.Context, _ string) (ledger.BalanceSnapshot, error) {
 	return l.balance, nil
+}
+
+func (l *fakeLedger) Credit(_ context.Context, _ string, input ledger.PostEntryInput) (ledger.PostingResult, error) {
+	l.creditCalls++
+	amount, _ := parseMoney(input.Amount)
+	current, _ := parseMoney(l.balance.CurrentBalance)
+	newBalance := money(int64(current) + int64(amount))
+	l.balance.CurrentBalance = newBalance.String()
+	l.balance.AvailableBalance = newBalance.String()
+	return ledger.PostingResult{
+		Balance: ledger.BalanceSnapshot{
+			StoreID:          l.balance.StoreID,
+			LedgerAccountID:  l.balance.LedgerAccountID,
+			Currency:         l.balance.Currency,
+			CurrentBalance:   l.balance.CurrentBalance,
+			ReservedAmount:   l.balance.ReservedAmount,
+			AvailableBalance: l.balance.AvailableBalance,
+		},
+	}, nil
 }
 
 func (l *fakeLedger) Reserve(_ context.Context, _ string, input ledger.ReserveInput) (ledger.ReservationResult, error) {

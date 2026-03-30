@@ -596,9 +596,9 @@ Menyelesaikan withdraw game.
 - game withdraw selesai
 
 ### Checklist
-- [ ] success credit ledger
-- [ ] pending reconcile jalan
-- [ ] retry same trx_id returns old result
+- [x] success credit ledger
+- [x] pending reconcile jalan
+- [x] retry same trx_id returns old result
 
 ---
 

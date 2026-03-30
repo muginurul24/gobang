@@ -21,6 +21,7 @@ func NewHandler(service Service) *Handler {
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.Handle("POST /v1/store-api/game/users", h.handleCreateUser())
 	mux.Handle("POST /v1/store-api/game/deposits", h.handleCreateDeposit())
+	mux.Handle("POST /v1/store-api/game/withdrawals", h.handleCreateWithdraw())
 }
 
 func (h *Handler) handleCreateUser() http.Handler {
@@ -62,6 +63,35 @@ func (h *Handler) handleCreateDeposit() http.Handler {
 		}
 
 		result, err := h.service.Deposit(r.Context(), token, input, requestMetadata(r))
+		if err != nil {
+			writeGameError(w, err)
+			return
+		}
+
+		if result.Transaction.ReconcileStatus != nil && *result.Transaction.ReconcileStatus == ReconcileStatusPending {
+			writeEnvelope(w, http.StatusAccepted, true, "PENDING_RECONCILE", result)
+			return
+		}
+
+		writeEnvelope(w, http.StatusCreated, true, "SUCCESS", result)
+	})
+}
+
+func (h *Handler) handleCreateWithdraw() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token, ok := bearerToken(r.Header.Get("Authorization"))
+		if !ok {
+			writeEnvelope(w, http.StatusUnauthorized, false, "UNAUTHORIZED", nil)
+			return
+		}
+
+		var input CreateWithdrawInput
+		if err := decodeJSONBody(w, r, &input); err != nil {
+			writeEnvelope(w, http.StatusBadRequest, false, "INVALID_REQUEST", nil)
+			return
+		}
+
+		result, err := h.service.Withdraw(r.Context(), token, input, requestMetadata(r))
 		if err != nil {
 			writeGameError(w, err)
 			return

@@ -81,13 +81,15 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `internal/platform/nexusggr` wraps `provider_list`, `game_list`, `game_launch`, `money_info`, `user_create`, `user_deposit`, `user_withdraw`, `user_withdraw_reset`, and `transfer_status`.
 - NexusGGR business failures are normalized even when upstream still returns HTTP `200`, request/response logs are masked, and `NEXUSGGR_TIMEOUT` controls the transport timeout.
 
-## Store API Game User
+## Store API Game Flows
 
 - `POST /v1/store-api/game/users`: create a game user via Bearer `store_token` with body `{"username":"member-alpha"}`.
 - The flow follows `docs/blueprint.md`: reject duplicate `(store_id, username)`, generate a 12-char immutable `upstream_user_code`, call NexusGGR `user_create`, then persist the mapping only on upstream success.
 - Store API token auth is scoped by `stores.api_token_hash`, and inactive or deleted stores are blocked before upstream calls.
 - `POST /v1/store-api/game/deposits`: create a game deposit via Bearer `store_token` with body `{"username":"member-alpha","amount":5000,"trx_id":"trx-001"}`.
 - Deposit currently requires an existing active member mapping, rejects duplicate `trx_id`, rejects insufficient balance, reserves balance before the upstream call, commits ledger debit on success, and returns `202 PENDING_RECONCILE` on timeout or other ambiguous upstream failures.
+- `POST /v1/store-api/game/withdrawals`: create a game withdraw via Bearer `store_token` with body `{"username":"member-alpha","amount":5000,"trx_id":"trx-002"}`.
+- Withdraw credits store balance only after upstream `user_withdraw` succeeds, marks ambiguous upstream responses as `pending_reconcile`, and returns the existing transaction on an idempotent retry with the same `trx_id`.
 
 ## Notes
 

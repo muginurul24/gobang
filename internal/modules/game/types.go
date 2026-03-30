@@ -129,7 +129,18 @@ type BalanceSnapshot struct {
 	AvailableBalance string `json:"available_balance"`
 }
 
+type CreateWithdrawInput struct {
+	Username string      `json:"username"`
+	Amount   json.Number `json:"amount"`
+	TrxID    string      `json:"trx_id"`
+}
+
 type DepositResult struct {
+	Transaction GameTransaction  `json:"transaction"`
+	Balance     *BalanceSnapshot `json:"balance,omitempty"`
+}
+
+type WithdrawResult struct {
 	Transaction GameTransaction  `json:"transaction"`
 	Balance     *BalanceSnapshot `json:"balance,omitempty"`
 }

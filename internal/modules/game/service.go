@@ -27,10 +27,12 @@ type RepositoryContract interface {
 type UpstreamClient interface {
 	UserCreate(ctx context.Context, input nexusggr.UserCreateInput) (nexusggr.UserCreateResult, error)
 	UserDeposit(ctx context.Context, input nexusggr.TransferInput) (nexusggr.TransferResult, error)
+	UserWithdraw(ctx context.Context, input nexusggr.TransferInput) (nexusggr.TransferResult, error)
 }
 
 type LedgerService interface {
 	GetBalance(ctx context.Context, storeID string) (ledger.BalanceSnapshot, error)
+	Credit(ctx context.Context, storeID string, input ledger.PostEntryInput) (ledger.PostingResult, error)
 	Reserve(ctx context.Context, storeID string, input ledger.ReserveInput) (ledger.ReservationResult, error)
 	CommitReservation(ctx context.Context, storeID string, input ledger.CommitReservationInput) (ledger.CommitReservationResult, error)
 	ReleaseReservation(ctx context.Context, storeID string, input ledger.ReleaseReservationInput) (ledger.ReservationResult, error)
@@ -39,6 +41,7 @@ type LedgerService interface {
 type Service interface {
 	CreateUser(ctx context.Context, storeToken string, input CreateUserInput, metadata RequestMetadata) (StoreMember, error)
 	Deposit(ctx context.Context, storeToken string, input CreateDepositInput, metadata RequestMetadata) (DepositResult, error)
+	Withdraw(ctx context.Context, storeToken string, input CreateWithdrawInput, metadata RequestMetadata) (WithdrawResult, error)
 }
 
 type Options struct {
@@ -365,6 +368,170 @@ func (s *service) Deposit(ctx context.Context, storeToken string, input CreateDe
 	}
 }
 
+func (s *service) Withdraw(ctx context.Context, storeToken string, input CreateWithdrawInput, metadata RequestMetadata) (WithdrawResult, error) {
+	store, err := s.authenticateStore(ctx, storeToken)
+	if err != nil {
+		return WithdrawResult{}, err
+	}
+
+	username := normalizeUsername(input.Username)
+	if !validUsername(username) {
+		return WithdrawResult{}, ErrInvalidUsername
+	}
+
+	trxID := normalizeTransactionID(input.TrxID)
+	if trxID == "" {
+		return WithdrawResult{}, ErrInvalidTransactionID
+	}
+
+	amount, err := parseMoney(input.Amount.String())
+	if err != nil || amount.LessThan(1) || amount.LessThan(s.minTransactionAmount) {
+		return WithdrawResult{}, ErrInvalidAmount
+	}
+
+	member, err := s.repository.FindStoreMemberByUsername(ctx, store.ID, username)
+	if err != nil {
+		return WithdrawResult{}, err
+	}
+	if member.Status != MemberStatusActive {
+		return WithdrawResult{}, ErrMemberInactive
+	}
+
+	// Idempotency: if same trx_id already exists, return the old result.
+	existing, err := s.repository.FindGameTransactionByTrxID(ctx, store.ID, trxID)
+	switch {
+	case err == nil:
+		return WithdrawResult{Transaction: existing}, nil
+	case errors.Is(err, ErrNotFound):
+	default:
+		return WithdrawResult{}, err
+	}
+
+	now := s.clock.Now().UTC()
+	transaction, err := s.createPendingWithdraw(ctx, store, member, trxID, amount, now)
+	if err != nil {
+		return WithdrawResult{}, err
+	}
+
+	upstreamResult, err := s.upstream.UserWithdraw(ctx, nexusggr.TransferInput{
+		UserCode:  member.UpstreamUserCode,
+		Amount:    amount.Float64(),
+		AgentSign: transaction.AgentSign,
+	})
+	if err == nil {
+		creditResult, creditErr := s.ledger.Credit(ctx, store.ID, ledger.PostEntryInput{
+			EntryType:     ledger.EntryTypeGameWithdraw,
+			Amount:        amount.String(),
+			ReferenceType: "game_transaction",
+			ReferenceID:   transaction.ID,
+			Metadata: map[string]any{
+				"trx_id":             transaction.TrxID,
+				"real_username":      member.RealUsername,
+				"upstream_user_code": member.UpstreamUserCode,
+			},
+		})
+		if creditErr != nil {
+			pending, pendingErr := s.markPendingReconcile(ctx, transaction.ID, nil, map[string]any{
+				"message":       upstreamResult.Message,
+				"agent_balance": upstreamResult.AgentBalance,
+				"user_balance":  upstreamResult.UserBalance,
+				"reason":        "ledger_credit_failed",
+			}, now)
+			if pendingErr != nil {
+				return WithdrawResult{}, pendingErr
+			}
+
+			if auditErr := s.repository.InsertAuditLog(ctx, store.ID, "game.withdraw_pending_reconcile", "game_transaction", &pending.ID, map[string]any{
+				"trx_id": pending.TrxID,
+				"reason": "ledger_credit_failed",
+			}, metadata.IPAddress, metadata.UserAgent, now); auditErr != nil {
+				return WithdrawResult{}, auditErr
+			}
+
+			return WithdrawResult{Transaction: pending}, nil
+		}
+
+		transaction, err = s.repository.UpdateGameTransaction(ctx, UpdateGameTransactionParams{
+			GameTransactionID: transaction.ID,
+			Status:            TransactionStatusSuccess,
+			UpstreamResponseMasked: map[string]any{
+				"message":       upstreamResult.Message,
+				"agent_balance": upstreamResult.AgentBalance,
+				"user_balance":  upstreamResult.UserBalance,
+			},
+			OccurredAt: now,
+		})
+		if err != nil {
+			return WithdrawResult{}, err
+		}
+
+		if err := s.repository.InsertAuditLog(ctx, store.ID, "game.withdraw_success", "game_transaction", &transaction.ID, map[string]any{
+			"trx_id":             transaction.TrxID,
+			"real_username":      member.RealUsername,
+			"amount":             amount.String(),
+			"upstream_user_code": transaction.UpstreamUserCode,
+		}, metadata.IPAddress, metadata.UserAgent, now); err != nil {
+			return WithdrawResult{}, err
+		}
+
+		return WithdrawResult{
+			Transaction: transaction,
+			Balance: &BalanceSnapshot{
+				StoreID:          creditResult.Balance.StoreID,
+				LedgerAccountID:  creditResult.Balance.LedgerAccountID,
+				Currency:         creditResult.Balance.Currency,
+				CurrentBalance:   creditResult.Balance.CurrentBalance,
+				ReservedAmount:   creditResult.Balance.ReservedAmount,
+				AvailableBalance: creditResult.Balance.AvailableBalance,
+			},
+		}, nil
+	}
+
+	var businessErr *nexusggr.BusinessError
+	switch {
+	case errors.As(err, &businessErr), errors.Is(err, nexusggr.ErrNotConfigured):
+		code := "UPSTREAM_NOT_CONFIGURED"
+		response := map[string]any{}
+		if errors.As(err, &businessErr) {
+			code = businessErr.Code
+			response["message"] = businessErr.Message
+			response["code"] = businessErr.Code
+		}
+
+		transaction, updateErr := s.markFailed(ctx, transaction.ID, code, response, now)
+		if updateErr != nil {
+			return WithdrawResult{}, updateErr
+		}
+
+		if auditErr := s.repository.InsertAuditLog(ctx, store.ID, "game.withdraw_failed", "game_transaction", &transaction.ID, map[string]any{
+			"trx_id": transaction.TrxID,
+			"code":   code,
+		}, metadata.IPAddress, metadata.UserAgent, now); auditErr != nil {
+			return WithdrawResult{}, auditErr
+		}
+
+		return WithdrawResult{}, err
+	case errors.Is(err, nexusggr.ErrTimeout), errors.Is(err, nexusggr.ErrUpstreamUnavailable), errors.Is(err, nexusggr.ErrUnexpectedHTTP), errors.Is(err, nexusggr.ErrInvalidResponse):
+		transaction, updateErr := s.markPendingReconcile(ctx, transaction.ID, nil, map[string]any{
+			"reason": err.Error(),
+		}, now)
+		if updateErr != nil {
+			return WithdrawResult{}, updateErr
+		}
+
+		if auditErr := s.repository.InsertAuditLog(ctx, store.ID, "game.withdraw_pending_reconcile", "game_transaction", &transaction.ID, map[string]any{
+			"trx_id": transaction.TrxID,
+			"reason": err.Error(),
+		}, metadata.IPAddress, metadata.UserAgent, now); auditErr != nil {
+			return WithdrawResult{}, auditErr
+		}
+
+		return WithdrawResult{Transaction: transaction}, nil
+	default:
+		return WithdrawResult{}, err
+	}
+}
+
 func (s *service) authenticateStore(ctx context.Context, storeToken string) (StoreScope, error) {
 	token := strings.TrimSpace(storeToken)
 	if token == "" {
@@ -394,6 +561,38 @@ func (s *service) createPendingDeposit(ctx context.Context, store StoreScope, me
 			StoreID:          store.ID,
 			StoreMemberID:    member.ID,
 			Action:           GameActionDeposit,
+			TrxID:            trxID,
+			UpstreamUserCode: member.UpstreamUserCode,
+			Amount:           amount.String(),
+			AgentSign:        agentSign,
+			Status:           TransactionStatusPending,
+			OccurredAt:       occurredAt,
+		})
+		if err == nil {
+			return transaction, nil
+		}
+
+		if errors.Is(err, ErrAgentSignExhausted) {
+			continue
+		}
+
+		return GameTransaction{}, err
+	}
+
+	return GameTransaction{}, ErrAgentSignExhausted
+}
+
+func (s *service) createPendingWithdraw(ctx context.Context, store StoreScope, member StoreMember, trxID string, amount money, occurredAt time.Time) (GameTransaction, error) {
+	for range 8 {
+		agentSign, err := s.agentSignFactory()
+		if err != nil {
+			return GameTransaction{}, fmt.Errorf("generate agent sign: %w", err)
+		}
+
+		transaction, err := s.repository.CreateGameTransaction(ctx, CreateGameTransactionParams{
+			StoreID:          store.ID,
+			StoreMemberID:    member.ID,
+			Action:           GameActionWithdraw,
 			TrxID:            trxID,
 			UpstreamUserCode: member.UpstreamUserCode,
 			Amount:           amount.String(),
@@ -447,10 +646,18 @@ func (noopUpstream) UserDeposit(context.Context, nexusggr.TransferInput) (nexusg
 	return nexusggr.TransferResult{}, nexusggr.ErrNotConfigured
 }
 
+func (noopUpstream) UserWithdraw(context.Context, nexusggr.TransferInput) (nexusggr.TransferResult, error) {
+	return nexusggr.TransferResult{}, nexusggr.ErrNotConfigured
+}
+
 type noopLedger struct{}
 
 func (noopLedger) GetBalance(context.Context, string) (ledger.BalanceSnapshot, error) {
 	return ledger.BalanceSnapshot{}, ledger.ErrNotFound
+}
+
+func (noopLedger) Credit(context.Context, string, ledger.PostEntryInput) (ledger.PostingResult, error) {
+	return ledger.PostingResult{}, ledger.ErrNotFound
 }
 
 func (noopLedger) Reserve(context.Context, string, ledger.ReserveInput) (ledger.ReservationResult, error) {
