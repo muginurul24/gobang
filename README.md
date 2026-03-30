@@ -97,7 +97,7 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 
 - `internal/platform/qris` now wraps provider calls for `generate`, QRIS `checkstatus/v2`, bank `inquiry`, bank `transfer`, and disbursement `check-status`.
 - The wrapper follows [`docs/API Qris & VA V3.postman_collection.json`](docs/API%20Qris%20%26%20VA%20V3.postman_collection.json), applies `QRIS_DEFAULT_EXPIRE_SECONDS` as the generate fallback, and masks sensitive request/response fields in logs.
-- `ParsePaymentWebhook` and `ParseTransferWebhook` are ready for the later webhook milestones.
+- `ParsePaymentWebhook` and `ParseTransferWebhook` now back the single inbound webhook endpoint at `POST /v1/webhooks/qris`.
 - Saved bank-account verification now reuses the shared QRIS wrapper instead of a second bespoke HTTP client.
 
 ## Store Topup QRIS
@@ -112,8 +112,15 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 
 - `POST /v1/store-api/qris/member-payments`: generate QRIS for one existing active store member via Bearer `store_token` with body `{"username":"member-alpha","amount":25000}`.
 - Member-payment QRIS is deliberately separated from dashboard `store_topup`: it authenticates with the store token, validates `real_username`, then sends provider `generate` using the member `upstream_user_code`.
-- The pending row is stored as `type=member_payment` in `qris_transactions`, but `platform_fee_amount` and `store_credit_amount` remain `0` until the later webhook-success milestone applies the 3% platform fee and ledger postings.
+- The pending row is stored as `type=member_payment` in `qris_transactions`; once the QRIS webhook reports `success`, the API finalizes it with a 3% platform fee and credits only the net amount to the store ledger.
 - Ambiguous provider generate responses still create a `pending` row with `provider_state=pending_provider_response`; hard provider/config failures do not post ledger entries and do not finalize success early.
+
+## QRIS Webhook Finalization
+
+- `POST /v1/webhooks/qris`: single inbound endpoint for QRIS payment callbacks and later disbursement-status callbacks.
+- Payment webhooks correlate by `provider_trx_id` first and fall back to `custom_ref`, so pending rows created before provider confirmation can still be finalized safely.
+- `store_topup` success credits the full gross amount to the store ledger; `member_payment` success credits the net amount after the configured 3% platform fee and persists both `platform_fee_amount` and `store_credit_amount`.
+- Duplicate webhooks are safe: ledger posting uses the `qris_transaction` reference plus a unique ledger-entry guard, so retries do not double-credit the store balance.
 
 ## Store API Game Flows
 

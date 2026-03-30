@@ -491,6 +491,10 @@ func insertEntryTx(ctx context.Context, tx pgx.Tx, params insertEntryParams) (Le
 		&entry.CreatedAt,
 	)
 	if err != nil {
+		if isUniqueViolation(err, "ledger_entries_reference_type_reference_id_direction_entry_type_unique") {
+			return LedgerEntry{}, ErrDuplicateReference
+		}
+
 		return LedgerEntry{}, fmt.Errorf("insert ledger entry: %w", err)
 	}
 

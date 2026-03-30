@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS ledger_entries_reference_type_reference_id_direction_entry_type_unique;

@@ -121,6 +121,73 @@ func (r *Repository) FindStoreMemberByUsername(ctx context.Context, storeID stri
 	return member, nil
 }
 
+func (r *Repository) FindQRISTransactionForWebhook(ctx context.Context, providerTrxID string, customRef string) (QRISTransaction, error) {
+	trimmedProviderTrxID := strings.TrimSpace(providerTrxID)
+	trimmedCustomRef := strings.TrimSpace(customRef)
+
+	var transaction QRISTransaction
+	var storeMemberID *string
+	var providerTrxIDValue *string
+	var payloadRaw []byte
+	err := r.pool.QueryRow(ctx, `
+		SELECT
+			id,
+			store_id,
+			store_member_id,
+			type,
+			provider_trx_id,
+			custom_ref,
+			external_username,
+			amount_gross::text,
+			platform_fee_amount::text,
+			store_credit_amount::text,
+			status,
+			expires_at,
+			provider_payload_masked,
+			created_at,
+			updated_at
+		FROM qris_transactions
+		WHERE
+			($1 <> '' AND provider_trx_id = $1)
+			OR
+			($2 <> '' AND custom_ref = $2)
+		ORDER BY CASE
+			WHEN $1 <> '' AND provider_trx_id = $1 THEN 0
+			ELSE 1
+		END
+		LIMIT 1
+	`, trimmedProviderTrxID, trimmedCustomRef).Scan(
+		&transaction.ID,
+		&transaction.StoreID,
+		&storeMemberID,
+		&transaction.Type,
+		&providerTrxIDValue,
+		&transaction.CustomRef,
+		&transaction.ExternalUsername,
+		&transaction.AmountGross,
+		&transaction.PlatformFeeAmount,
+		&transaction.StoreCreditAmount,
+		&transaction.Status,
+		&transaction.ExpiresAt,
+		&payloadRaw,
+		&transaction.CreatedAt,
+		&transaction.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return QRISTransaction{}, ErrNotFound
+		}
+
+		return QRISTransaction{}, fmt.Errorf("find qris transaction for webhook: %w", err)
+	}
+
+	transaction.StoreMemberID = storeMemberID
+	transaction.ProviderTrxID = providerTrxIDValue
+	applyPayloadFields(&transaction, payloadRaw)
+
+	return transaction, nil
+}
+
 func (r *Repository) CreateQRISTransaction(ctx context.Context, params CreateQRISTransactionParams) (QRISTransaction, error) {
 	var transaction QRISTransaction
 	var storeMemberID *string
@@ -305,6 +372,75 @@ func (r *Repository) UpdateTransactionStatus(ctx context.Context, params UpdateT
 		}
 
 		return QRISTransaction{}, fmt.Errorf("update qris transaction status: %w", err)
+	}
+
+	transaction.StoreMemberID = storeMemberID
+	transaction.ProviderTrxID = providerTrxID
+	applyPayloadFields(&transaction, payloadRaw)
+
+	return transaction, nil
+}
+
+func (r *Repository) FinalizeQRISTransaction(ctx context.Context, params FinalizeQRISTransactionParams) (QRISTransaction, error) {
+	var transaction QRISTransaction
+	var storeMemberID *string
+	var providerTrxID *string
+	var payloadRaw []byte
+	err := r.pool.QueryRow(ctx, `
+		UPDATE qris_transactions
+		SET
+			provider_trx_id = CASE
+				WHEN NULLIF($2, '') IS NULL THEN provider_trx_id
+				ELSE NULLIF($2, '')
+			END,
+			status = $3,
+			platform_fee_amount = $4,
+			store_credit_amount = $5,
+			provider_payload_masked = COALESCE(provider_payload_masked, '{}'::jsonb) || $6::jsonb,
+			updated_at = $7
+		WHERE id = $1
+		RETURNING
+			id,
+			store_id,
+			store_member_id,
+			type,
+			provider_trx_id,
+			custom_ref,
+			external_username,
+			amount_gross::text,
+			platform_fee_amount::text,
+			store_credit_amount::text,
+			status,
+			expires_at,
+			provider_payload_masked,
+			created_at,
+			updated_at
+	`, params.TransactionID, strings.TrimSpace(params.ProviderTrxID), params.Status, params.PlatformFeeAmount, params.StoreCreditAmount, toJSON(params.ProviderPayload), params.OccurredAt).Scan(
+		&transaction.ID,
+		&transaction.StoreID,
+		&storeMemberID,
+		&transaction.Type,
+		&providerTrxID,
+		&transaction.CustomRef,
+		&transaction.ExternalUsername,
+		&transaction.AmountGross,
+		&transaction.PlatformFeeAmount,
+		&transaction.StoreCreditAmount,
+		&transaction.Status,
+		&transaction.ExpiresAt,
+		&payloadRaw,
+		&transaction.CreatedAt,
+		&transaction.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return QRISTransaction{}, ErrNotFound
+		}
+		if duplicateConstraint(err, "qris_transactions_provider_trx_id_unique") {
+			return QRISTransaction{}, ErrDuplicateProvider
+		}
+
+		return QRISTransaction{}, fmt.Errorf("finalize qris transaction: %w", err)
 	}
 
 	transaction.StoreMemberID = storeMemberID

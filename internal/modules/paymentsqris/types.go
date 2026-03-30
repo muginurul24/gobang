@@ -44,6 +44,16 @@ const (
 	ProviderStateGenerated             ProviderState = "generated"
 	ProviderStatePendingProviderAnswer ProviderState = "pending_provider_response"
 	ProviderStateGenerateFailed        ProviderState = "generate_failed"
+	ProviderStateWebhookSuccess        ProviderState = "webhook_success"
+	ProviderStateWebhookFailed         ProviderState = "webhook_failed"
+	ProviderStateWebhookExpired        ProviderState = "webhook_expired"
+)
+
+type WebhookKind string
+
+const (
+	WebhookKindPayment          WebhookKind = "payment"
+	WebhookKindWithdrawalStatus WebhookKind = "withdrawal_status"
 )
 
 type StoreScope struct {
@@ -121,4 +131,23 @@ type UpdateTransactionStatusParams struct {
 	ExpiresAt       *time.Time
 	ProviderPayload map[string]any
 	OccurredAt      time.Time
+}
+
+type FinalizeQRISTransactionParams struct {
+	TransactionID     string
+	ProviderTrxID     string
+	Status            TransactionStatus
+	PlatformFeeAmount string
+	StoreCreditAmount string
+	ProviderPayload   map[string]any
+	OccurredAt        time.Time
+}
+
+type WebhookDispatchResult struct {
+	Kind            WebhookKind        `json:"kind"`
+	Processed       bool               `json:"processed"`
+	Reference       string             `json:"reference"`
+	TransactionID   *string            `json:"transaction_id,omitempty"`
+	TransactionType *TransactionType   `json:"transaction_type,omitempty"`
+	Status          *TransactionStatus `json:"status,omitempty"`
 }

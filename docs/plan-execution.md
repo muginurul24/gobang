@@ -766,9 +766,9 @@ Menyelesaikan webhook global untuk semua transaksi QRIS/withdraw status.
 - inbound webhook final
 
 ### Checklist
-- [ ] one endpoint global
-- [ ] duplicate safe
-- [ ] idempotent ledger posting
+- [x] one endpoint global
+- [x] duplicate safe
+- [x] idempotent ledger posting
 
 ---
 

@@ -3,6 +3,7 @@ package paymentsqris
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"strings"
@@ -24,6 +25,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.Handle("GET /v1/stores/{storeID}/topups/qris", auth.RequireAuth(h.authService, h.handleListStoreTopups()))
 	mux.Handle("POST /v1/stores/{storeID}/topups/qris", auth.RequireAuth(h.authService, h.handleCreateStoreTopup()))
 	mux.Handle("POST /v1/store-api/qris/member-payments", h.handleCreateMemberPayment())
+	mux.Handle("POST /v1/webhooks/qris", h.handleIncomingWebhook())
 }
 
 func (h *Handler) handleListStoreTopups() http.Handler {
@@ -102,6 +104,41 @@ func (h *Handler) handleCreateMemberPayment() http.Handler {
 	})
 }
 
+func (h *Handler) handleIncomingWebhook() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+		raw, err := io.ReadAll(r.Body)
+		if err != nil {
+			writeEnvelope(w, http.StatusBadRequest, false, "INVALID_REQUEST", nil)
+			return
+		}
+
+		if payment, parseErr := qris.ParsePaymentWebhook(raw); parseErr == nil {
+			result, serviceErr := h.service.HandlePaymentWebhook(r.Context(), payment, requestMetadata(r))
+			if serviceErr != nil {
+				writeWebhookError(w, serviceErr)
+				return
+			}
+
+			writeEnvelope(w, http.StatusOK, true, "SUCCESS", result)
+			return
+		}
+
+		if transfer, parseErr := qris.ParseTransferWebhook(raw); parseErr == nil {
+			result, serviceErr := h.service.HandleTransferWebhook(r.Context(), transfer, requestMetadata(r))
+			if serviceErr != nil {
+				writeWebhookError(w, serviceErr)
+				return
+			}
+
+			writeEnvelope(w, http.StatusOK, true, "SUCCESS", result)
+			return
+		}
+
+		writeEnvelope(w, http.StatusBadRequest, false, "INVALID_REQUEST", nil)
+	})
+}
+
 type envelope struct {
 	Status  bool   `json:"status"`
 	Message string `json:"message"`
@@ -142,6 +179,17 @@ func writePaymentError(w http.ResponseWriter, err error) {
 		writeEnvelope(w, http.StatusAccepted, false, "PENDING_PROVIDER", nil)
 	case errors.As(err, &businessErr):
 		writeEnvelope(w, http.StatusBadGateway, false, businessErr.Code, nil)
+	default:
+		writeEnvelope(w, http.StatusInternalServerError, false, "INTERNAL_ERROR", nil)
+	}
+}
+
+func writeWebhookError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, ErrNotFound):
+		writeEnvelope(w, http.StatusOK, true, "IGNORED", nil)
+	case errors.Is(err, ErrDuplicateProvider):
+		writeEnvelope(w, http.StatusOK, true, "SUCCESS", nil)
 	default:
 		writeEnvelope(w, http.StatusInternalServerError, false, "INTERNAL_ERROR", nil)
 	}

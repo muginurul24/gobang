@@ -11,4 +11,5 @@ var (
 	ErrInvalidUsername    = errors.New("paymentsqris: invalid username")
 	ErrMemberInactive     = errors.New("paymentsqris: member inactive")
 	ErrDuplicateCustomRef = errors.New("paymentsqris: duplicate custom ref")
+	ErrDuplicateProvider  = errors.New("paymentsqris: duplicate provider transaction")
 )

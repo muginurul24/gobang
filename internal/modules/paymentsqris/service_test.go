@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/mugiew/onixggr/internal/modules/auth"
+	"github.com/mugiew/onixggr/internal/modules/ledger"
 	"github.com/mugiew/onixggr/internal/platform/qris"
 )
 
@@ -298,6 +299,175 @@ func TestCreateMemberPaymentHardFailureDoesNotPersistRow(t *testing.T) {
 	}
 }
 
+func TestHandlePaymentWebhookStoreTopupCreditsFullAmount(t *testing.T) {
+	now := time.Date(2026, time.March, 30, 10, 0, 0, 0, time.UTC)
+	transaction := QRISTransaction{
+		ID:                "qris-topup-1",
+		StoreID:           "store-1",
+		Type:              TransactionTypeStoreTopup,
+		ProviderTrxID:     stringPtr("provider-trx-1"),
+		CustomRef:         "TOPUPFIXED000010",
+		ExternalUsername:  "owner-demo",
+		AmountGross:       "50000.00",
+		PlatformFeeAmount: "0.00",
+		StoreCreditAmount: "50000.00",
+		Status:            TransactionStatusPending,
+	}
+	repository := &stubRepository{
+		webhookTransaction: transaction,
+	}
+	ledgerService := newStubLedger()
+
+	service := NewService(Options{
+		Repository:          repository,
+		Ledger:              ledgerService,
+		Clock:               fixedClock{now: now},
+		MemberPaymentFeePct: 3,
+	}).(*service)
+
+	result, err := service.HandlePaymentWebhook(context.Background(), qris.PaymentWebhook{
+		Amount:     50000,
+		TerminalID: "owner-demo",
+		TrxID:      "provider-trx-1",
+		CustomRef:  "TOPUPFIXED000010",
+		RRN:        "rrn-topup-1",
+		Vendor:     "NOBU",
+		Status:     "success",
+	}, auth.RequestMetadata{
+		IPAddress: "127.0.0.1",
+		UserAgent: "unit-test",
+	})
+	if err != nil {
+		t.Fatalf("HandlePaymentWebhook error = %v", err)
+	}
+
+	if !result.Processed {
+		t.Fatal("result.Processed = false, want true")
+	}
+	if ledgerService.creditCalls != 1 {
+		t.Fatalf("creditCalls = %d, want 1", ledgerService.creditCalls)
+	}
+	if ledgerService.lastCredit.Amount != "50000.00" {
+		t.Fatalf("ledger credit amount = %q, want 50000.00", ledgerService.lastCredit.Amount)
+	}
+	if ledgerService.lastCredit.EntryType != ledger.EntryTypeStoreTopup {
+		t.Fatalf("ledger entry type = %q, want store_topup", ledgerService.lastCredit.EntryType)
+	}
+	if repository.finalizeCalls != 1 {
+		t.Fatalf("finalizeCalls = %d, want 1", repository.finalizeCalls)
+	}
+	if repository.lastFinalize.Status != TransactionStatusSuccess {
+		t.Fatalf("finalize status = %q, want success", repository.lastFinalize.Status)
+	}
+	if repository.lastFinalize.StoreCreditAmount != "50000.00" {
+		t.Fatalf("store credit amount = %q, want 50000.00", repository.lastFinalize.StoreCreditAmount)
+	}
+}
+
+func TestHandlePaymentWebhookMemberPaymentCreditsNetAfterFee(t *testing.T) {
+	now := time.Date(2026, time.March, 30, 10, 5, 0, 0, time.UTC)
+	transaction := QRISTransaction{
+		ID:                "qris-member-1",
+		StoreID:           "store-1",
+		StoreMemberID:     stringPtr("member-1"),
+		Type:              TransactionTypeMemberPayment,
+		ProviderTrxID:     stringPtr("provider-trx-2"),
+		CustomRef:         "MPAYFIXED000010",
+		ExternalUsername:  "MEMBER000001",
+		AmountGross:       "25000.00",
+		PlatformFeeAmount: "0.00",
+		StoreCreditAmount: "0.00",
+		Status:            TransactionStatusPending,
+	}
+	repository := &stubRepository{
+		webhookTransaction: transaction,
+	}
+	ledgerService := newStubLedger()
+
+	service := NewService(Options{
+		Repository:          repository,
+		Ledger:              ledgerService,
+		Clock:               fixedClock{now: now},
+		MemberPaymentFeePct: 3,
+	}).(*service)
+
+	result, err := service.HandlePaymentWebhook(context.Background(), qris.PaymentWebhook{
+		Amount:     25000,
+		TerminalID: "MEMBER000001",
+		TrxID:      "provider-trx-2",
+		CustomRef:  "MPAYFIXED000010",
+		RRN:        "rrn-member-1",
+		Vendor:     "NOBU",
+		Status:     "success",
+	}, auth.RequestMetadata{
+		IPAddress: "127.0.0.1",
+		UserAgent: "unit-test",
+	})
+	if err != nil {
+		t.Fatalf("HandlePaymentWebhook error = %v", err)
+	}
+
+	if !result.Processed {
+		t.Fatal("result.Processed = false, want true")
+	}
+	if ledgerService.lastCredit.Amount != "24250.00" {
+		t.Fatalf("ledger credit amount = %q, want 24250.00", ledgerService.lastCredit.Amount)
+	}
+	if ledgerService.lastCredit.EntryType != ledger.EntryTypeMemberPaymentCredit {
+		t.Fatalf("ledger entry type = %q, want member_payment_credit", ledgerService.lastCredit.EntryType)
+	}
+	if repository.lastFinalize.PlatformFeeAmount != "750.00" {
+		t.Fatalf("platform fee amount = %q, want 750.00", repository.lastFinalize.PlatformFeeAmount)
+	}
+	if repository.lastFinalize.StoreCreditAmount != "24250.00" {
+		t.Fatalf("store credit amount = %q, want 24250.00", repository.lastFinalize.StoreCreditAmount)
+	}
+}
+
+func TestHandlePaymentWebhookDuplicateSkipsSecondLedgerPost(t *testing.T) {
+	now := time.Date(2026, time.March, 30, 10, 10, 0, 0, time.UTC)
+	transaction := QRISTransaction{
+		ID:                "qris-topup-dup",
+		StoreID:           "store-1",
+		Type:              TransactionTypeStoreTopup,
+		ProviderTrxID:     stringPtr("provider-trx-dup"),
+		CustomRef:         "TOPUPFIXED000011",
+		ExternalUsername:  "owner-demo",
+		AmountGross:       "10000.00",
+		PlatformFeeAmount: "0.00",
+		StoreCreditAmount: "10000.00",
+		Status:            TransactionStatusPending,
+	}
+	repository := &stubRepository{
+		webhookTransaction: transaction,
+	}
+	ledgerService := newStubLedger()
+	ledgerService.referenceEntries["qris_transaction:qris-topup-dup"] = true
+
+	service := NewService(Options{
+		Repository: repository,
+		Ledger:     ledgerService,
+		Clock:      fixedClock{now: now},
+	}).(*service)
+
+	_, err := service.HandlePaymentWebhook(context.Background(), qris.PaymentWebhook{
+		Amount:    10000,
+		TrxID:     "provider-trx-dup",
+		CustomRef: "TOPUPFIXED000011",
+		Status:    "success",
+	}, auth.RequestMetadata{})
+	if err != nil {
+		t.Fatalf("HandlePaymentWebhook error = %v", err)
+	}
+
+	if ledgerService.creditCalls != 0 {
+		t.Fatalf("creditCalls = %d, want 0", ledgerService.creditCalls)
+	}
+	if repository.finalizeCalls != 1 {
+		t.Fatalf("finalizeCalls = %d, want 1", repository.finalizeCalls)
+	}
+}
+
 type fixedClock struct {
 	now time.Time
 }
@@ -310,9 +480,12 @@ type stubRepository struct {
 	store                StoreScope
 	storeMember          StoreMember
 	transactions         []QRISTransaction
+	webhookTransaction   QRISTransaction
 	createCalls          int
 	updateGeneratedCalls int
 	updateStatusCalls    int
+	finalizeCalls        int
+	lastFinalize         FinalizeQRISTransactionParams
 }
 
 func (s *stubRepository) AuthenticateStore(context.Context, string) (StoreScope, error) {
@@ -325,6 +498,14 @@ func (s *stubRepository) GetStoreScope(context.Context, string) (StoreScope, err
 
 func (s *stubRepository) FindStoreMemberByUsername(context.Context, string, string) (StoreMember, error) {
 	return s.storeMember, nil
+}
+
+func (s *stubRepository) FindQRISTransactionForWebhook(context.Context, string, string) (QRISTransaction, error) {
+	if s.webhookTransaction.ID == "" {
+		return QRISTransaction{}, ErrNotFound
+	}
+
+	return s.webhookTransaction, nil
 }
 
 func (s *stubRepository) CreateQRISTransaction(_ context.Context, params CreateQRISTransactionParams) (QRISTransaction, error) {
@@ -376,6 +557,22 @@ func (s *stubRepository) UpdateTransactionStatus(_ context.Context, params Updat
 	return transaction, nil
 }
 
+func (s *stubRepository) FinalizeQRISTransaction(_ context.Context, params FinalizeQRISTransactionParams) (QRISTransaction, error) {
+	s.finalizeCalls++
+	s.lastFinalize = params
+
+	transaction := s.webhookTransaction
+	transaction.ProviderTrxID = stringPtr(params.ProviderTrxID)
+	transaction.Status = params.Status
+	transaction.PlatformFeeAmount = params.PlatformFeeAmount
+	transaction.StoreCreditAmount = params.StoreCreditAmount
+	transaction.ProviderState = payloadFieldProviderState(params.ProviderPayload)
+	transaction.UpdatedAt = params.OccurredAt
+	s.webhookTransaction = transaction
+
+	return transaction, nil
+}
+
 func (s *stubRepository) ListQRISTransactions(context.Context, string, TransactionType) ([]QRISTransaction, error) {
 	return s.transactions, nil
 }
@@ -397,4 +594,27 @@ func (s *stubUpstream) Generate(_ context.Context, input qris.GenerateInput) (qr
 	}
 
 	return s.result, nil
+}
+
+type stubLedger struct {
+	creditCalls      int
+	lastCredit       ledger.PostEntryInput
+	referenceEntries map[string]bool
+}
+
+func newStubLedger() *stubLedger {
+	return &stubLedger{
+		referenceEntries: map[string]bool{},
+	}
+}
+
+func (s *stubLedger) Credit(_ context.Context, _ string, input ledger.PostEntryInput) (ledger.PostingResult, error) {
+	s.creditCalls++
+	s.lastCredit = input
+	s.referenceEntries[input.ReferenceType+":"+input.ReferenceID] = true
+	return ledger.PostingResult{}, nil
+}
+
+func (s *stubLedger) HasReferenceEntries(_ context.Context, referenceType string, referenceID string) (bool, error) {
+	return s.referenceEntries[referenceType+":"+referenceID], nil
 }

@@ -116,7 +116,9 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 			paymentsqris.NewService(paymentsqris.Options{
 				Repository:           paymentsqris.NewRepository(deps.DB),
 				Upstream:             qrisClient,
+				Ledger:               ledgerService,
 				DefaultExpireSeconds: cfg.QRIS.DefaultExpireSeconds,
+				MemberPaymentFeePct:  cfg.Business.MemberPaymentPlatformFeePct,
 			}),
 			authService,
 		).Register(mux)
