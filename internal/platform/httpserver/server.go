@@ -100,6 +100,7 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 				Repository:           game.NewRepository(deps.DB),
 				Upstream:             nexusClient,
 				Ledger:               ledgerService,
+				BalanceCache:         game.NewRedisBalanceCache(deps.Redis),
 				MinTransactionAmount: cfg.Business.MinTransactionAmount,
 			}),
 		).Register(mux)

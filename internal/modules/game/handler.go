@@ -19,9 +19,55 @@ func NewHandler(service Service) *Handler {
 }
 
 func (h *Handler) Register(mux *http.ServeMux) {
+	mux.Handle("GET /v1/store-api/game/balance", h.handleGetBalance())
+	mux.Handle("POST /v1/store-api/game/launch", h.handleLaunch())
 	mux.Handle("POST /v1/store-api/game/users", h.handleCreateUser())
 	mux.Handle("POST /v1/store-api/game/deposits", h.handleCreateDeposit())
 	mux.Handle("POST /v1/store-api/game/withdrawals", h.handleCreateWithdraw())
+}
+
+func (h *Handler) handleGetBalance() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token, ok := bearerToken(r.Header.Get("Authorization"))
+		if !ok {
+			writeEnvelope(w, http.StatusUnauthorized, false, "UNAUTHORIZED", nil)
+			return
+		}
+
+		result, err := h.service.GetBalance(r.Context(), token, CreateGameBalanceInput{
+			Username: r.URL.Query().Get("username"),
+		})
+		if err != nil {
+			writeGameError(w, err)
+			return
+		}
+
+		writeEnvelope(w, http.StatusOK, true, "SUCCESS", result)
+	})
+}
+
+func (h *Handler) handleLaunch() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token, ok := bearerToken(r.Header.Get("Authorization"))
+		if !ok {
+			writeEnvelope(w, http.StatusUnauthorized, false, "UNAUTHORIZED", nil)
+			return
+		}
+
+		var input CreateLaunchInput
+		if err := decodeJSONBody(w, r, &input); err != nil {
+			writeEnvelope(w, http.StatusBadRequest, false, "INVALID_REQUEST", nil)
+			return
+		}
+
+		result, err := h.service.Launch(r.Context(), token, input, requestMetadata(r))
+		if err != nil {
+			writeGameError(w, err)
+			return
+		}
+
+		writeEnvelope(w, http.StatusOK, true, "SUCCESS", result)
+	})
 }
 
 func (h *Handler) handleCreateUser() http.Handler {
@@ -132,6 +178,8 @@ func writeGameError(w http.ResponseWriter, err error) {
 		writeEnvelope(w, http.StatusForbidden, false, "STORE_INACTIVE", nil)
 	case errors.Is(err, ErrInvalidUsername):
 		writeEnvelope(w, http.StatusBadRequest, false, "INVALID_USERNAME", nil)
+	case errors.Is(err, ErrInvalidProviderGame):
+		writeEnvelope(w, http.StatusBadRequest, false, "INVALID_PROVIDER_GAME", nil)
 	case errors.Is(err, ErrInvalidAmount):
 		writeEnvelope(w, http.StatusBadRequest, false, "INVALID_AMOUNT", nil)
 	case errors.Is(err, ErrInvalidTransactionID):

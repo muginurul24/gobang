@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 )
@@ -23,6 +24,23 @@ func validUsername(value string) bool {
 
 func normalizeTransactionID(value string) string {
 	return strings.TrimSpace(value)
+}
+
+func normalizeProviderCode(value string) string {
+	return strings.ToUpper(strings.TrimSpace(value))
+}
+
+func normalizeGameCode(value string) string {
+	return strings.TrimSpace(value)
+}
+
+func normalizeLang(value string) string {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	if normalized == "" {
+		return "id"
+	}
+
+	return normalized
 }
 
 func newUpstreamUserCode() (string, error) {
@@ -119,6 +137,10 @@ func (m money) LessThan(other money) bool {
 
 func (m money) Sub(other money) money {
 	return m - other
+}
+
+func moneyFromFloat64(value float64) money {
+	return money(int64(math.Round(value * 100)))
 }
 
 func allDigits(value string) bool {

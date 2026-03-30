@@ -620,10 +620,10 @@ Menyelesaikan read flow game.
 - game integration usable untuk owner website
 
 ### Checklist
-- [ ] balance cache 5 detik
-- [ ] launch no idempotency
-- [ ] launch without deposit allowed
-- [ ] auto create on launch
+- [x] balance cache 5 detik
+- [x] launch no idempotency
+- [x] launch without deposit allowed
+- [x] auto create on launch
 
 ---
 

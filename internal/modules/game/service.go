@@ -11,20 +11,25 @@ import (
 	"github.com/mugiew/onixggr/internal/platform/clock"
 	"github.com/mugiew/onixggr/internal/platform/nexusggr"
 	"github.com/mugiew/onixggr/internal/platform/security"
+	"golang.org/x/sync/singleflight"
 )
 
 type RepositoryContract interface {
 	AuthenticateStore(ctx context.Context, tokenHash string) (StoreScope, error)
 	FindStoreMemberByUsername(ctx context.Context, storeID string, username string) (StoreMember, error)
+	FindProviderGame(ctx context.Context, providerCode string, gameCode string) (ProviderGame, error)
 	HasUpstreamUserCode(ctx context.Context, upstreamUserCode string) (bool, error)
 	CreateStoreMember(ctx context.Context, params CreateStoreMemberParams) (StoreMember, error)
 	FindGameTransactionByTrxID(ctx context.Context, storeID string, trxID string) (GameTransaction, error)
 	CreateGameTransaction(ctx context.Context, params CreateGameTransactionParams) (GameTransaction, error)
+	CreateGameLaunchLog(ctx context.Context, params CreateGameLaunchLogParams) error
 	UpdateGameTransaction(ctx context.Context, params UpdateGameTransactionParams) (GameTransaction, error)
 	InsertAuditLog(ctx context.Context, storeID string, action string, targetType string, targetID *string, payload map[string]any, ipAddress string, userAgent string, occurredAt time.Time) error
 }
 
 type UpstreamClient interface {
+	MoneyInfo(ctx context.Context, input nexusggr.MoneyInfoInput) (nexusggr.MoneyInfoResult, error)
+	GameLaunch(ctx context.Context, input nexusggr.GameLaunchInput) (nexusggr.GameLaunchResult, error)
 	UserCreate(ctx context.Context, input nexusggr.UserCreateInput) (nexusggr.UserCreateResult, error)
 	UserDeposit(ctx context.Context, input nexusggr.TransferInput) (nexusggr.TransferResult, error)
 	UserWithdraw(ctx context.Context, input nexusggr.TransferInput) (nexusggr.TransferResult, error)
@@ -40,6 +45,8 @@ type LedgerService interface {
 
 type Service interface {
 	CreateUser(ctx context.Context, storeToken string, input CreateUserInput, metadata RequestMetadata) (StoreMember, error)
+	GetBalance(ctx context.Context, storeToken string, input CreateGameBalanceInput) (GameBalanceResult, error)
+	Launch(ctx context.Context, storeToken string, input CreateLaunchInput, metadata RequestMetadata) (LaunchResult, error)
 	Deposit(ctx context.Context, storeToken string, input CreateDepositInput, metadata RequestMetadata) (DepositResult, error)
 	Withdraw(ctx context.Context, storeToken string, input CreateWithdrawInput, metadata RequestMetadata) (WithdrawResult, error)
 }
@@ -48,6 +55,7 @@ type Options struct {
 	Repository           RepositoryContract
 	Upstream             UpstreamClient
 	Ledger               LedgerService
+	BalanceCache         BalanceCache
 	Clock                clock.Clock
 	MinTransactionAmount int64
 }
@@ -56,10 +64,13 @@ type service struct {
 	repository           RepositoryContract
 	upstream             UpstreamClient
 	ledger               LedgerService
+	balanceCache         BalanceCache
 	clock                clock.Clock
 	codeFactory          func() (string, error)
 	agentSignFactory     func() (string, error)
 	minTransactionAmount money
+	balanceTTL           time.Duration
+	balanceGroup         singleflight.Group
 }
 
 func NewService(options Options) Service {
@@ -78,14 +89,21 @@ func NewService(options Options) Service {
 		ledgerService = noopLedger{}
 	}
 
+	cache := options.BalanceCache
+	if cache == nil {
+		cache = noopBalanceCache{}
+	}
+
 	return &service{
 		repository:           options.Repository,
 		upstream:             upstream,
 		ledger:               ledgerService,
+		balanceCache:         cache,
 		clock:                now,
 		codeFactory:          newUpstreamUserCode,
 		agentSignFactory:     newAgentSign,
 		minTransactionAmount: money(options.MinTransactionAmount * 100),
+		balanceTTL:           5 * time.Second,
 	}
 }
 
@@ -109,58 +127,153 @@ func (s *service) CreateUser(ctx context.Context, storeToken string, input Creat
 		return StoreMember{}, err
 	}
 
-	now := s.clock.Now().UTC()
-	for range 8 {
-		upstreamUserCode, err := s.codeFactory()
-		if err != nil {
-			return StoreMember{}, fmt.Errorf("generate upstream user code: %w", err)
-		}
+	return s.createMemberMapping(ctx, store, username, metadata, "store_api")
+}
 
-		exists, err := s.repository.HasUpstreamUserCode(ctx, upstreamUserCode)
-		if err != nil {
-			return StoreMember{}, err
-		}
-		if exists {
-			continue
-		}
-
-		if _, err := s.upstream.UserCreate(ctx, nexusggr.UserCreateInput{
-			UserCode: upstreamUserCode,
-		}); err != nil {
-			return StoreMember{}, err
-		}
-
-		member, err := s.repository.CreateStoreMember(ctx, CreateStoreMemberParams{
-			StoreID:          store.ID,
-			RealUsername:     username,
-			UpstreamUserCode: upstreamUserCode,
-			Status:           MemberStatusActive,
-			OccurredAt:       now,
-		})
-		if err != nil {
-			if errors.Is(err, ErrDuplicateUsername) {
-				return StoreMember{}, err
-			}
-
-			if errors.Is(err, ErrDuplicateUpstreamUserCode) {
-				return StoreMember{}, ErrCodeGenerationExhausted
-			}
-
-			return StoreMember{}, err
-		}
-
-		if err := s.repository.InsertAuditLog(ctx, store.ID, "game.user_created", "store_member", &member.ID, map[string]any{
-			"real_username":      member.RealUsername,
-			"upstream_user_code": member.UpstreamUserCode,
-			"origin":             "store_api",
-		}, metadata.IPAddress, metadata.UserAgent, now); err != nil {
-			return StoreMember{}, err
-		}
-
-		return member, nil
+func (s *service) GetBalance(ctx context.Context, storeToken string, input CreateGameBalanceInput) (GameBalanceResult, error) {
+	store, err := s.authenticateStore(ctx, storeToken)
+	if err != nil {
+		return GameBalanceResult{}, err
 	}
 
-	return StoreMember{}, ErrCodeGenerationExhausted
+	username := normalizeUsername(input.Username)
+	if !validUsername(username) {
+		return GameBalanceResult{}, ErrInvalidUsername
+	}
+
+	member, err := s.repository.FindStoreMemberByUsername(ctx, store.ID, username)
+	if err != nil {
+		return GameBalanceResult{}, err
+	}
+	if member.Status != MemberStatusActive {
+		return GameBalanceResult{}, ErrMemberInactive
+	}
+
+	cached, ok, err := s.balanceCache.Get(ctx, store.ID, member.ID)
+	if err == nil && ok {
+		return cached, nil
+	}
+
+	coalescedKey := store.ID + ":" + member.ID
+	value, err, _ := s.balanceGroup.Do(coalescedKey, func() (any, error) {
+		cached, ok, err := s.balanceCache.Get(ctx, store.ID, member.ID)
+		if err == nil && ok {
+			return cached, nil
+		}
+
+		upstreamResult, err := s.upstream.MoneyInfo(ctx, nexusggr.MoneyInfoInput{
+			UserCode: member.UpstreamUserCode,
+		})
+		if err != nil {
+			return GameBalanceResult{}, err
+		}
+		if upstreamResult.User == nil {
+			return GameBalanceResult{}, nexusggr.ErrInvalidResponse
+		}
+
+		result := GameBalanceResult{
+			Username:         member.RealUsername,
+			UpstreamUserCode: member.UpstreamUserCode,
+			Balance:          moneyFromFloat64(upstreamResult.User.Balance).String(),
+		}
+		_ = s.balanceCache.Set(ctx, store.ID, member.ID, result, s.balanceTTL)
+
+		return result, nil
+	})
+	if err != nil {
+		return GameBalanceResult{}, err
+	}
+
+	result, ok := value.(GameBalanceResult)
+	if !ok {
+		return GameBalanceResult{}, nexusggr.ErrInvalidResponse
+	}
+
+	return result, nil
+}
+
+func (s *service) Launch(ctx context.Context, storeToken string, input CreateLaunchInput, metadata RequestMetadata) (LaunchResult, error) {
+	store, err := s.authenticateStore(ctx, storeToken)
+	if err != nil {
+		return LaunchResult{}, err
+	}
+
+	username := normalizeUsername(input.Username)
+	if !validUsername(username) {
+		return LaunchResult{}, ErrInvalidUsername
+	}
+
+	providerCode := normalizeProviderCode(input.ProviderCode)
+	gameCode := normalizeGameCode(input.GameCode)
+	if providerCode == "" || gameCode == "" {
+		return LaunchResult{}, ErrInvalidProviderGame
+	}
+
+	lang := normalizeLang(input.Lang)
+
+	if _, err := s.repository.FindProviderGame(ctx, providerCode, gameCode); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return LaunchResult{}, ErrInvalidProviderGame
+		}
+
+		return LaunchResult{}, err
+	}
+
+	member, err := s.findOrCreateLaunchMember(ctx, store, username, metadata)
+	if err != nil {
+		return LaunchResult{}, err
+	}
+
+	now := s.clock.Now().UTC()
+	upstreamResult, err := s.upstream.GameLaunch(ctx, nexusggr.GameLaunchInput{
+		UserCode:     member.UpstreamUserCode,
+		ProviderCode: providerCode,
+		GameCode:     gameCode,
+		Lang:         lang,
+	})
+	if err != nil {
+		if logErr := s.repository.CreateGameLaunchLog(ctx, CreateGameLaunchLogParams{
+			StoreID:       store.ID,
+			StoreMemberID: member.ID,
+			ProviderCode:  providerCode,
+			GameCode:      gameCode,
+			Lang:          lang,
+			Status:        "failed",
+			UpstreamPayloadMasked: map[string]any{
+				"error": err.Error(),
+			},
+			OccurredAt: now,
+		}); logErr != nil {
+			return LaunchResult{}, logErr
+		}
+
+		return LaunchResult{}, err
+	}
+
+	if err := s.repository.CreateGameLaunchLog(ctx, CreateGameLaunchLogParams{
+		StoreID:       store.ID,
+		StoreMemberID: member.ID,
+		ProviderCode:  providerCode,
+		GameCode:      gameCode,
+		Lang:          lang,
+		Status:        "success",
+		UpstreamPayloadMasked: map[string]any{
+			"message":    upstreamResult.Message,
+			"launch_url": upstreamResult.LaunchURL,
+		},
+		OccurredAt: now,
+	}); err != nil {
+		return LaunchResult{}, err
+	}
+
+	return LaunchResult{
+		Username:         member.RealUsername,
+		UpstreamUserCode: member.UpstreamUserCode,
+		ProviderCode:     providerCode,
+		GameCode:         gameCode,
+		Lang:             lang,
+		LaunchURL:        upstreamResult.LaunchURL,
+	}, nil
 }
 
 func (s *service) Deposit(ctx context.Context, storeToken string, input CreateDepositInput, metadata RequestMetadata) (DepositResult, error) {
@@ -550,6 +663,94 @@ func (s *service) authenticateStore(ctx context.Context, storeToken string) (Sto
 	return store, nil
 }
 
+func (s *service) findOrCreateLaunchMember(ctx context.Context, store StoreScope, username string, metadata RequestMetadata) (StoreMember, error) {
+	member, err := s.repository.FindStoreMemberByUsername(ctx, store.ID, username)
+	switch {
+	case err == nil:
+		if member.Status != MemberStatusActive {
+			return StoreMember{}, ErrMemberInactive
+		}
+
+		return member, nil
+	case !errors.Is(err, ErrNotFound):
+		return StoreMember{}, err
+	}
+
+	member, err = s.createMemberMapping(ctx, store, username, metadata, "launch_auto_create")
+	if err != nil {
+		if errors.Is(err, ErrDuplicateUsername) {
+			member, findErr := s.repository.FindStoreMemberByUsername(ctx, store.ID, username)
+			if findErr != nil {
+				return StoreMember{}, findErr
+			}
+			if member.Status != MemberStatusActive {
+				return StoreMember{}, ErrMemberInactive
+			}
+
+			return member, nil
+		}
+
+		return StoreMember{}, err
+	}
+
+	return member, nil
+}
+
+func (s *service) createMemberMapping(ctx context.Context, store StoreScope, username string, metadata RequestMetadata, origin string) (StoreMember, error) {
+	now := s.clock.Now().UTC()
+	for range 8 {
+		upstreamUserCode, err := s.codeFactory()
+		if err != nil {
+			return StoreMember{}, fmt.Errorf("generate upstream user code: %w", err)
+		}
+
+		exists, err := s.repository.HasUpstreamUserCode(ctx, upstreamUserCode)
+		if err != nil {
+			return StoreMember{}, err
+		}
+		if exists {
+			continue
+		}
+
+		if _, err := s.upstream.UserCreate(ctx, nexusggr.UserCreateInput{
+			UserCode: upstreamUserCode,
+		}); err != nil {
+			return StoreMember{}, err
+		}
+
+		member, err := s.repository.CreateStoreMember(ctx, CreateStoreMemberParams{
+			StoreID:          store.ID,
+			RealUsername:     username,
+			UpstreamUserCode: upstreamUserCode,
+			Status:           MemberStatusActive,
+			OccurredAt:       now,
+		})
+		if err != nil {
+			if errors.Is(err, ErrDuplicateUsername) {
+				return StoreMember{}, err
+			}
+
+			if errors.Is(err, ErrDuplicateUpstreamUserCode) {
+				continue
+			}
+
+			return StoreMember{}, err
+		}
+
+		if err := s.repository.InsertAuditLog(ctx, store.ID, "game.user_created", "store_member", &member.ID, map[string]any{
+			"real_username":      member.RealUsername,
+			"upstream_user_code": member.UpstreamUserCode,
+			"origin":             origin,
+		}, metadata.IPAddress, metadata.UserAgent, now); err != nil {
+			return StoreMember{}, err
+		}
+
+		return member, nil
+	}
+
+	return StoreMember{}, ErrCodeGenerationExhausted
+}
+
 func (s *service) createPendingDeposit(ctx context.Context, store StoreScope, member StoreMember, trxID string, amount money, occurredAt time.Time) (GameTransaction, error) {
 	for range 8 {
 		agentSign, err := s.agentSignFactory()
@@ -637,6 +838,14 @@ func (s *service) markPendingReconcile(ctx context.Context, transactionID string
 }
 
 type noopUpstream struct{}
+
+func (noopUpstream) MoneyInfo(context.Context, nexusggr.MoneyInfoInput) (nexusggr.MoneyInfoResult, error) {
+	return nexusggr.MoneyInfoResult{}, nexusggr.ErrNotConfigured
+}
+
+func (noopUpstream) GameLaunch(context.Context, nexusggr.GameLaunchInput) (nexusggr.GameLaunchResult, error) {
+	return nexusggr.GameLaunchResult{}, nexusggr.ErrNotConfigured
+}
 
 func (noopUpstream) UserCreate(context.Context, nexusggr.UserCreateInput) (nexusggr.UserCreateResult, error) {
 	return nexusggr.UserCreateResult{}, nexusggr.ErrNotConfigured

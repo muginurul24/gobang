@@ -84,6 +84,10 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 ## Store API Game Flows
 
 - `POST /v1/store-api/game/users`: create a game user via Bearer `store_token` with body `{"username":"member-alpha"}`.
+- `GET /v1/store-api/game/balance?username=member-alpha`: read one member balance via Bearer `store_token`.
+- Balance reads cache the upstream `money_info` result in Redis for 5 seconds and coalesce concurrent requests per store/member key inside the API process.
+- `POST /v1/store-api/game/launch`: launch a game via Bearer `store_token` with body `{"username":"member-alpha","provider_code":"PRAGMATIC","game_code":"vs20doghouse","lang":"id"}`.
+- Launch validates `provider_code` and `game_code` against the synced catalog tables, auto-creates the member mapping if it does not exist yet, and logs every launch attempt without idempotency.
 - The flow follows `docs/blueprint.md`: reject duplicate `(store_id, username)`, generate a 12-char immutable `upstream_user_code`, call NexusGGR `user_create`, then persist the mapping only on upstream success.
 - Store API token auth is scoped by `stores.api_token_hash`, and inactive or deleted stores are blocked before upstream calls.
 - `POST /v1/store-api/game/deposits`: create a game deposit via Bearer `store_token` with body `{"username":"member-alpha","amount":5000,"trx_id":"trx-001"}`.
@@ -96,7 +100,7 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `backend/` and `frontend/` are legacy placeholder directories; new work should go into `apps/`.
 - Use `make hooks` after the repository is initialized with Git to enable the local hooks in `.githooks/`.
 - API readiness is exposed at `/health/ready` and `/readyz`; liveness is exposed at `/health/live` and `/healthz`.
-- Demo seed rows create one `dev` user, one `owner` user, one `karyawan` user, one store, one demo member, one store-staff relation, and one audit log entry for local development.
+- Demo seed rows create one `dev` user, one `owner` user, one `karyawan` user, one store, one demo member, one sample provider/game catalog row, one store-staff relation, and one audit log entry for local development.
 - Demo dashboard credentials after `./appctl migrate fresh --seed`:
 - `dev@example.com` or `dev-demo` with password `DevDemo123!`
 - `owner@example.com` or `owner-demo` with password `OwnerDemo123!`

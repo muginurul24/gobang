@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -103,6 +104,108 @@ func TestCreateUserRejectsInactiveStore(t *testing.T) {
 	}, RequestMetadata{})
 	if !errors.Is(err, ErrStoreInactive) {
 		t.Fatalf("CreateUser error = %v, want ErrStoreInactive", err)
+	}
+}
+
+func TestGetBalanceCachesForFiveSeconds(t *testing.T) {
+	repository := newFakeRepository(time.Date(2026, 3, 30, 20, 45, 0, 0, time.UTC))
+	upstream := &fakeUpstream{
+		moneyInfoResult: nexusggr.MoneyInfoResult{
+			Message: "SUCCESS",
+			User: &nexusggr.Balance{
+				UserCode: "MEMBER000001",
+				Balance:  1234.56,
+			},
+		},
+	}
+	cache := newFakeBalanceCache()
+
+	service := NewService(Options{
+		Repository:   repository,
+		Upstream:     upstream,
+		Ledger:       newFakeLedger("100000.00"),
+		BalanceCache: cache,
+		Clock:        fixedClock{now: repository.now},
+	})
+
+	first, err := service.GetBalance(context.Background(), "store_live_demo", CreateGameBalanceInput{
+		Username: "member-demo",
+	})
+	if err != nil {
+		t.Fatalf("GetBalance first call returned error: %v", err)
+	}
+
+	second, err := service.GetBalance(context.Background(), "store_live_demo", CreateGameBalanceInput{
+		Username: "member-demo",
+	})
+	if err != nil {
+		t.Fatalf("GetBalance second call returned error: %v", err)
+	}
+
+	if first.Balance != "1234.56" || second.Balance != "1234.56" {
+		t.Fatalf("Balance results = %#v / %#v, want 1234.56", first, second)
+	}
+
+	if upstream.moneyInfoCalls != 1 {
+		t.Fatalf("money info calls = %d, want 1", upstream.moneyInfoCalls)
+	}
+
+	if cache.lastTTL != 5*time.Second {
+		t.Fatalf("cache ttl = %s, want 5s", cache.lastTTL)
+	}
+}
+
+func TestGetBalanceCoalescesConcurrentRequests(t *testing.T) {
+	repository := newFakeRepository(time.Date(2026, 3, 30, 20, 50, 0, 0, time.UTC))
+	wait := make(chan struct{})
+	upstream := &fakeUpstream{
+		moneyInfoResult: nexusggr.MoneyInfoResult{
+			Message: "SUCCESS",
+			User: &nexusggr.Balance{
+				UserCode: "MEMBER000001",
+				Balance:  777.00,
+			},
+		},
+		moneyInfoWait: wait,
+	}
+
+	service := NewService(Options{
+		Repository:   repository,
+		Upstream:     upstream,
+		Ledger:       newFakeLedger("100000.00"),
+		BalanceCache: newFakeBalanceCache(),
+		Clock:        fixedClock{now: repository.now},
+	})
+
+	var wg sync.WaitGroup
+	results := make([]GameBalanceResult, 2)
+	errs := make([]error, 2)
+	for index := range results {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			results[i], errs[i] = service.GetBalance(context.Background(), "store_live_demo", CreateGameBalanceInput{
+				Username: "member-demo",
+			})
+		}(index)
+	}
+
+	time.Sleep(20 * time.Millisecond)
+	close(wait)
+	wg.Wait()
+
+	for index, err := range errs {
+		if err != nil {
+			t.Fatalf("GetBalance call %d returned error: %v", index, err)
+		}
+	}
+
+	if upstream.moneyInfoCalls != 1 {
+		t.Fatalf("money info calls = %d, want 1", upstream.moneyInfoCalls)
+	}
+
+	if results[0].Balance != "777.00" || results[1].Balance != "777.00" {
+		t.Fatalf("coalesced results = %#v", results)
 	}
 }
 
@@ -419,6 +522,133 @@ func TestWithdrawFailNoLedgerChange(t *testing.T) {
 	}
 }
 
+func TestLaunchAutoCreatesMemberWithoutDeposit(t *testing.T) {
+	repository := newFakeRepository(time.Date(2026, 3, 30, 22, 40, 0, 0, time.UTC))
+	repository.members = map[string]StoreMember{}
+	upstream := &fakeUpstream{
+		launchResult: nexusggr.GameLaunchResult{
+			Message:   "SUCCESS",
+			LaunchURL: "https://launch.example/session",
+		},
+	}
+
+	service := NewService(Options{
+		Repository: repository,
+		Upstream:   upstream,
+		Ledger:     newFakeLedger("0.00"),
+		Clock:      fixedClock{now: repository.now},
+	}).(*service)
+	service.codeFactory = func() (string, error) {
+		return "AUTOUSER0001", nil
+	}
+
+	result, err := service.Launch(context.Background(), "store_live_demo", CreateLaunchInput{
+		Username:     "member-launch",
+		ProviderCode: "pragmatic",
+		GameCode:     "vs20doghouse",
+	}, RequestMetadata{
+		IPAddress: "127.0.0.1",
+		UserAgent: "game-launch-test",
+	})
+	if err != nil {
+		t.Fatalf("Launch returned error: %v", err)
+	}
+
+	if result.LaunchURL != "https://launch.example/session" {
+		t.Fatalf("LaunchURL = %q, want https://launch.example/session", result.LaunchURL)
+	}
+
+	if result.Lang != "id" {
+		t.Fatalf("Lang = %q, want id", result.Lang)
+	}
+
+	if upstream.calls != 1 {
+		t.Fatalf("user create calls = %d, want 1", upstream.calls)
+	}
+
+	if upstream.launchCalls != 1 {
+		t.Fatalf("launch calls = %d, want 1", upstream.launchCalls)
+	}
+
+	if len(repository.members) != 1 {
+		t.Fatalf("member count = %d, want 1", len(repository.members))
+	}
+
+	if len(repository.launchLogs) != 1 || repository.launchLogs[0].Status != "success" {
+		t.Fatalf("launch logs = %#v, want one success log", repository.launchLogs)
+	}
+}
+
+func TestLaunchRejectsUnknownProviderBeforeAutoCreate(t *testing.T) {
+	repository := newFakeRepository(time.Date(2026, 3, 30, 22, 45, 0, 0, time.UTC))
+	repository.members = map[string]StoreMember{}
+	upstream := &fakeUpstream{}
+
+	service := NewService(Options{
+		Repository: repository,
+		Upstream:   upstream,
+		Ledger:     newFakeLedger("0.00"),
+		Clock:      fixedClock{now: repository.now},
+	}).(*service)
+	service.codeFactory = func() (string, error) {
+		return "AUTOUSER0001", nil
+	}
+
+	_, err := service.Launch(context.Background(), "store_live_demo", CreateLaunchInput{
+		Username:     "member-launch",
+		ProviderCode: "unknown",
+		GameCode:     "missing",
+	}, RequestMetadata{})
+	if !errors.Is(err, ErrInvalidProviderGame) {
+		t.Fatalf("Launch error = %v, want ErrInvalidProviderGame", err)
+	}
+
+	if upstream.calls != 0 {
+		t.Fatalf("user create calls = %d, want 0", upstream.calls)
+	}
+
+	if upstream.launchCalls != 0 {
+		t.Fatalf("launch calls = %d, want 0", upstream.launchCalls)
+	}
+}
+
+func TestLaunchHasNoIdempotency(t *testing.T) {
+	repository := newFakeRepository(time.Date(2026, 3, 30, 22, 50, 0, 0, time.UTC))
+	upstream := &fakeUpstream{
+		launchResult: nexusggr.GameLaunchResult{
+			Message:   "SUCCESS",
+			LaunchURL: "https://launch.example/session",
+		},
+	}
+
+	service := NewService(Options{
+		Repository: repository,
+		Upstream:   upstream,
+		Ledger:     newFakeLedger("0.00"),
+		Clock:      fixedClock{now: repository.now},
+	})
+
+	for range 2 {
+		_, err := service.Launch(context.Background(), "store_live_demo", CreateLaunchInput{
+			Username:     "member-demo",
+			ProviderCode: "PRAGMATIC",
+			GameCode:     "vs20doghouse",
+			Lang:         "en",
+		}, RequestMetadata{})
+		if err != nil {
+			t.Fatalf("Launch returned error: %v", err)
+		}
+	}
+
+	if upstream.launchCalls != 2 {
+		t.Fatalf("launch calls = %d, want 2", upstream.launchCalls)
+	}
+
+	if len(repository.launchLogs) != 2 {
+		t.Fatalf("launch log count = %d, want 2", len(repository.launchLogs))
+	}
+}
+
 type fixedClock struct {
 	now time.Time
 }
@@ -428,11 +658,13 @@ func (c fixedClock) Now() time.Time {
 }
 
 type fakeRepository struct {
-	now          time.Time
-	store        StoreScope
-	members      map[string]StoreMember
-	transactions map[string]GameTransaction
-	auditActions []string
+	now           time.Time
+	store         StoreScope
+	members       map[string]StoreMember
+	providerGames map[string]ProviderGame
+	transactions  map[string]GameTransaction
+	launchLogs    []CreateGameLaunchLogParams
+	auditActions  []string
 }
 
 func newFakeRepository(now time.Time) *fakeRepository {
@@ -456,6 +688,12 @@ func newFakeRepository(now time.Time) *fakeRepository {
 				UpdatedAt:        now,
 			},
 		},
+		providerGames: map[string]ProviderGame{
+			"PRAGMATIC:vs20doghouse": {
+				ProviderCode: "PRAGMATIC",
+				GameCode:     "vs20doghouse",
+			},
+		},
 		transactions: map[string]GameTransaction{},
 	}
 }
@@ -476,6 +714,15 @@ func (r *fakeRepository) FindStoreMemberByUsername(_ context.Context, storeID st
 	}
 
 	return StoreMember{}, ErrNotFound
+}
+
+func (r *fakeRepository) FindProviderGame(_ context.Context, providerCode string, gameCode string) (ProviderGame, error) {
+	providerGame, ok := r.providerGames[providerCode+":"+gameCode]
+	if !ok {
+		return ProviderGame{}, ErrNotFound
+	}
+
+	return providerGame, nil
 }
 
 func (r *fakeRepository) HasUpstreamUserCode(_ context.Context, upstreamUserCode string) (bool, error) {
@@ -549,6 +796,11 @@ func (r *fakeRepository) CreateGameTransaction(_ context.Context, params CreateG
 	return transaction, nil
 }
 
+func (r *fakeRepository) CreateGameLaunchLog(_ context.Context, params CreateGameLaunchLogParams) error {
+	r.launchLogs = append(r.launchLogs, params)
+	return nil
+}
+
 func (r *fakeRepository) UpdateGameTransaction(_ context.Context, params UpdateGameTransactionParams) (GameTransaction, error) {
 	transaction, ok := r.transactions[params.GameTransactionID]
 	if !ok {
@@ -572,12 +824,55 @@ func (r *fakeRepository) InsertAuditLog(_ context.Context, _ string, action stri
 }
 
 type fakeUpstream struct {
-	calls         int
-	err           error
-	depositCalls  int
-	depositErr    error
-	withdrawCalls int
-	withdrawErr   error
+	calls           int
+	err             error
+	moneyInfoCalls  int
+	moneyInfoErr    error
+	moneyInfoResult nexusggr.MoneyInfoResult
+	moneyInfoWait   <-chan struct{}
+	launchCalls     int
+	launchErr       error
+	launchResult    nexusggr.GameLaunchResult
+	depositCalls    int
+	depositErr      error
+	withdrawCalls   int
+	withdrawErr     error
+}
+
+func (u *fakeUpstream) MoneyInfo(_ context.Context, _ nexusggr.MoneyInfoInput) (nexusggr.MoneyInfoResult, error) {
+	u.moneyInfoCalls++
+	if u.moneyInfoWait != nil {
+		<-u.moneyInfoWait
+	}
+	if u.moneyInfoErr != nil {
+		return nexusggr.MoneyInfoResult{}, u.moneyInfoErr
+	}
+	if u.moneyInfoResult.User == nil {
+		u.moneyInfoResult = nexusggr.MoneyInfoResult{
+			Message: "SUCCESS",
+			User: &nexusggr.Balance{
+				UserCode: "MEMBER000001",
+				Balance:  0,
+			},
+		}
+	}
+
+	return u.moneyInfoResult, nil
+}
+
+func (u *fakeUpstream) GameLaunch(_ context.Context, _ nexusggr.GameLaunchInput) (nexusggr.GameLaunchResult, error) {
+	u.launchCalls++
+	if u.launchErr != nil {
+		return nexusggr.GameLaunchResult{}, u.launchErr
+	}
+	if u.launchResult.LaunchURL == "" {
+		u.launchResult = nexusggr.GameLaunchResult{
+			Message:   "SUCCESS",
+			LaunchURL: "https://launch.example/default",
+		}
+	}
+
+	return u.launchResult, nil
 }
 
 func (u *fakeUpstream) UserCreate(_ context.Context, input nexusggr.UserCreateInput) (nexusggr.UserCreateResult, error) {
@@ -717,4 +1012,33 @@ func (l *fakeLedger) ReleaseReservation(_ context.Context, _ string, _ ledger.Re
 			AvailableBalance: l.balance.AvailableBalance,
 		},
 	}, nil
+}
+
+type fakeBalanceCache struct {
+	mu      sync.Mutex
+	entries map[string]GameBalanceResult
+	lastTTL time.Duration
+}
+
+func newFakeBalanceCache() *fakeBalanceCache {
+	return &fakeBalanceCache{
+		entries: map[string]GameBalanceResult{},
+	}
+}
+
+func (c *fakeBalanceCache) Get(_ context.Context, storeID string, memberID string) (GameBalanceResult, bool, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	result, ok := c.entries[storeID+":"+memberID]
+	return result, ok, nil
+}
+
+func (c *fakeBalanceCache) Set(_ context.Context, storeID string, memberID string, result GameBalanceResult, ttl time.Duration) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.entries[storeID+":"+memberID] = result
+	c.lastTTL = ttl
+	return nil
 }

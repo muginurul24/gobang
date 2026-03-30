@@ -82,6 +82,11 @@ type CreateStoreMemberParams struct {
 	OccurredAt       time.Time
 }
 
+type ProviderGame struct {
+	ProviderCode string
+	GameCode     string
+}
+
 type GameTransaction struct {
 	ID                string            `json:"id"`
 	StoreID           string            `json:"store_id"`
@@ -120,6 +125,10 @@ type UpdateGameTransactionParams struct {
 	OccurredAt             time.Time
 }
 
+type CreateGameBalanceInput struct {
+	Username string `json:"username"`
+}
+
 type BalanceSnapshot struct {
 	StoreID          string `json:"store_id"`
 	LedgerAccountID  string `json:"ledger_account_id"`
@@ -129,10 +138,23 @@ type BalanceSnapshot struct {
 	AvailableBalance string `json:"available_balance"`
 }
 
+type GameBalanceResult struct {
+	Username         string `json:"username"`
+	UpstreamUserCode string `json:"upstream_user_code"`
+	Balance          string `json:"balance"`
+}
+
 type CreateWithdrawInput struct {
 	Username string      `json:"username"`
 	Amount   json.Number `json:"amount"`
 	TrxID    string      `json:"trx_id"`
+}
+
+type CreateLaunchInput struct {
+	Username     string `json:"username"`
+	ProviderCode string `json:"provider_code"`
+	GameCode     string `json:"game_code"`
+	Lang         string `json:"lang,omitempty"`
 }
 
 type DepositResult struct {
@@ -143,4 +165,24 @@ type DepositResult struct {
 type WithdrawResult struct {
 	Transaction GameTransaction  `json:"transaction"`
 	Balance     *BalanceSnapshot `json:"balance,omitempty"`
+}
+
+type LaunchResult struct {
+	Username         string `json:"username"`
+	UpstreamUserCode string `json:"upstream_user_code"`
+	ProviderCode     string `json:"provider_code"`
+	GameCode         string `json:"game_code"`
+	Lang             string `json:"lang"`
+	LaunchURL        string `json:"launch_url"`
+}
+
+type CreateGameLaunchLogParams struct {
+	StoreID               string
+	StoreMemberID         string
+	ProviderCode          string
+	GameCode              string
+	Lang                  string
+	Status                string
+	UpstreamPayloadMasked map[string]any
+	OccurredAt            time.Time
 }

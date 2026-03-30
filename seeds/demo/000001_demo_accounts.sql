@@ -113,6 +113,55 @@ INSERT INTO store_members (
 )
 ON CONFLICT (store_id, real_username) DO NOTHING;
 
+INSERT INTO provider_catalogs (
+  provider_code,
+  provider_name,
+  status,
+  synced_at,
+  created_at,
+  updated_at
+) VALUES (
+  'PRAGMATIC',
+  'PRAGMATIC',
+  1,
+  now(),
+  now(),
+  now()
+)
+ON CONFLICT (provider_code) DO UPDATE
+SET
+  provider_name = EXCLUDED.provider_name,
+  status = EXCLUDED.status,
+  synced_at = EXCLUDED.synced_at,
+  updated_at = now();
+
+INSERT INTO provider_games (
+  provider_code,
+  game_code,
+  game_name,
+  banner_url,
+  status,
+  synced_at,
+  created_at,
+  updated_at
+) VALUES (
+  'PRAGMATIC',
+  'vs20doghouse',
+  '{"default":"vs20doghouse"}'::jsonb,
+  NULL,
+  1,
+  now(),
+  now(),
+  now()
+)
+ON CONFLICT (provider_code, game_code) DO UPDATE
+SET
+  game_name = EXCLUDED.game_name,
+  banner_url = EXCLUDED.banner_url,
+  status = EXCLUDED.status,
+  synced_at = EXCLUDED.synced_at,
+  updated_at = now();
+
 INSERT INTO store_staff (
   store_id,
   user_id,

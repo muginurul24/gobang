@@ -85,6 +85,34 @@ func (r *Repository) FindStoreMemberByUsername(ctx context.Context, storeID stri
 	return member, nil
 }
 
+func (r *Repository) FindProviderGame(ctx context.Context, providerCode string, gameCode string) (ProviderGame, error) {
+	var providerGame ProviderGame
+	err := r.pool.QueryRow(ctx, `
+		SELECT
+			g.provider_code,
+			g.game_code
+		FROM provider_games g
+		INNER JOIN provider_catalogs p ON p.provider_code = g.provider_code
+		WHERE g.provider_code = $1
+			AND g.game_code = $2
+			AND p.status = 1
+			AND g.status = 1
+		LIMIT 1
+	`, providerCode, gameCode).Scan(
+		&providerGame.ProviderCode,
+		&providerGame.GameCode,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ProviderGame{}, ErrNotFound
+		}
+
+		return ProviderGame{}, fmt.Errorf("find provider game: %w", err)
+	}
+
+	return providerGame, nil
+}
+
 func (r *Repository) HasUpstreamUserCode(ctx context.Context, upstreamUserCode string) (bool, error) {
 	var exists bool
 	err := r.pool.QueryRow(ctx, `
@@ -319,6 +347,27 @@ func (r *Repository) UpdateGameTransaction(ctx context.Context, params UpdateGam
 	transaction.UpstreamErrorCode = upstreamErrorCode
 
 	return transaction, nil
+}
+
+func (r *Repository) CreateGameLaunchLog(ctx context.Context, params CreateGameLaunchLogParams) error {
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO game_launch_logs (
+			store_id,
+			store_member_id,
+			provider_code,
+			game_code,
+			lang,
+			status,
+			upstream_payload_masked,
+			created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
+	`, params.StoreID, params.StoreMemberID, params.ProviderCode, params.GameCode, params.Lang, params.Status, toJSON(params.UpstreamPayloadMasked), params.OccurredAt)
+	if err != nil {
+		return fmt.Errorf("create game launch log: %w", err)
+	}
+
+	return nil
 }
 
 func (r *Repository) InsertAuditLog(
