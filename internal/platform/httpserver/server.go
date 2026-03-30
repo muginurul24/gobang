@@ -210,6 +210,7 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 				TransferWebhooks:     withdrawalTransferWebhookAdapter{service: withdrawalService},
 			}),
 			authService,
+			deps.Metrics,
 		).Register(mux)
 		game.NewHandler(
 			game.NewService(game.Options{

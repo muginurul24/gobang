@@ -140,6 +140,7 @@ func run() error {
 		}()
 
 		go observability.RunSnapshotLoop(ctx, metrics, observability.NewSnapshotter(postgres), realtimeHub.ConnectionCount, 15*time.Second)
+		go observability.RunHealthLoop(ctx, metrics, healthService, 15*time.Second)
 	}
 
 	go func() {

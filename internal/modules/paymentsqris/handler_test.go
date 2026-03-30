@@ -19,7 +19,8 @@ func TestWebhookHandlerDispatchesPaymentPayload(t *testing.T) {
 			Reference: "trx-123",
 		},
 	}
-	handler := NewHandler(service, nil)
+	observer := &stubWebhookObserver{}
+	handler := NewHandler(service, nil, observer)
 	mux := http.NewServeMux()
 	handler.Register(mux)
 
@@ -37,6 +38,9 @@ func TestWebhookHandlerDispatchesPaymentPayload(t *testing.T) {
 	if service.transferCalls != 0 {
 		t.Fatalf("transferCalls = %d, want 0", service.transferCalls)
 	}
+	if observer.provider != "qris" || observer.kind != string(WebhookKindPayment) || observer.result != "success" {
+		t.Fatalf("observer = %#v, want qris payment success", observer)
+	}
 }
 
 func TestWebhookHandlerDispatchesTransferPayload(t *testing.T) {
@@ -47,7 +51,8 @@ func TestWebhookHandlerDispatchesTransferPayload(t *testing.T) {
 			Reference: "partner-1",
 		},
 	}
-	handler := NewHandler(service, nil)
+	observer := &stubWebhookObserver{}
+	handler := NewHandler(service, nil, observer)
 	mux := http.NewServeMux()
 	handler.Register(mux)
 
@@ -65,6 +70,46 @@ func TestWebhookHandlerDispatchesTransferPayload(t *testing.T) {
 	if service.paymentCalls != 0 {
 		t.Fatalf("paymentCalls = %d, want 0", service.paymentCalls)
 	}
+	if observer.provider != "qris" || observer.kind != string(WebhookKindWithdrawalStatus) || observer.result != "success" {
+		t.Fatalf("observer = %#v, want qris withdrawal_status success", observer)
+	}
+}
+
+func TestWebhookHandlerMarksInvalidPayload(t *testing.T) {
+	handler := NewHandler(&stubWebhookService{}, nil, &stubWebhookObserver{})
+	mux := http.NewServeMux()
+	handler.Register(mux)
+
+	request := httptest.NewRequest(http.MethodPost, "/v1/webhooks/qris", strings.NewReader(`{"bad":"payload"}`))
+	recorder := httptest.NewRecorder()
+
+	mux.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", recorder.Code)
+	}
+}
+
+func TestWebhookHandlerMarksIgnoredPayload(t *testing.T) {
+	service := &stubWebhookService{
+		paymentErr: ErrNotFound,
+	}
+	observer := &stubWebhookObserver{}
+	handler := NewHandler(service, nil, observer)
+	mux := http.NewServeMux()
+	handler.Register(mux)
+
+	request := httptest.NewRequest(http.MethodPost, "/v1/webhooks/qris", strings.NewReader(`{"amount":1000,"terminal_id":"member-alpha","trx_id":"trx-123","rrn":"rrn-1","custom_ref":"MPAY001","vendor":"NOBU","status":"success","create_at":"2024-05-06T09:35:44.000Z","finish_at":"2024-05-06T09:35:54.000Z"}`))
+	recorder := httptest.NewRecorder()
+
+	mux.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", recorder.Code)
+	}
+	if observer.result != "ignored" {
+		t.Fatalf("observer.result = %q, want ignored", observer.result)
+	}
 }
 
 type stubWebhookService struct {
@@ -72,6 +117,8 @@ type stubWebhookService struct {
 	transferCalls  int
 	paymentResult  WebhookDispatchResult
 	transferResult WebhookDispatchResult
+	paymentErr     error
+	transferErr    error
 }
 
 func (s *stubWebhookService) ListStoreTopups(context.Context, auth.Subject, string) ([]QRISTransaction, error) {
@@ -88,10 +135,22 @@ func (s *stubWebhookService) CreateMemberPayment(context.Context, string, Create
 
 func (s *stubWebhookService) HandlePaymentWebhook(context.Context, qris.PaymentWebhook, auth.RequestMetadata) (WebhookDispatchResult, error) {
 	s.paymentCalls++
-	return s.paymentResult, nil
+	return s.paymentResult, s.paymentErr
 }
 
 func (s *stubWebhookService) HandleTransferWebhook(context.Context, qris.TransferWebhook, auth.RequestMetadata) (WebhookDispatchResult, error) {
 	s.transferCalls++
-	return s.transferResult, nil
+	return s.transferResult, s.transferErr
+}
+
+type stubWebhookObserver struct {
+	provider string
+	kind     string
+	result   string
+}
+
+func (s *stubWebhookObserver) ObserveWebhook(provider string, kind string, result string) {
+	s.provider = provider
+	s.kind = kind
+	s.result = result
 }

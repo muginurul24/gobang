@@ -17,7 +17,10 @@ type Metrics struct {
 	httpRequestsTotal     *prometheus.CounterVec
 	httpRequestDuration   *prometheus.HistogramVec
 	upstreamDuration      *prometheus.HistogramVec
+	webhookEventsTotal    *prometheus.CounterVec
 	cacheLookupsTotal     *prometheus.CounterVec
+	recentFailuresGauge   *prometheus.GaugeVec
+	dependencyUpGauge     *prometheus.GaugeVec
 	callbackQueueDepth    prometheus.Gauge
 	reconcileBacklogGauge *prometheus.GaugeVec
 	websocketConnections  prometheus.Gauge
@@ -46,10 +49,22 @@ func NewMetrics() *Metrics {
 			Help:    "Latency distribution for upstream provider requests.",
 			Buckets: prometheus.DefBuckets,
 		}, []string{"provider", "operation", "result"}),
+		webhookEventsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "onixggr_webhook_events_total",
+			Help: "Total number of inbound webhook events grouped by provider, kind, and result.",
+		}, []string{"provider", "kind", "result"}),
 		cacheLookupsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "onixggr_cache_lookups_total",
 			Help: "Total number of cache lookups grouped by cache name and result.",
 		}, []string{"cache", "result"}),
+		recentFailuresGauge: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "onixggr_recent_failures",
+			Help: "Rolling recent failure counts grouped by operational signal.",
+		}, []string{"signal"}),
+		dependencyUpGauge: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "onixggr_dependency_up",
+			Help: "Dependency health status where 1 means healthy and 0 means unavailable or degraded.",
+		}, []string{"dependency"}),
 		callbackQueueDepth: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "onixggr_callback_queue_depth",
 			Help: "Current depth of the outbound callback queue.",
@@ -68,7 +83,10 @@ func NewMetrics() *Metrics {
 		metrics.httpRequestsTotal,
 		metrics.httpRequestDuration,
 		metrics.upstreamDuration,
+		metrics.webhookEventsTotal,
 		metrics.cacheLookupsTotal,
+		metrics.recentFailuresGauge,
+		metrics.dependencyUpGauge,
 		metrics.callbackQueueDepth,
 		metrics.reconcileBacklogGauge,
 		metrics.websocketConnections,
@@ -101,22 +119,21 @@ func (m *Metrics) ObserveUpstream(provider string, operation string, result stri
 		return
 	}
 
-	providerLabel := strings.TrimSpace(provider)
-	if providerLabel == "" {
-		providerLabel = "unknown"
-	}
-
-	operationLabel := strings.TrimSpace(operation)
-	if operationLabel == "" {
-		operationLabel = "unknown"
-	}
-
-	resultLabel := strings.TrimSpace(result)
-	if resultLabel == "" {
-		resultLabel = "unknown"
-	}
-
+	providerLabel := sanitizeLabel(provider)
+	operationLabel := sanitizeLabel(operation)
+	resultLabel := sanitizeLabel(result)
 	m.upstreamDuration.WithLabelValues(providerLabel, operationLabel, resultLabel).Observe(duration.Seconds())
+}
+
+func (m *Metrics) ObserveWebhook(provider string, kind string, result string) {
+	if m == nil {
+		return
+	}
+
+	providerLabel := sanitizeLabel(provider)
+	kindLabel := sanitizeLabel(kind)
+	resultLabel := sanitizeLabel(result)
+	m.webhookEventsTotal.WithLabelValues(providerLabel, kindLabel, resultLabel).Inc()
 }
 
 func (m *Metrics) ObserveCacheLookup(cache string, result string) {
@@ -124,17 +141,30 @@ func (m *Metrics) ObserveCacheLookup(cache string, result string) {
 		return
 	}
 
-	cacheLabel := strings.TrimSpace(cache)
-	if cacheLabel == "" {
-		cacheLabel = "unknown"
-	}
-
-	resultLabel := strings.TrimSpace(result)
-	if resultLabel == "" {
-		resultLabel = "unknown"
-	}
-
+	cacheLabel := sanitizeLabel(cache)
+	resultLabel := sanitizeLabel(result)
 	m.cacheLookupsTotal.WithLabelValues(cacheLabel, resultLabel).Inc()
+}
+
+func (m *Metrics) SetRecentFailures(signal string, count int) {
+	if m == nil {
+		return
+	}
+
+	m.recentFailuresGauge.WithLabelValues(sanitizeLabel(signal)).Set(float64(count))
+}
+
+func (m *Metrics) SetDependencyUp(name string, up bool) {
+	if m == nil {
+		return
+	}
+
+	value := 0.0
+	if up {
+		value = 1
+	}
+
+	m.dependencyUpGauge.WithLabelValues(sanitizeLabel(name)).Set(value)
 }
 
 func (m *Metrics) SetCallbackQueueDepth(depth int) {
@@ -150,11 +180,7 @@ func (m *Metrics) SetReconcileBacklog(queue string, depth int) {
 		return
 	}
 
-	queueLabel := strings.TrimSpace(queue)
-	if queueLabel == "" {
-		queueLabel = "unknown"
-	}
-
+	queueLabel := sanitizeLabel(queue)
 	m.reconcileBacklogGauge.WithLabelValues(queueLabel).Set(float64(depth))
 }
 
@@ -164,4 +190,13 @@ func (m *Metrics) SetWebsocketConnections(count int) {
 	}
 
 	m.websocketConnections.Set(float64(count))
+}
+
+func sanitizeLabel(value string) string {
+	label := strings.TrimSpace(value)
+	if label == "" {
+		return "unknown"
+	}
+
+	return label
 }

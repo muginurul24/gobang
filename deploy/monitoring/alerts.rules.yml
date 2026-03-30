@@ -1,0 +1,62 @@
+groups:
+  - name: onixggr-alerts
+    rules:
+      - alert: OnixggrWebhookFailureSpike
+        expr: sum(increase(onixggr_webhook_events_total{provider="qris",result=~"invalid|error"}[5m])) >= 5
+        for: 2m
+        labels:
+          severity: warning
+          service: onixggr
+        annotations:
+          summary: "QRIS webhook failure spike"
+          description: "Webhook parse or processing failures reached {{ $value }} events in the last 5 minutes."
+
+      - alert: OnixggrCallbackFailureSpike
+        expr: onixggr_recent_failures{signal="callback"} >= 3
+        for: 2m
+        labels:
+          severity: warning
+          service: onixggr
+        annotations:
+          summary: "Outbound callback failure spike"
+          description: "Recent callback delivery failures crossed {{ $value }} within the rolling failure window."
+
+      - alert: OnixggrRedisDown
+        expr: onixggr_dependency_up{dependency="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: onixggr
+        annotations:
+          summary: "Redis unavailable"
+          description: "The readiness probe reports Redis as unavailable or degraded."
+
+      - alert: OnixggrDatabaseDown
+        expr: onixggr_dependency_up{dependency="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: onixggr
+        annotations:
+          summary: "PostgreSQL unavailable"
+          description: "The readiness probe reports PostgreSQL as unavailable."
+
+      - alert: OnixggrNexusGGRErrorSpike
+        expr: sum(increase(onixggr_upstream_request_duration_seconds_count{provider="nexusggr",result=~"timeout|transport_error|http_error|invalid_response"}[5m])) >= 5
+        for: 2m
+        labels:
+          severity: warning
+          service: onixggr
+        annotations:
+          summary: "NexusGGR provider error spike"
+          description: "NexusGGR transport or response errors reached {{ $value }} events in the last 5 minutes."
+
+      - alert: OnixggrQRISProviderErrorSpike
+        expr: sum(increase(onixggr_upstream_request_duration_seconds_count{provider="qris",result=~"timeout|transport_error|http_error"}[5m])) >= 5
+        for: 2m
+        labels:
+          severity: warning
+          service: onixggr
+        annotations:
+          summary: "QRIS provider error spike"
+          description: "QRIS transport errors reached {{ $value }} events in the last 5 minutes."

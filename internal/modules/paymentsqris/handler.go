@@ -15,10 +15,15 @@ import (
 type Handler struct {
 	service     Service
 	authService auth.Service
+	observer    WebhookObserver
 }
 
-func NewHandler(service Service, authService auth.Service) *Handler {
-	return &Handler{service: service, authService: authService}
+type WebhookObserver interface {
+	ObserveWebhook(provider string, kind string, result string)
+}
+
+func NewHandler(service Service, authService auth.Service, observer WebhookObserver) *Handler {
+	return &Handler{service: service, authService: authService, observer: observer}
 }
 
 func (h *Handler) Register(mux *http.ServeMux) {
@@ -109,6 +114,7 @@ func (h *Handler) handleIncomingWebhook() http.Handler {
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 		raw, err := io.ReadAll(r.Body)
 		if err != nil {
+			h.observeWebhook("unknown", "invalid")
 			writeEnvelope(w, http.StatusBadRequest, false, "INVALID_REQUEST", nil)
 			return
 		}
@@ -116,10 +122,12 @@ func (h *Handler) handleIncomingWebhook() http.Handler {
 		if payment, parseErr := qris.ParsePaymentWebhook(raw); parseErr == nil {
 			result, serviceErr := h.service.HandlePaymentWebhook(r.Context(), payment, requestMetadata(r))
 			if serviceErr != nil {
+				h.observeWebhook(string(WebhookKindPayment), webhookResultLabel(serviceErr))
 				writeWebhookError(w, serviceErr)
 				return
 			}
 
+			h.observeWebhook(string(WebhookKindPayment), "success")
 			writeEnvelope(w, http.StatusOK, true, "SUCCESS", result)
 			return
 		}
@@ -127,16 +135,38 @@ func (h *Handler) handleIncomingWebhook() http.Handler {
 		if transfer, parseErr := qris.ParseTransferWebhook(raw); parseErr == nil {
 			result, serviceErr := h.service.HandleTransferWebhook(r.Context(), transfer, requestMetadata(r))
 			if serviceErr != nil {
+				h.observeWebhook(string(WebhookKindWithdrawalStatus), webhookResultLabel(serviceErr))
 				writeWebhookError(w, serviceErr)
 				return
 			}
 
+			h.observeWebhook(string(WebhookKindWithdrawalStatus), "success")
 			writeEnvelope(w, http.StatusOK, true, "SUCCESS", result)
 			return
 		}
 
+		h.observeWebhook("unknown", "invalid")
 		writeEnvelope(w, http.StatusBadRequest, false, "INVALID_REQUEST", nil)
 	})
+}
+
+func (h *Handler) observeWebhook(kind string, result string) {
+	if h == nil || h.observer == nil {
+		return
+	}
+
+	h.observer.ObserveWebhook("qris", kind, result)
+}
+
+func webhookResultLabel(err error) string {
+	switch {
+	case errors.Is(err, ErrNotFound):
+		return "ignored"
+	case errors.Is(err, ErrDuplicateProvider):
+		return "duplicate"
+	default:
+		return "error"
+	}
 }
 
 type envelope struct {

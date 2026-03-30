@@ -178,9 +178,10 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 ## Observability
 
 - When `METRICS_ENABLED=true`, the API also starts a Prometheus exporter on `:${PROMETHEUS_PORT}` with `GET /metrics`.
-- Exported basics now include request count and latency, upstream latency, game balance cache hit or miss, callback queue depth, reconcile backlog, and websocket connection count.
+- Exported basics now include request count and latency, upstream latency, webhook processing results, game balance cache hit or miss, callback queue depth, recent callback failures, dependency health, reconcile backlog, and websocket connection count.
 - Health readiness now distinguishes degraded upstream configuration from hard dependency failure: PostgreSQL or Redis failure keeps `/health/ready` as `503`, while missing QRIS or NexusGGR credentials marks readiness payload as `degraded` but keeps the API bootable.
 - Starter PromQL panels live in [`basic-dashboard.md`](/home/mugiew/project/onixggr/deploy/monitoring/basic-dashboard.md).
+- Starter alert rules for Hari 38 live in [`alerts.rules.yml`](/home/mugiew/project/onixggr/deploy/monitoring/alerts.rules.yml) and cover webhook failure spike, callback failure spike, Redis down, DB down, NexusGGR error spike, and QRIS error spike.
 
 ## Store API Game Flows
 

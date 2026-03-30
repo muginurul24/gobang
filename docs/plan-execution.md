@@ -1242,8 +1242,8 @@ Buat alert:
 
 ### Checklist
 
-- [ ] alert rules dibuat
-- [ ] test alert minimal
+ - [x] alert rules dibuat
+ - [x] test alert minimal
 
 ---
 
