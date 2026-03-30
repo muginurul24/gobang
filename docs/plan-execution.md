@@ -1358,8 +1358,8 @@ Membuat project gampang didemokan dan dites.
 
 ### Checklist
 
-- [ ] seed usable
-- [ ] demo accounts ready
+- [x] seed usable
+- [x] demo accounts ready
 
 ---
 

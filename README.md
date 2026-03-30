@@ -21,10 +21,11 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 2. Start the local stack with `./scripts/podman-up.sh` or any Compose-compatible runtime using `docker-compose.yml`. The default host ports are `15432` for PostgreSQL, `16379` for Redis, `8080` for the API, and `4173` for the web shell.
 3. Run `./appctl migrate up` to apply SQL migrations.
 4. Run `./appctl seed demo` to insert the demo rows.
-5. Run `go test ./...` to verify the Go scaffold.
-6. Run `go run ./apps/api` to start the API on `:8080`.
-7. Run `npm install` to install the web workspace dependencies.
-8. Run `npm run dev:web` to start the SvelteKit app.
+5. Or use `./scripts/bootstrap-demo.sh` to start the local stack and rebuild the demo baseline in one command.
+6. Run `go test ./...` to verify the Go scaffold.
+7. Run `go run ./apps/api` to start the API on `:8080`.
+8. Run `npm install` to install the web workspace dependencies.
+9. Run `npm run dev:web` to start the SvelteKit app.
 
 ## Local Commands
 
@@ -32,6 +33,8 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `./appctl migrate down`: roll back the last applied migration.
 - `./appctl migrate fresh --seed`: recreate the public schema, apply migrations, then run demo seeds.
 - `./appctl seed demo`: apply SQL seed files from `seeds/demo/`.
+- `./scripts/bootstrap-demo.sh`: start the local Podman stack, rebuild the schema, and load the full demo baseline.
+- `./scripts/bootstrap-staging.sh`: apply migrations and upsert the demo baseline without dropping existing schema objects.
 - `./appctl sync providers`: pull provider list and game list from NexusGGR, then upsert the local catalog tables.
 - `./appctl worker run`: start the background worker and process game reconcile backlog, QRIS check-status reconcile, withdraw status checks, and outbound callback retries.
 - `./appctl scheduler run`: start the scheduler and periodically refresh the provider catalog.
@@ -204,10 +207,14 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - Use `make hooks` after the repository is initialized with Git to enable the local hooks in `.githooks/`.
 - API readiness is exposed at `/health/ready` and `/readyz`; liveness is exposed at `/health/live` and `/healthz`.
 - `notifications` now backs the realtime notification stream. Use `GET /v1/notifications`, `GET /v1/notifications/unread-count`, and `POST /v1/notifications/{id}/read` with the same scope rules as the dashboard role.
-- Demo seed rows create one `dev` user, one `owner` user, one `karyawan` user, one store, one demo member, one sample provider/game catalog row, one store-staff relation, and one audit log entry for local development.
+- Demo seed rows create one `dev`, one `superadmin`, one `owner`, one `karyawan`, one seeded store token, one verified bank account, two demo members, two sample provider/game catalog rows, one store-staff relation, one opening ledger balance, and one audit log entry for local development.
 - Demo dashboard credentials after `./appctl migrate fresh --seed`:
 - `dev@example.com` or `dev-demo` with password `DevDemo123!`
+- `superadmin@example.com` or `superadmin-demo` with password `SuperadminDemo123!`
 - `owner@example.com` or `owner-demo` with password `OwnerDemo123!`
 - `staff@example.com` or `staff-demo` with password `StaffDemo123!`
+- Demo store API token: `store_live_demo`
+- Demo store members: `member-demo` and `member-alpha`
+- Demo seeded balance: `2500000.00`
 - `apps/web` now contains a working login page plus `/app/stores`, `/app/topups`, `/app/withdrawals`, `/app/members`, `/app/bank-accounts`, `/app/audit`, and `/app/security` for store ops, QRIS topup generation, store withdraw requests, member mapping, verified bank accounts, scoped audit, TOTP enrollment, recovery code handoff, and dashboard IP allowlist management.
 - Set `PUBLIC_API_BASE_URL` only when the web shell should talk to a different API origin; otherwise dev mode proxies `/v1` to `http://127.0.0.1:8080`.

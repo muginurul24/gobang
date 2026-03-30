@@ -23,6 +23,18 @@ INSERT INTO users (
     now()
   ),
   (
+    '99999999-9999-9999-9999-999999999999',
+    'superadmin@example.com',
+    'superadmin-demo',
+    crypt('SuperadminDemo123!', gen_salt('bf', 12)),
+    'superadmin',
+    true,
+    false,
+    NULL,
+    now(),
+    now()
+  ),
+  (
     'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
     'owner@example.com',
     'owner-demo',
@@ -74,20 +86,26 @@ INSERT INTO stores (
   'Demo Store',
   'demo-store',
   'active',
-  '',
-  '',
+  encode(digest('store_live_demo', 'sha256'), 'hex'),
+  'https://merchant.example.com/callback',
   0,
   100000,
   now(),
   now()
 )
-ON CONFLICT (slug) DO NOTHING;
+ON CONFLICT (slug) DO UPDATE
+SET
+  owner_user_id = EXCLUDED.owner_user_id,
+  name = EXCLUDED.name,
+  status = EXCLUDED.status,
+  api_token_hash = EXCLUDED.api_token_hash,
+  callback_url = EXCLUDED.callback_url,
+  low_balance_threshold = EXCLUDED.low_balance_threshold,
+  deleted_at = NULL,
+  updated_at = now();
 
-INSERT INTO ledger_accounts (
-  store_id,
-  currency,
-  created_at
-) VALUES (
+INSERT INTO ledger_accounts (store_id, currency, created_at)
+VALUES (
   'cccccccc-cccc-cccc-cccc-cccccccccccc',
   'IDR',
   now()
@@ -102,16 +120,29 @@ INSERT INTO store_members (
   status,
   created_at,
   updated_at
-) VALUES (
-  'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
-  'cccccccc-cccc-cccc-cccc-cccccccccccc',
-  'member-demo',
-  'MEMBER000001',
-  'active',
-  now(),
-  now()
-)
-ON CONFLICT (store_id, real_username) DO NOTHING;
+) VALUES
+  (
+    'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
+    'cccccccc-cccc-cccc-cccc-cccccccccccc',
+    'member-demo',
+    'MEMBER000001',
+    'active',
+    now(),
+    now()
+  ),
+  (
+    'f1f1f1f1-f1f1-f1f1-f1f1-f1f1f1f1f1f1',
+    'cccccccc-cccc-cccc-cccc-cccccccccccc',
+    'member-alpha',
+    'MEMBER000002',
+    'active',
+    now(),
+    now()
+  )
+ON CONFLICT (store_id, real_username) DO UPDATE
+SET
+  status = EXCLUDED.status,
+  updated_at = now();
 
 INSERT INTO provider_catalogs (
   provider_code,
@@ -120,14 +151,23 @@ INSERT INTO provider_catalogs (
   synced_at,
   created_at,
   updated_at
-) VALUES (
-  'PRAGMATIC',
-  'PRAGMATIC',
-  1,
-  now(),
-  now(),
-  now()
-)
+) VALUES
+  (
+    'PRAGMATIC',
+    'PRAGMATIC',
+    1,
+    now(),
+    now(),
+    now()
+  ),
+  (
+    'HACKSAW',
+    'HACKSAW',
+    1,
+    now(),
+    now(),
+    now()
+  )
 ON CONFLICT (provider_code) DO UPDATE
 SET
   provider_name = EXCLUDED.provider_name,
@@ -144,16 +184,27 @@ INSERT INTO provider_games (
   synced_at,
   created_at,
   updated_at
-) VALUES (
-  'PRAGMATIC',
-  'vs20doghouse',
-  '{"default":"vs20doghouse"}'::jsonb,
-  NULL,
-  1,
-  now(),
-  now(),
-  now()
-)
+) VALUES
+  (
+    'PRAGMATIC',
+    'vs20doghouse',
+    '{"default":"The Dog House"}'::jsonb,
+    NULL,
+    1,
+    now(),
+    now(),
+    now()
+  ),
+  (
+    'HACKSAW',
+    'wanteddead',
+    '{"default":"Wanted Dead or a Wild"}'::jsonb,
+    NULL,
+    1,
+    now(),
+    now(),
+    now()
+  )
 ON CONFLICT (provider_code, game_code) DO UPDATE
 SET
   game_name = EXCLUDED.game_name,
@@ -176,6 +227,7 @@ INSERT INTO store_staff (
 ON CONFLICT (store_id, user_id) DO NOTHING;
 
 INSERT INTO audit_logs (
+  id,
   actor_user_id,
   actor_role,
   store_id,
@@ -185,6 +237,7 @@ INSERT INTO audit_logs (
   payload_masked,
   created_at
 ) VALUES (
+  'abababab-cdcd-efef-abab-cdcdababcdcd',
   'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
   'owner',
   'cccccccc-cccc-cccc-cccc-cccccccccccc',
@@ -193,4 +246,8 @@ INSERT INTO audit_logs (
   'cccccccc-cccc-cccc-cccc-cccccccccccc',
   '{"note":"demo seed inserted"}'::jsonb,
   now()
-);
+)
+ON CONFLICT (id) DO UPDATE
+SET
+  payload_masked = EXCLUDED.payload_masked,
+  created_at = EXCLUDED.created_at;

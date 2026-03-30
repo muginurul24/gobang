@@ -74,11 +74,15 @@ func runMigrate(args []string) error {
 			log.Printf("migrate fresh complete: %d migration(s) applied", applied)
 
 			if seedAfter {
-				appliedSeeds, err := db.ApplySQLDir(ctx, pool, "seeds/demo")
+				cfg, err := config.Load()
+				if err != nil {
+					return fmt.Errorf("load config: %w", err)
+				}
+
+				appliedSeeds, err := applyDemoSeed(ctx, pool, cfg.Auth.EncryptionKey)
 				if err != nil {
 					return fmt.Errorf("run demo seeds: %w", err)
 				}
-
 				log.Printf("demo seeds complete: %d file(s) applied", appliedSeeds)
 			}
 
@@ -95,7 +99,12 @@ func runSeed(args []string) error {
 	}
 
 	return withDatabase(func(ctx context.Context, pool *db.Pool) error {
-		applied, err := db.ApplySQLDir(ctx, pool, "seeds/demo")
+		cfg, err := config.Load()
+		if err != nil {
+			return fmt.Errorf("load config: %w", err)
+		}
+
+		applied, err := applyDemoSeed(ctx, pool, cfg.Auth.EncryptionKey)
 		if err != nil {
 			return fmt.Errorf("run demo seeds: %w", err)
 		}
