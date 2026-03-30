@@ -151,3 +151,36 @@ type WebhookDispatchResult struct {
 	TransactionType *TransactionType   `json:"transaction_type,omitempty"`
 	Status          *TransactionStatus `json:"status,omitempty"`
 }
+
+type ReconcileCandidate struct {
+	Transaction   QRISTransaction
+	AttemptNo     int
+	LastAttemptAt *time.Time
+}
+
+type RecordReconcileAttemptParams struct {
+	QRISTransactionID string
+	AttemptNo         int
+	Status            string
+	ResponseMasked    map[string]any
+	OccurredAt        time.Time
+}
+
+type ReconcileOutcome string
+
+const (
+	ReconcileOutcomeFinalizedSuccess ReconcileOutcome = "finalized_success"
+	ReconcileOutcomeFinalizedExpired ReconcileOutcome = "finalized_expired"
+	ReconcileOutcomeFinalizedFailed  ReconcileOutcome = "finalized_failed"
+	ReconcileOutcomeStillPending     ReconcileOutcome = "still_pending"
+	ReconcileOutcomeSkipped          ReconcileOutcome = "skipped"
+)
+
+type ReconcileRunSummary struct {
+	Scanned          int `json:"scanned"`
+	FinalizedSuccess int `json:"finalized_success"`
+	FinalizedExpired int `json:"finalized_expired"`
+	FinalizedFailed  int `json:"finalized_failed"`
+	StillPending     int `json:"still_pending"`
+	Skipped          int `json:"skipped"`
+}

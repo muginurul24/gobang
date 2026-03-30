@@ -812,9 +812,9 @@ Menutup kasus webhook QRIS tidak datang.
 - QRIS reconcile aman
 
 ### Checklist
-- [ ] check-status worker
-- [ ] no double credit
-- [ ] expire final
+- [x] check-status worker
+- [x] no double credit
+- [x] expire final
 
 ---
 

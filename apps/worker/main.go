@@ -11,9 +11,11 @@ import (
 	"github.com/mugiew/onixggr/internal/modules/callbacks"
 	"github.com/mugiew/onixggr/internal/modules/game"
 	"github.com/mugiew/onixggr/internal/modules/ledger"
+	"github.com/mugiew/onixggr/internal/modules/paymentsqris"
 	"github.com/mugiew/onixggr/internal/platform/config"
 	"github.com/mugiew/onixggr/internal/platform/db"
 	"github.com/mugiew/onixggr/internal/platform/nexusggr"
+	"github.com/mugiew/onixggr/internal/platform/qris"
 )
 
 func main() {
@@ -33,6 +35,7 @@ func main() {
 	}
 	defer pool.Close()
 
+	ledgerService := ledger.NewService(ledger.NewRepository(pool))
 	reconcileService := game.NewReconcileService(game.ReconcileOptions{
 		Repository: game.NewRepository(pool),
 		Upstream: nexusggr.NewClient(nexusggr.Config{
@@ -41,12 +44,30 @@ func main() {
 			AgentToken: cfg.NexusGGR.AgentToken,
 			Timeout:    cfg.NexusGGR.Timeout,
 		}, slog.Default(), nil),
-		Ledger: ledger.NewService(ledger.NewRepository(pool)),
+		Ledger: ledgerService,
 	})
 	callbackService := callbacks.NewService(callbacks.Options{
 		Repository:    callbacks.NewRepository(pool),
 		Dispatcher:    callbacks.NewHTTPDispatcher(cfg.Callback.DeliveryTimeout),
 		SigningSecret: cfg.Callback.SigningSecret,
+	})
+	qrisClient := qris.NewClient(qris.Config{
+		BaseURL:              cfg.QRIS.BaseURL,
+		Client:               cfg.QRIS.Client,
+		ClientKey:            cfg.QRIS.ClientKey,
+		GlobalUUID:           cfg.QRIS.GlobalUUID,
+		DefaultExpireSeconds: cfg.QRIS.DefaultExpireSeconds,
+	}, slog.Default(), nil)
+	qrisPaymentService := paymentsqris.NewService(paymentsqris.Options{
+		Repository:          paymentsqris.NewRepository(pool),
+		Ledger:              ledgerService,
+		Callbacks:           callbackService,
+		MemberPaymentFeePct: cfg.Business.MemberPaymentPlatformFeePct,
+	})
+	qrisReconcileService := paymentsqris.NewReconcileService(paymentsqris.ReconcileOptions{
+		Repository: paymentsqris.NewRepository(pool),
+		Upstream:   qrisClient,
+		Finalizer:  qrisPaymentService,
 	})
 
 	interval := cfg.Worker.GameReconcileInterval
@@ -60,6 +81,18 @@ func main() {
 	}
 
 	go runGameReconcileLoop(ctx, reconcileService, interval, batchSize)
+
+	qrisInterval := cfg.Worker.QRISReconcileInterval
+	if qrisInterval <= 0 {
+		qrisInterval = 30 * time.Second
+	}
+
+	qrisBatchSize := cfg.Worker.QRISReconcileBatchSize
+	if qrisBatchSize <= 0 {
+		qrisBatchSize = 50
+	}
+
+	go runQRISReconcileLoop(ctx, qrisReconcileService, qrisInterval, qrisBatchSize)
 
 	callbackInterval := cfg.Worker.CallbackRetryInterval
 	if callbackInterval <= 0 {
@@ -130,6 +163,43 @@ func runCallbackLoop(ctx context.Context, service callbacks.Service, interval ti
 			summary.Delivered,
 			summary.Retrying,
 			summary.Failed,
+			summary.Skipped,
+		)
+	}
+
+	runOnce()
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			runOnce()
+		}
+	}
+}
+
+func runQRISReconcileLoop(ctx context.Context, service paymentsqris.ReconcileService, interval time.Duration, batchSize int) {
+	runOnce := func() {
+		summary, err := service.RunPending(ctx, batchSize)
+		if err != nil {
+			log.Printf("qris reconcile run failed: %v", err)
+		}
+
+		if summary.Scanned == 0 && summary.FinalizedSuccess == 0 && summary.FinalizedExpired == 0 && summary.FinalizedFailed == 0 && summary.StillPending == 0 && summary.Skipped == 0 {
+			return
+		}
+
+		log.Printf(
+			"qris reconcile run: scanned=%d success=%d expired=%d failed=%d pending=%d skipped=%d",
+			summary.Scanned,
+			summary.FinalizedSuccess,
+			summary.FinalizedExpired,
+			summary.FinalizedFailed,
+			summary.StillPending,
 			summary.Skipped,
 		)
 	}

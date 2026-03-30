@@ -33,11 +33,11 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `./appctl migrate fresh --seed`: recreate the public schema, apply migrations, then run demo seeds.
 - `./appctl seed demo`: apply SQL seed files from `seeds/demo/`.
 - `./appctl sync providers`: pull provider list and game list from NexusGGR, then upsert the local catalog tables.
-- `./appctl worker run`: start the background worker and process both game reconcile backlog plus outbound callback retries.
+- `./appctl worker run`: start the background worker and process game reconcile backlog, QRIS check-status reconcile, and outbound callback retries.
 - `./appctl scheduler run`: start the scheduler and periodically refresh the provider catalog.
 - `./scripts/podman-up.sh`: start PostgreSQL, Redis, API, and web in one command via Podman Compose.
 - `go run ./apps/api`: starts the API and exposes `/health/live` plus `/health/ready`.
-- `go run ./apps/worker`: starts the background worker and periodically resolves game transactions in `pending_reconcile` plus outbound callback retries.
+- `go run ./apps/worker`: starts the background worker and periodically resolves game transactions in `pending_reconcile`, QRIS pending transactions, plus outbound callback retries.
 - `go run ./apps/scheduler`: starts the scheduler and periodically refreshes the local provider catalog.
 - `npm run dev:web`: starts the SvelteKit shell with public, auth, and app layouts.
 
@@ -121,6 +121,13 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - Payment webhooks correlate by `provider_trx_id` first and fall back to `custom_ref`, so pending rows created before provider confirmation can still be finalized safely.
 - `store_topup` success credits the full gross amount to the store ledger; `member_payment` success credits the net amount after the configured 3% platform fee and persists both `platform_fee_amount` and `store_credit_amount`.
 - Duplicate webhooks are safe: ledger posting uses the `qris_transaction` reference plus a unique ledger-entry guard, so retries do not double-credit the store balance.
+
+## QRIS Reconcile
+
+- Pending QRIS rows with a stored `provider_trx_id` are now scanned by the worker and checked through provider `checkstatus/v2`.
+- Reconcile backoff follows the execution plan: first retry after 30 seconds, then 60 seconds, then 120 seconds, then every 5 minutes, with attempts logged in `qris_reconcile_attempts`.
+- Provider `success` finalizes through the same idempotent payment finalizer used by webhook handling, so store credit cannot be posted twice.
+- Provider `pending` becomes `expired` once the local `expires_at` has passed; transient upstream errors only record the attempt and keep the transaction pending for the next retry.
 
 ## Outbound Callbacks
 

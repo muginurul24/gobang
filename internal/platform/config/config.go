@@ -97,6 +97,8 @@ type ProviderCatalogConfig struct {
 type WorkerConfig struct {
 	GameReconcileInterval  time.Duration
 	GameReconcileBatchSize int
+	QRISReconcileInterval  time.Duration
+	QRISReconcileBatchSize int
 	CallbackRetryInterval  time.Duration
 	CallbackRetryBatchSize int
 }
@@ -152,6 +154,11 @@ func Load() (Config, error) {
 	}
 
 	gameReconcileInterval, err := envDuration("GAME_RECONCILE_INTERVAL", 30*time.Second)
+	if err != nil {
+		return Config{}, err
+	}
+
+	qrisReconcileInterval, err := envDuration("QRIS_RECONCILE_INTERVAL", 30*time.Second)
 	if err != nil {
 		return Config{}, err
 	}
@@ -226,6 +233,8 @@ func Load() (Config, error) {
 		Worker: WorkerConfig{
 			GameReconcileInterval:  gameReconcileInterval,
 			GameReconcileBatchSize: envInt("GAME_RECONCILE_BATCH_SIZE", 50),
+			QRISReconcileInterval:  qrisReconcileInterval,
+			QRISReconcileBatchSize: envInt("QRIS_RECONCILE_BATCH_SIZE", 50),
 			CallbackRetryInterval:  callbackRetryInterval,
 			CallbackRetryBatchSize: envInt("CALLBACK_RETRY_BATCH_SIZE", 50),
 		},

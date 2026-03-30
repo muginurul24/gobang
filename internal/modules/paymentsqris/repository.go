@@ -17,6 +17,8 @@ type Repository struct {
 	pool *pgxpool.Pool
 }
 
+const qrisReconcileLockNamespace = 28028
+
 func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool}
 }
@@ -186,6 +188,207 @@ func (r *Repository) FindQRISTransactionForWebhook(ctx context.Context, provider
 	applyPayloadFields(&transaction, payloadRaw)
 
 	return transaction, nil
+}
+
+func (r *Repository) FindQRISTransactionByID(ctx context.Context, transactionID string) (QRISTransaction, error) {
+	var transaction QRISTransaction
+	var storeMemberID *string
+	var providerTrxIDValue *string
+	var payloadRaw []byte
+	err := r.pool.QueryRow(ctx, `
+		SELECT
+			id,
+			store_id,
+			store_member_id,
+			type,
+			provider_trx_id,
+			custom_ref,
+			external_username,
+			amount_gross::text,
+			platform_fee_amount::text,
+			store_credit_amount::text,
+			status,
+			expires_at,
+			provider_payload_masked,
+			created_at,
+			updated_at
+		FROM qris_transactions
+		WHERE id = $1
+		LIMIT 1
+	`, strings.TrimSpace(transactionID)).Scan(
+		&transaction.ID,
+		&transaction.StoreID,
+		&storeMemberID,
+		&transaction.Type,
+		&providerTrxIDValue,
+		&transaction.CustomRef,
+		&transaction.ExternalUsername,
+		&transaction.AmountGross,
+		&transaction.PlatformFeeAmount,
+		&transaction.StoreCreditAmount,
+		&transaction.Status,
+		&transaction.ExpiresAt,
+		&payloadRaw,
+		&transaction.CreatedAt,
+		&transaction.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return QRISTransaction{}, ErrNotFound
+		}
+
+		return QRISTransaction{}, fmt.Errorf("find qris transaction by id: %w", err)
+	}
+
+	transaction.StoreMemberID = storeMemberID
+	transaction.ProviderTrxID = providerTrxIDValue
+	applyPayloadFields(&transaction, payloadRaw)
+
+	return transaction, nil
+}
+
+func (r *Repository) AcquireReconcileLock(ctx context.Context, transactionID string) (ReconcileLock, bool, error) {
+	conn, err := r.pool.Acquire(ctx)
+	if err != nil {
+		return nil, false, fmt.Errorf("acquire qris reconcile lock connection: %w", err)
+	}
+
+	var locked bool
+	if err := conn.QueryRow(ctx, `
+		SELECT pg_try_advisory_lock($1, hashtext($2))
+	`, qrisReconcileLockNamespace, transactionID).Scan(&locked); err != nil {
+		conn.Release()
+		return nil, false, fmt.Errorf("try qris reconcile advisory lock: %w", err)
+	}
+
+	if !locked {
+		conn.Release()
+		return nil, false, nil
+	}
+
+	return &repositoryReconcileLock{
+		conn:          conn,
+		transactionID: transactionID,
+	}, true, nil
+}
+
+func (r *Repository) NextReconcileAttemptNo(ctx context.Context, transactionID string) (int, error) {
+	var nextAttempt int
+	err := r.pool.QueryRow(ctx, `
+		SELECT COALESCE(MAX(attempt_no), 0) + 1
+		FROM qris_reconcile_attempts
+		WHERE qris_transaction_id = $1
+	`, strings.TrimSpace(transactionID)).Scan(&nextAttempt)
+	if err != nil {
+		return 0, fmt.Errorf("next qris reconcile attempt no: %w", err)
+	}
+
+	return nextAttempt, nil
+}
+
+func (r *Repository) ListDueReconcileTransactions(ctx context.Context, now time.Time, limit int) ([]ReconcileCandidate, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT
+			qt.id,
+			qt.store_id,
+			qt.store_member_id,
+			qt.type,
+			qt.provider_trx_id,
+			qt.custom_ref,
+			qt.external_username,
+			qt.amount_gross::text,
+			qt.platform_fee_amount::text,
+			qt.store_credit_amount::text,
+			qt.status,
+			qt.expires_at,
+			qt.provider_payload_masked,
+			qt.created_at,
+			qt.updated_at,
+			COALESCE(last_attempt.attempt_no, 0) AS attempt_no,
+			last_attempt.created_at AS last_attempt_at
+		FROM qris_transactions qt
+		INNER JOIN stores s ON s.id = qt.store_id
+		LEFT JOIN LATERAL (
+			SELECT attempt_no, created_at
+			FROM qris_reconcile_attempts
+			WHERE qris_transaction_id = qt.id
+			ORDER BY attempt_no DESC
+			LIMIT 1
+		) AS last_attempt ON TRUE
+		WHERE qt.status = 'pending'
+			AND qt.provider_trx_id IS NOT NULL
+			AND s.deleted_at IS NULL
+			AND (
+				(last_attempt.attempt_no IS NULL AND qt.updated_at <= $1 - interval '30 seconds')
+				OR (last_attempt.attempt_no = 1 AND last_attempt.created_at <= $1 - interval '60 seconds')
+				OR (last_attempt.attempt_no = 2 AND last_attempt.created_at <= $1 - interval '120 seconds')
+				OR (last_attempt.attempt_no >= 3 AND last_attempt.created_at <= $1 - interval '5 minutes')
+			)
+		ORDER BY COALESCE(last_attempt.created_at, qt.updated_at) ASC
+		LIMIT $2
+	`, now.UTC(), limit)
+	if err != nil {
+		return nil, fmt.Errorf("list due qris reconcile transactions: %w", err)
+	}
+	defer rows.Close()
+
+	var candidates []ReconcileCandidate
+	for rows.Next() {
+		var candidate ReconcileCandidate
+		var storeMemberID *string
+		var providerTrxID *string
+		var payloadRaw []byte
+		if err := rows.Scan(
+			&candidate.Transaction.ID,
+			&candidate.Transaction.StoreID,
+			&storeMemberID,
+			&candidate.Transaction.Type,
+			&providerTrxID,
+			&candidate.Transaction.CustomRef,
+			&candidate.Transaction.ExternalUsername,
+			&candidate.Transaction.AmountGross,
+			&candidate.Transaction.PlatformFeeAmount,
+			&candidate.Transaction.StoreCreditAmount,
+			&candidate.Transaction.Status,
+			&candidate.Transaction.ExpiresAt,
+			&payloadRaw,
+			&candidate.Transaction.CreatedAt,
+			&candidate.Transaction.UpdatedAt,
+			&candidate.AttemptNo,
+			&candidate.LastAttemptAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan due qris reconcile transaction: %w", err)
+		}
+
+		candidate.Transaction.StoreMemberID = storeMemberID
+		candidate.Transaction.ProviderTrxID = providerTrxID
+		applyPayloadFields(&candidate.Transaction, payloadRaw)
+		candidates = append(candidates, candidate)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate due qris reconcile transactions: %w", err)
+	}
+
+	return candidates, nil
+}
+
+func (r *Repository) RecordReconcileAttempt(ctx context.Context, params RecordReconcileAttemptParams) error {
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO qris_reconcile_attempts (
+			qris_transaction_id,
+			attempt_no,
+			status,
+			response_masked,
+			created_at
+		)
+		VALUES ($1, $2, $3, $4::jsonb, $5)
+	`, params.QRISTransactionID, params.AttemptNo, params.Status, toJSON(params.ResponseMasked), params.OccurredAt)
+	if err != nil {
+		return fmt.Errorf("record qris reconcile attempt: %w", err)
+	}
+
+	return nil
 }
 
 func (r *Repository) CreateQRISTransaction(ctx context.Context, params CreateQRISTransactionParams) (QRISTransaction, error) {
@@ -584,4 +787,27 @@ func nullableString(value string) *string {
 	}
 
 	return &trimmed
+}
+
+type repositoryReconcileLock struct {
+	conn          *pgxpool.Conn
+	transactionID string
+}
+
+func (l *repositoryReconcileLock) Unlock(ctx context.Context) error {
+	if l == nil || l.conn == nil {
+		return nil
+	}
+
+	defer l.conn.Release()
+
+	var unlocked bool
+	if err := l.conn.QueryRow(ctx, `
+		SELECT pg_advisory_unlock($1, hashtext($2))
+	`, qrisReconcileLockNamespace, l.transactionID).Scan(&unlocked); err != nil {
+		return fmt.Errorf("unlock qris reconcile advisory lock: %w", err)
+	}
+
+	l.conn = nil
+	return nil
 }
