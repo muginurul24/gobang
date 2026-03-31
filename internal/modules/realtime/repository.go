@@ -52,3 +52,31 @@ func (r *Repository) ListAccessibleStoreIDs(ctx context.Context, userID string) 
 
 	return storeIDs, nil
 }
+
+func (r *Repository) ListAllActiveStoreIDs(ctx context.Context) ([]string, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id
+		FROM stores
+		WHERE deleted_at IS NULL
+		ORDER BY 1
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("list all active store ids: %w", err)
+	}
+	defer rows.Close()
+
+	storeIDs := make([]string, 0)
+	for rows.Next() {
+		var storeID string
+		if err := rows.Scan(&storeID); err != nil {
+			return nil, fmt.Errorf("scan active store id: %w", err)
+		}
+		storeIDs = append(storeIDs, storeID)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate active store ids: %w", err)
+	}
+
+	return storeIDs, nil
+}

@@ -36,7 +36,7 @@ func TestAuthorizeConnectionOwnerIncludesStoreChannels(t *testing.T) {
 
 func TestAuthorizeConnectionDevIncludesRoleChannel(t *testing.T) {
 	service := NewService(Options{
-		Repository:    stubRepository{},
+		Repository:    stubRepository{allStoreIDs: []string{"store-z", "store-a"}},
 		Authenticator: stubAuthenticator{subject: auth.Subject{UserID: "dev-1", Role: auth.RoleDev}},
 	})
 
@@ -45,7 +45,26 @@ func TestAuthorizeConnectionDevIncludesRoleChannel(t *testing.T) {
 		t.Fatalf("AuthorizeConnection error = %v", err)
 	}
 
-	want := []string{"global_chat", "role:dev", "user:dev-1"}
+	want := []string{"global_chat", "role:dev", "store:store-a", "store:store-z", "user:dev-1"}
+	for index, channel := range want {
+		if session.Channels[index] != channel {
+			t.Fatalf("channel[%d] = %q, want %q", index, session.Channels[index], channel)
+		}
+	}
+}
+
+func TestAuthorizeConnectionSuperadminIncludesRoleAndStoreChannels(t *testing.T) {
+	service := NewService(Options{
+		Repository:    stubRepository{allStoreIDs: []string{"store-b", "store-a"}},
+		Authenticator: stubAuthenticator{subject: auth.Subject{UserID: "super-1", Role: auth.RoleSuperadmin}},
+	})
+
+	session, err := service.AuthorizeConnection(context.Background(), "token")
+	if err != nil {
+		t.Fatalf("AuthorizeConnection error = %v", err)
+	}
+
+	want := []string{"global_chat", "role:superadmin", "store:store-a", "store:store-b", "user:super-1"}
 	for index, channel := range want {
 		if session.Channels[index] != channel {
 			t.Fatalf("channel[%d] = %q, want %q", index, session.Channels[index], channel)
@@ -66,8 +85,9 @@ func TestAuthorizeConnectionPropagatesUnauthorized(t *testing.T) {
 }
 
 type stubRepository struct {
-	storeIDs []string
-	err      error
+	storeIDs    []string
+	allStoreIDs []string
+	err         error
 }
 
 func (s stubRepository) ListAccessibleStoreIDs(context.Context, string) ([]string, error) {
@@ -76,6 +96,14 @@ func (s stubRepository) ListAccessibleStoreIDs(context.Context, string) ([]strin
 	}
 
 	return s.storeIDs, nil
+}
+
+func (s stubRepository) ListAllActiveStoreIDs(context.Context) ([]string, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+
+	return s.allStoreIDs, nil
 }
 
 type stubAuthenticator struct {

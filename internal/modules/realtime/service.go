@@ -10,6 +10,7 @@ import (
 
 type RepositoryContract interface {
 	ListAccessibleStoreIDs(ctx context.Context, userID string) ([]string, error)
+	ListAllActiveStoreIDs(ctx context.Context) ([]string, error)
 }
 
 type Authenticator interface {
@@ -67,8 +68,22 @@ func (s *service) AuthorizeConnection(ctx context.Context, accessToken string) (
 			channels = append(channels, storeChannel(storeID))
 		}
 	case auth.RoleDev:
+		storeIDs, err := s.repository.ListAllActiveStoreIDs(ctx)
+		if err != nil {
+			return ConnectionSession{}, fmt.Errorf("list platform store channels for dev: %w", err)
+		}
+		for _, storeID := range storeIDs {
+			channels = append(channels, storeChannel(storeID))
+		}
 		channels = append(channels, roleChannel("dev"))
 	case auth.RoleSuperadmin:
+		storeIDs, err := s.repository.ListAllActiveStoreIDs(ctx)
+		if err != nil {
+			return ConnectionSession{}, fmt.Errorf("list platform store channels for superadmin: %w", err)
+		}
+		for _, storeID := range storeIDs {
+			channels = append(channels, storeChannel(storeID))
+		}
 		channels = append(channels, roleChannel("superadmin"))
 	}
 
