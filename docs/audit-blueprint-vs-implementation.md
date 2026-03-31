@@ -5,10 +5,10 @@
 - Audit basis: `docs/blueprint.md`, `docs/database-final.md`, `docs/plan-execution.md`, dan implementasi saat ini di `main`.
 - Audit order mengikuti prioritas production review: money flow, RBAC, idempotency/reconcile, persistence, worker/scheduler, frontend parity, ops, lalu docs drift.
 - Total checks: `28`
-- `PASS`: `20`
+- `PASS`: `22`
 - `PARTIAL`: `2`
-- `FAIL`: `1`
-- `NOT_IMPLEMENTED`: `4`
+- `FAIL`: `0`
+- `NOT_IMPLEMENTED`: `3`
 - `INTENTIONAL_DEVIATION`: `1`
 
 Status rubric:
@@ -78,7 +78,7 @@ Severity rubric:
 |---|---|---|---|---|---|
 | Dashboard scope and masking | Cards owner/karyawan vs dev harus sesuai scope; masked fields tetap aman | Dashboard cards, stores, bank accounts, withdrawals, dan audit UI sudah memisahkan role scope dan masking sesuai backend | PASS | Medium | Tidak ada aksi |
 | Dev/superadmin realtime parity | Dev/superadmin harus menerima event owner/karyawan sesuai scope untuk notification stream/dashboard realtime | `internal/modules/realtime/service.go` sekarang subscribe `dev` dan `superadmin` ke semua `store:{storeId}` aktif plus `role:*`, sehingga event store-scope masuk ke stream role platform juga | PASS | High | Tidak ada aksi |
-| Notification surface in dashboard | Deliverable Hari 33 menyebut notification stream usable | Frontend tidak punya client, page, unread badge, atau feed untuk `/v1/notifications`; pencarian `apps/web/src` untuk `notifications` tidak menemukan consumer UI | NOT_IMPLEMENTED | Low | Tambahkan notification center/unread surface, atau perkecil klaim deliverable Hari 33 menjadi backend-only |
+| Notification surface in dashboard | Deliverable Hari 33 menyebut notification stream usable | Dashboard sekarang punya unread badge di shell dan feed `/app/notifications` yang memakai `GET /v1/notifications`, `GET /v1/notifications/unread-count`, `POST /v1/notifications/{id}/read`, serta refresh via WebSocket sesuai scope aktif | PASS | Low | Tidak ada aksi |
 
 ## Domain: Ops & Production
 
@@ -91,7 +91,7 @@ Severity rubric:
 
 | Check | Blueprint rule | Current implementation | Status | Severity | Action |
 |---|---|---|---|---|---|
-| Hari 33 checklist accuracy | Checklist yang sudah dicentang harus benar-benar tercapai | Klaim Hari 33 `notification stream usable` masih lebih maju dari implementasi frontend karena belum ada notification center/unread surface | FAIL | Medium | Koreksi checklist atau tambah consumer UI notifikasi |
+| Hari 33 checklist accuracy | Checklist yang sudah dicentang harus benar-benar tercapai | Deliverable `notification stream usable` sekarang sudah terpenuhi oleh unread badge shell dan halaman `/app/notifications` yang memakai scope backend asli | PASS | Medium | Tidak ada aksi |
 | Callback queue contract in docs | Database/blueprint harus memuat constraint penting yang dipakai produksi | Migration `000010_outbound_callbacks.up.sql` menambah unique `outbound_callbacks_event_type_reference_unique`, tetapi `docs/database-final.md` belum mencatat constraint ini | PARTIAL | Low | Update `docs/database-final.md` agar idempotency callback queue tidak hanya implisit di code |
 
 ## Must Fix Before Production
@@ -103,7 +103,6 @@ Severity rubric:
 - Tambahkan stale session cleanup untuk `user_sessions`.
 - Tambahkan retention cleanup untuk `outbound_callback_attempts`.
 - Tambahkan periodic low-balance sweep agar store yang sudah low balance sejak awal tetap menghasilkan alert operasional.
-- Tambahkan notification center atau unread surface di dashboard agar endpoint `/v1/notifications` benar-benar dipakai operator.
 
 ## Intentional Deviations from Blueprint
 
@@ -111,5 +110,4 @@ Severity rubric:
 
 ## Docs That Must Be Updated
 
-- `docs/plan-execution.md` Hari 33 masih perlu disinkronkan dengan implementasi aktual jika notification surface frontend tidak langsung ditutup.
 - `docs/database-final.md` perlu menambahkan unique constraint callback queue `event_type + reference_type + reference_id`.

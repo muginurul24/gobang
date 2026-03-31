@@ -16,6 +16,12 @@
     realtimeState
   } from '$lib/realtime/client';
   import {
+    fetchUnreadNotificationCount,
+    isNotificationEvent,
+    resolveNotificationScope,
+    subscribeNotificationsChanged
+  } from '$lib/notifications/client';
+  import {
     fetchStores,
     isStoreLowBalance,
     parseMoney,
@@ -33,13 +39,21 @@
   let storeDirectoryError = '';
   let accessibleStores: Store[] = [];
   let selectedStoreID = '';
+  let unreadNotificationCount = 0;
+  let notificationLoading = false;
+  let lastNotificationEventKey: string | null = null;
+  let lastNotificationScopeKey = '';
 
   $: role = $authSession?.user.role ?? '';
   $: currentStore = accessibleStores.find((store) => store.id === selectedStoreID) ?? null;
   $: lowBalanceStores = accessibleStores.filter((store) => isStoreLowBalance(store));
   $: selectedStoreIsLowBalance = currentStore ? isStoreLowBalance(currentStore) : false;
+  $: notificationScope = resolveNotificationScope(role, selectedStoreID);
+  $: notificationBadge =
+    unreadNotificationCount > 99 ? '99+' : unreadNotificationCount > 0 ? String(unreadNotificationCount) : '';
   $: nav = [
     { href: '/app', label: 'Dashboard' },
+    { href: '/app/notifications', label: 'Notifications', badge: notificationBadge },
     { href: '/app/stores', label: 'Stores' },
     { href: '/app/catalog', label: 'Catalog' },
     { href: '/app/members', label: 'Members' },
@@ -93,7 +107,32 @@
       accessibleStores = response.data ?? [];
       selectedStoreID = pickPreferredStoreID(accessibleStores, selectedStoreID);
       setPreferredStoreID(selectedStoreID);
-      storeDirectoryLoading = false;
+        storeDirectoryLoading = false;
+    }
+
+    async function loadUnreadNotifications() {
+      if (!active) {
+        return;
+      }
+
+      if (!notificationScope.ready) {
+        unreadNotificationCount = 0;
+        notificationLoading = false;
+        return;
+      }
+
+      notificationLoading = true;
+      const response = await fetchUnreadNotificationCount(notificationScope.params);
+      if (!active) {
+        return;
+      }
+
+      notificationLoading = false;
+      if (!response.status || response.message !== 'SUCCESS') {
+        return;
+      }
+
+      unreadNotificationCount = response.data.unread_count ?? 0;
     }
 
     void (async () => {
@@ -121,12 +160,62 @@
       ready = true;
     })();
 
+    const unsubscribeRealtime = realtimeState.subscribe((snapshot) => {
+      if (!active || !notificationScope.ready) {
+        return;
+      }
+
+      const latestEvent = snapshot.events[0];
+      if (
+        !latestEvent ||
+        !isNotificationEvent(latestEvent.type) ||
+        latestEvent.channel !== notificationScope.channel
+      ) {
+        return;
+      }
+
+      const eventKey = `${latestEvent.created_at}:${latestEvent.channel}:${latestEvent.type}`;
+      if (eventKey === lastNotificationEventKey) {
+        return;
+      }
+
+      lastNotificationEventKey = eventKey;
+      void loadUnreadNotifications();
+    });
+
+    const unsubscribeNotificationsChanged = subscribeNotificationsChanged(() => {
+      void loadUnreadNotifications();
+    });
+
     return () => {
       active = false;
       unsubscribeStorePreference();
+      unsubscribeRealtime();
+      unsubscribeNotificationsChanged();
       disconnectRealtime();
     };
   });
+
+  $: if (ready) {
+    const nextScopeKey = notificationScope.key;
+    if (nextScopeKey !== lastNotificationScopeKey) {
+      lastNotificationScopeKey = nextScopeKey;
+      if (!notificationScope.ready) {
+        unreadNotificationCount = 0;
+        notificationLoading = false;
+      } else {
+        notificationLoading = true;
+        void fetchUnreadNotificationCount(notificationScope.params).then((response) => {
+          notificationLoading = false;
+          if (!response.status || response.message !== 'SUCCESS') {
+            return;
+          }
+
+          unreadNotificationCount = response.data.unread_count ?? 0;
+        });
+      }
+    }
+  }
 
   async function signOut() {
     disconnectRealtime();
@@ -227,6 +316,31 @@
           {/if}
         </div>
 
+        <div class="mt-4 rounded-3xl border border-ink-100 px-4 py-4 text-sm text-ink-700">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <p class="font-semibold text-ink-900">Notifications</p>
+              <p class="mt-1 text-xs leading-5 text-ink-500">{notificationScope.label}</p>
+            </div>
+            {#if notificationLoading}
+              <span class="rounded-full bg-canvas-100 px-3 py-1 text-xs font-semibold text-ink-500">
+                ...
+              </span>
+            {:else if notificationBadge !== ''}
+              <span class="rounded-full bg-accent-100 px-3 py-1 text-xs font-semibold text-accent-800">
+                {notificationBadge}
+              </span>
+            {/if}
+          </div>
+          <p class="mt-3 text-xs leading-5 text-ink-500">{notificationScope.description}</p>
+          <a
+            class="mt-3 inline-flex text-xs font-semibold uppercase tracking-[0.18em] text-brand-700 underline-offset-4 hover:underline"
+            href="/app/notifications"
+          >
+            Open feed
+          </a>
+        </div>
+
         {#if lowBalanceStores.length > 0}
           <div class="mt-4 rounded-3xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
             <p class="font-semibold">Low Balance Alert</p>
@@ -249,10 +363,15 @@
       <nav class="mt-8 space-y-2">
         {#each nav as item}
           <a
-            class="block rounded-2xl border border-transparent px-4 py-3 text-sm font-medium text-ink-700 transition hover:border-ink-100 hover:bg-canvas-100 hover:text-ink-900"
+            class="flex items-center justify-between gap-3 rounded-2xl border border-transparent px-4 py-3 text-sm font-medium text-ink-700 transition hover:border-ink-100 hover:bg-canvas-100 hover:text-ink-900"
             href={item.href}
           >
-            {item.label}
+            <span>{item.label}</span>
+            {#if item.badge}
+              <span class="rounded-full bg-accent-100 px-3 py-1 text-xs font-semibold text-accent-800">
+                {item.badge}
+              </span>
+            {/if}
           </a>
         {/each}
       </nav>
