@@ -79,12 +79,15 @@ func TestRunPendingMarksSuccess(t *testing.T) {
 			Success:            true,
 		},
 	}
+	storeNotifier := &storeNotifierStub{}
+	platformNotifier := &platformNotifierStub{}
 
 	service := NewService(Options{
-		Repository:    repository,
-		Dispatcher:    dispatcher,
-		Notifications: repository,
-		Clock:         fixedClock{now: now},
+		Repository:            repository,
+		Dispatcher:            dispatcher,
+		Notifications:         storeNotifier,
+		PlatformNotifications: platformNotifier,
+		Clock:                 fixedClock{now: now},
 	})
 
 	summary, err := service.RunPending(context.Background(), 10)
@@ -130,12 +133,15 @@ func TestRunPendingSchedulesRetry(t *testing.T) {
 			Success:            false,
 		},
 	}
+	storeNotifier := &storeNotifierStub{}
+	platformNotifier := &platformNotifierStub{}
 
 	service := NewService(Options{
-		Repository:    repository,
-		Dispatcher:    dispatcher,
-		Notifications: repository,
-		Clock:         fixedClock{now: now},
+		Repository:            repository,
+		Dispatcher:            dispatcher,
+		Notifications:         storeNotifier,
+		PlatformNotifications: platformNotifier,
+		Clock:                 fixedClock{now: now},
 	})
 
 	summary, err := service.RunPending(context.Background(), 10)
@@ -178,12 +184,15 @@ func TestRunPendingFinalFailureCreatesNotification(t *testing.T) {
 		},
 	}
 	dispatcher := &stubDispatcher{err: errors.New("timeout")}
+	storeNotifier := &storeNotifierStub{}
+	platformNotifier := &platformNotifierStub{}
 
 	service := NewService(Options{
-		Repository:    repository,
-		Dispatcher:    dispatcher,
-		Notifications: repository,
-		Clock:         fixedClock{now: now},
+		Repository:            repository,
+		Dispatcher:            dispatcher,
+		Notifications:         storeNotifier,
+		PlatformNotifications: platformNotifier,
+		Clock:                 fixedClock{now: now},
 	})
 
 	summary, err := service.RunPending(context.Background(), 10)
@@ -197,11 +206,20 @@ func TestRunPendingFinalFailureCreatesNotification(t *testing.T) {
 	if repository.lastRecord.CallbackStatus != StatusFailed {
 		t.Fatalf("callback status = %q, want failed", repository.lastRecord.CallbackStatus)
 	}
-	if repository.notifierCalls != 1 {
-		t.Fatalf("notifierCalls = %d, want 1", repository.notifierCalls)
+	if storeNotifier.calls != 1 {
+		t.Fatalf("store notifier calls = %d, want 1", storeNotifier.calls)
 	}
-	if repository.lastNotification.eventType != "callback.delivery_failed" {
-		t.Fatalf("notification event = %q, want callback.delivery_failed", repository.lastNotification.eventType)
+	if storeNotifier.last.eventType != "callback.delivery_failed" {
+		t.Fatalf("notification event = %q, want callback.delivery_failed", storeNotifier.last.eventType)
+	}
+	if platformNotifier.calls != 1 {
+		t.Fatalf("platformNotifierCalls = %d, want 1", platformNotifier.calls)
+	}
+	if platformNotifier.last.eventType != "callback.delivery_failed" {
+		t.Fatalf("platform notification event = %q, want callback.delivery_failed", platformNotifier.last.eventType)
+	}
+	if platformNotifier.last.body != "Callback member_payment.success untuk store store-1 gagal setelah 6 percobaan." {
+		t.Fatalf("platform notification body = %q", platformNotifier.last.body)
 	}
 }
 
@@ -214,14 +232,12 @@ func (f fixedClock) Now() time.Time {
 }
 
 type stubRepository struct {
-	source           MemberPaymentCallbackSource
-	dueCallbacks     []DueOutboundCallback
-	enqueueCalls     int
-	recordCalls      int
-	notifierCalls    int
-	lastEnqueue      EnqueueOutboundCallbackParams
-	lastRecord       RecordAttemptParams
-	lastNotification notificationCall
+	source       MemberPaymentCallbackSource
+	dueCallbacks []DueOutboundCallback
+	enqueueCalls int
+	recordCalls  int
+	lastEnqueue  EnqueueOutboundCallbackParams
+	lastRecord   RecordAttemptParams
 }
 
 func (s *stubRepository) FindMemberPaymentCallbackSource(context.Context, string) (MemberPaymentCallbackSource, error) {
@@ -244,19 +260,15 @@ func (s *stubRepository) RecordAttempt(_ context.Context, params RecordAttemptPa
 	return nil
 }
 
-func (s *stubRepository) Emit(storeID string, eventType string, title string, body string) {
-	s.notifierCalls++
-	s.lastNotification = notificationCall{
-		storeID:   storeID,
-		eventType: eventType,
-		title:     title,
-		body:      body,
-	}
-}
-
 type stubDispatcher struct {
 	result DispatchResult
 	err    error
+}
+
+type platformNotificationCall struct {
+	eventType string
+	title     string
+	body      string
 }
 
 type notificationCall struct {
@@ -264,6 +276,35 @@ type notificationCall struct {
 	eventType string
 	title     string
 	body      string
+}
+
+type storeNotifierStub struct {
+	calls int
+	last  notificationCall
+}
+
+func (s *storeNotifierStub) Emit(storeID string, eventType string, title string, body string) {
+	s.calls++
+	s.last = notificationCall{
+		storeID:   storeID,
+		eventType: eventType,
+		title:     title,
+		body:      body,
+	}
+}
+
+type platformNotifierStub struct {
+	calls int
+	last  platformNotificationCall
+}
+
+func (s *platformNotifierStub) Emit(eventType string, title string, body string) {
+	s.calls++
+	s.last = platformNotificationCall{
+		eventType: eventType,
+		title:     title,
+		body:      body,
+	}
 }
 
 func (s *stubDispatcher) Dispatch(context.Context, DueOutboundCallback) (DispatchResult, error) {

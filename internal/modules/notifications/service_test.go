@@ -144,6 +144,23 @@ func TestStoreEmitterDelegatesToInner(t *testing.T) {
 	}
 }
 
+func TestPlatformRoleEmitterDelegatesToDevAndSuperadmin(t *testing.T) {
+	inner := &stubEmitter{}
+	emitter := NewPlatformRoleEmitter(inner)
+
+	emitter.Emit("callback.delivery_failed", "Title", "Body")
+
+	if len(inner.calls) != 2 {
+		t.Fatalf("calls = %d, want 2", len(inner.calls))
+	}
+	if inner.calls[0].ScopeType != ScopeRole || inner.calls[0].ScopeID != "dev" {
+		t.Fatalf("first call = %#v, want role dev", inner.calls[0])
+	}
+	if inner.calls[1].ScopeType != ScopeRole || inner.calls[1].ScopeID != "superadmin" {
+		t.Fatalf("second call = %#v, want role superadmin", inner.calls[1])
+	}
+}
+
 // --- stubs ---
 
 type stubRepository struct {
@@ -192,9 +209,11 @@ func (h *stubHub) Publish(_ context.Context, event platformrealtime.Event) error
 
 type stubEmitter struct {
 	lastParams CreateParams
+	calls      []CreateParams
 }
 
 func (e *stubEmitter) Emit(params CreateParams) error {
 	e.lastParams = params
+	e.calls = append(e.calls, params)
 	return nil
 }

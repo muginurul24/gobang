@@ -5,10 +5,10 @@
 - Audit basis: `docs/blueprint.md`, `docs/database-final.md`, `docs/plan-execution.md`, dan implementasi saat ini di `main`.
 - Audit order mengikuti prioritas production review: money flow, RBAC, idempotency/reconcile, persistence, worker/scheduler, frontend parity, ops, lalu docs drift.
 - Total checks: `28`
-- `PASS`: `26`
+- `PASS`: `27`
 - `PARTIAL`: `0`
 - `FAIL`: `0`
-- `NOT_IMPLEMENTED`: `1`
+- `NOT_IMPLEMENTED`: `0`
 - `INTENTIONAL_DEVIATION`: `1`
 
 Status rubric:
@@ -54,7 +54,7 @@ Severity rubric:
 | Game withdraw duplicate strategy | Retry `trx_id` yang sama harus mengembalikan transaksi lama | `internal/modules/game/service.go:549-555` mengembalikan row existing untuk duplicate withdraw | PASS | High | Tidak ada aksi |
 | QRIS duplicate webhook/check-status | Duplicate webhook dan reconcile tidak boleh double credit | `internal/modules/paymentsqris/service.go` pakai `HasReferenceEntries`; reconcile worker memanggil finalizer yang sama | PASS | Critical | Tidak ada aksi |
 | Withdraw duplicate webhook/check-status | Duplicate webhook/status check tidak boleh double commit | `internal/modules/withdrawals/reconcile.go` cek `HasReferenceEntries`, reservation state, dan advisory lock sebelum final commit/release | PASS | Critical | Tidak ada aksi |
-| Platform-wide realtime error notifications | Blueprint dev/superadmin: semua event owner/karyawan sesuai scope plus platform-wide error notifications | Emitter domain saat ini selalu store-scoped via `internal/modules/notifications/store_emitter.go:15-22`; tidak ada producer `ScopeRole` atau `ScopeGlobal` untuk error platform | NOT_IMPLEMENTED | High | Tambahkan producer role/global untuk error platform, atau ubah blueprint bila role-wide notification tidak jadi target |
+| Platform-wide realtime error notifications | Blueprint dev/superadmin: semua event owner/karyawan sesuai scope plus platform-wide error notifications | `internal/modules/notifications/store_emitter.go` sekarang juga menyediakan `PlatformRoleEmitter`, dan `internal/modules/callbacks/service.go` memakainya untuk publish `callback.delivery_failed` ke scope role `dev` dan `superadmin` selain scope store | PASS | High | Tidak ada aksi |
 
 ## Domain: Persistence & Schema
 
@@ -100,7 +100,7 @@ Severity rubric:
 
 ## Should Fix Soon After Launch
 
-- Tambahkan platform-wide error notifications untuk `dev/superadmin`.
+- Tidak ada temuan operasional terbuka yang tersisa di luar scaling backlog yang sudah disepakati.
 
 ## Intentional Deviations from Blueprint
 

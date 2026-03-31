@@ -138,11 +138,15 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 		storeNotifier := notifications.NewStoreEmitter(
 			notifications.NewAsyncEmitter(notificationService, deps.Logger),
 		)
+		platformNotifier := notifications.NewPlatformRoleEmitter(
+			notifications.NewAsyncEmitter(notificationService, deps.Logger),
+		)
 
 		callbackService := callbacks.NewService(callbacks.Options{
-			Repository:    callbacks.NewRepository(deps.DB),
-			Notifications: storeNotifier,
-			SigningSecret: cfg.Callback.SigningSecret,
+			Repository:            callbacks.NewRepository(deps.DB),
+			Notifications:         storeNotifier,
+			PlatformNotifications: platformNotifier,
+			SigningSecret:         cfg.Callback.SigningSecret,
 		})
 
 		stores.NewHandler(

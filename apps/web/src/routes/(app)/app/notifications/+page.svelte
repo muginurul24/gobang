@@ -189,7 +189,7 @@
         <p class="mt-3 max-w-3xl text-sm leading-7 text-ink-700">
           Halaman ini memakai endpoint `notifications` yang sama dengan stream WebSocket. Owner
           dan karyawan mengikuti store aktif, sementara role platform bisa pindah antara scope toko
-          aktif dan scope role.
+          aktif dan scope role untuk error operasional lintas store.
         </p>
       </div>
 

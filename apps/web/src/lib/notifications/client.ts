@@ -135,7 +135,7 @@ export function resolveNotificationScope(
       key: `role:${normalizedRole}`,
       label: 'Platform Scope',
       description:
-        'Feed ini membaca scope role platform. Saat ini isinya terutama dipakai untuk role-wide notifications di masa lanjut.',
+        'Feed ini membaca scope role platform dan menampilkan notification operasional lintas store untuk dev atau superadmin.',
       ready: true,
       channel: `role:${normalizedRole}`,
       params: {

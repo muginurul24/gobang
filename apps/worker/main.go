@@ -45,6 +45,9 @@ func main() {
 	storeNotifier := notifications.NewStoreEmitter(
 		notifications.NewAsyncEmitter(notificationService, slog.Default()),
 	)
+	platformNotifier := notifications.NewPlatformRoleEmitter(
+		notifications.NewAsyncEmitter(notificationService, slog.Default()),
+	)
 	reconcileService := game.NewReconcileService(game.ReconcileOptions{
 		Repository: game.NewRepository(pool),
 		Upstream: nexusggr.NewClient(nexusggr.Config{
@@ -56,10 +59,11 @@ func main() {
 		Ledger: ledgerService,
 	})
 	callbackService := callbacks.NewService(callbacks.Options{
-		Repository:    callbacks.NewRepository(pool),
-		Dispatcher:    callbacks.NewHTTPDispatcher(cfg.Callback.DeliveryTimeout),
-		Notifications: storeNotifier,
-		SigningSecret: cfg.Callback.SigningSecret,
+		Repository:            callbacks.NewRepository(pool),
+		Dispatcher:            callbacks.NewHTTPDispatcher(cfg.Callback.DeliveryTimeout),
+		Notifications:         storeNotifier,
+		PlatformNotifications: platformNotifier,
+		SigningSecret:         cfg.Callback.SigningSecret,
 	})
 	qrisClient := qris.NewClient(qris.Config{
 		BaseURL:              cfg.QRIS.BaseURL,

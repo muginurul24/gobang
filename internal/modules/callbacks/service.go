@@ -33,20 +33,26 @@ type NotificationEmitter interface {
 	Emit(storeID string, eventType string, title string, body string)
 }
 
+type PlatformNotificationEmitter interface {
+	Emit(eventType string, title string, body string)
+}
+
 type Options struct {
-	Repository    RepositoryContract
-	Dispatcher    Dispatcher
-	Notifications NotificationEmitter
-	Clock         clock.Clock
-	SigningSecret string
+	Repository            RepositoryContract
+	Dispatcher            Dispatcher
+	Notifications         NotificationEmitter
+	PlatformNotifications PlatformNotificationEmitter
+	Clock                 clock.Clock
+	SigningSecret         string
 }
 
 type service struct {
-	repository    RepositoryContract
-	dispatcher    Dispatcher
-	notifications NotificationEmitter
-	clock         clock.Clock
-	signer        signer
+	repository            RepositoryContract
+	dispatcher            Dispatcher
+	notifications         NotificationEmitter
+	platformNotifications PlatformNotificationEmitter
+	clock                 clock.Clock
+	signer                signer
 }
 
 func NewService(options Options) Service {
@@ -65,17 +71,23 @@ func NewService(options Options) Service {
 		notifs = noopNotificationEmitter{}
 	}
 
+	platformNotifs := options.PlatformNotifications
+	if platformNotifs == nil {
+		platformNotifs = noopPlatformNotificationEmitter{}
+	}
+
 	secret := strings.TrimSpace(options.SigningSecret)
 	if secret == "" {
 		secret = "change-me-callback-signing-secret"
 	}
 
 	return &service{
-		repository:    options.Repository,
-		dispatcher:    dispatcher,
-		notifications: notifs,
-		clock:         now,
-		signer:        newSigner(secret),
+		repository:            options.Repository,
+		dispatcher:            dispatcher,
+		notifications:         notifs,
+		platformNotifications: platformNotifs,
+		clock:                 now,
+		signer:                newSigner(secret),
 	}
 }
 
@@ -188,10 +200,12 @@ func (s *service) processCallback(ctx context.Context, callback DueOutboundCallb
 	status := StatusRetrying
 	var notificationTitle string
 	var notificationBody string
+	var platformNotificationBody string
 	if nextRetry == nil {
 		status = StatusFailed
 		notificationTitle = "Callback delivery gagal"
 		notificationBody = fmt.Sprintf("Callback %s ke endpoint toko gagal setelah %d percobaan.", callback.EventType, attemptNo)
+		platformNotificationBody = fmt.Sprintf("Callback %s untuk store %s gagal setelah %d percobaan.", callback.EventType, callback.StoreID, attemptNo)
 	}
 
 	err := s.repository.RecordAttempt(ctx, RecordAttemptParams{
@@ -216,6 +230,7 @@ func (s *service) processCallback(ctx context.Context, callback DueOutboundCallb
 			notificationTitle,
 			notificationBody,
 		)
+		s.platformNotifications.Emit("callback.delivery_failed", notificationTitle, platformNotificationBody)
 		summary.Failed++
 	} else {
 		summary.Retrying++
@@ -233,3 +248,7 @@ func (noopDispatcher) Dispatch(context.Context, DueOutboundCallback) (DispatchRe
 type noopNotificationEmitter struct{}
 
 func (noopNotificationEmitter) Emit(string, string, string, string) {}
+
+type noopPlatformNotificationEmitter struct{}
+
+func (noopPlatformNotificationEmitter) Emit(string, string, string) {}

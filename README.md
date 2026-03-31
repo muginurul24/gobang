@@ -175,6 +175,7 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `member_payment.success` now enqueues one durable callback row in `outbound_callbacks`, keyed by `event_type + reference_type + reference_id` so duplicate webhooks cannot duplicate callback delivery intent.
 - The worker reads due callback rows, signs the stored payload with `X-Onixggr-Signature`, then POSTs it to the store `callback_url` with `X-Onixggr-Event`, `X-Onixggr-Delivery-ID`, and reference headers.
 - Failed callback deliveries are logged in `outbound_callback_attempts` with masked response bodies and exponential backoff for 5 retries; the last failure creates a `callback.delivery_failed` notification for the store.
+- Final `callback.delivery_failed` juga dipublish ke scope role `dev` dan `superadmin`, jadi platform stream punya error notifications lintas store tanpa menunggu polling kartu dashboard.
 - `apps/scheduler` prunes terminal callback attempts older than `CALLBACK_ATTEMPT_RETENTION_PERIOD` on `CALLBACK_ATTEMPT_PRUNE_INTERVAL`, while leaving `pending` and `retrying` callbacks untouched so retry state remains intact.
 - Local tuning uses `CALLBACK_SIGNING_SECRET`, `CALLBACK_DELIVERY_TIMEOUT`, `CALLBACK_RETRY_INTERVAL`, and `CALLBACK_RETRY_BATCH_SIZE`.
 
