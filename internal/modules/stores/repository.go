@@ -21,6 +21,76 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool}
 }
 
+func (r *Repository) AcquireLowBalanceSweepLock(ctx context.Context) (LowBalanceSweepLock, bool, error) {
+	conn, err := r.pool.Acquire(ctx)
+	if err != nil {
+		return nil, false, fmt.Errorf("acquire low balance sweep connection: %w", err)
+	}
+
+	var locked bool
+	if err := conn.QueryRow(ctx, `
+		SELECT pg_try_advisory_lock($1, $2)
+	`, lowBalanceSweepLockNamespace, 1).Scan(&locked); err != nil {
+		conn.Release()
+		return nil, false, fmt.Errorf("try low balance sweep advisory lock: %w", err)
+	}
+
+	if !locked {
+		conn.Release()
+		return nil, false, nil
+	}
+
+	return &repositoryLowBalanceSweepLock{conn: conn}, true, nil
+}
+
+func (r *Repository) ListStoresForLowBalanceSweep(ctx context.Context) ([]Store, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT
+			id,
+			owner_user_id,
+			name,
+			slug,
+			status,
+			callback_url,
+			current_balance::text,
+			low_balance_threshold::text,
+			0,
+			created_at,
+			updated_at,
+			deleted_at
+		FROM stores
+		WHERE deleted_at IS NULL
+			AND status = 'active'
+			AND low_balance_threshold IS NOT NULL
+		ORDER BY updated_at DESC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("list stores for low balance sweep: %w", err)
+	}
+	defer rows.Close()
+
+	return collectStores(rows)
+}
+
+func (r *Repository) HasRecentLowBalanceNotification(ctx context.Context, storeID string, since time.Time) (bool, error) {
+	var exists bool
+	err := r.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM notifications
+			WHERE scope_type = 'store'
+				AND scope_id = $1
+				AND event_type = 'store.low_balance'
+				AND created_at >= $2
+		)
+	`, strings.TrimSpace(storeID), since).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("check recent low balance notification: %w", err)
+	}
+
+	return exists, nil
+}
+
 func (r *Repository) ListStoresForOwner(ctx context.Context, ownerUserID string) ([]Store, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT
@@ -650,6 +720,31 @@ func collectStores(rows pgx.Rows) ([]Store, error) {
 	}
 
 	return stores, nil
+}
+
+type repositoryLowBalanceSweepLock struct {
+	conn *pgxpool.Conn
+}
+
+func (l *repositoryLowBalanceSweepLock) Unlock(ctx context.Context) error {
+	if l == nil || l.conn == nil {
+		return nil
+	}
+
+	var unlocked bool
+	err := l.conn.QueryRow(ctx, `
+		SELECT pg_advisory_unlock($1, $2)
+	`, lowBalanceSweepLockNamespace, 1).Scan(&unlocked)
+	l.conn.Release()
+	l.conn = nil
+	if err != nil {
+		return fmt.Errorf("unlock low balance sweep advisory lock: %w", err)
+	}
+	if !unlocked {
+		return fmt.Errorf("unlock low balance sweep advisory lock: lock not held")
+	}
+
+	return nil
 }
 
 func duplicateSlug(err error) bool {

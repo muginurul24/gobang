@@ -10,10 +10,15 @@ import (
 
 	"github.com/mugiew/onixggr/internal/modules/audit"
 	"github.com/mugiew/onixggr/internal/modules/chat"
+	"github.com/mugiew/onixggr/internal/modules/ledger"
+	"github.com/mugiew/onixggr/internal/modules/notifications"
 	"github.com/mugiew/onixggr/internal/modules/providercatalog"
+	"github.com/mugiew/onixggr/internal/modules/stores"
 	"github.com/mugiew/onixggr/internal/platform/config"
 	"github.com/mugiew/onixggr/internal/platform/db"
 	"github.com/mugiew/onixggr/internal/platform/nexusggr"
+	platformrealtime "github.com/mugiew/onixggr/internal/platform/realtime"
+	redisclient "github.com/mugiew/onixggr/internal/platform/redis"
 )
 
 func main() {
@@ -33,6 +38,29 @@ func main() {
 	}
 	defer pool.Close()
 
+	var realtimeHub *platformrealtime.Hub
+	redis, err := redisclient.Open(ctx, cfg.Redis)
+	if err != nil {
+		log.Printf("scheduler realtime disabled: %v", err)
+	} else {
+		defer func() {
+			if err := redis.Close(); err != nil {
+				log.Printf("close scheduler redis: %v", err)
+			}
+		}()
+
+		realtimeHub, err = platformrealtime.NewHub(ctx, redis)
+		if err != nil {
+			log.Printf("scheduler realtime hub disabled: %v", err)
+		} else {
+			defer func() {
+				if err := realtimeHub.Close(); err != nil {
+					log.Printf("close scheduler realtime hub: %v", err)
+				}
+			}()
+		}
+	}
+
 	service := providercatalog.NewService(providercatalog.Options{
 		Repository: providercatalog.NewRepository(pool),
 		Upstream: nexusggr.NewClient(nexusggr.Config{
@@ -51,6 +79,17 @@ func main() {
 		Clock:           nil,
 		RetentionPeriod: cfg.Chat.RetentionPeriod,
 	})
+	notificationService := notifications.NewService(notifications.Options{
+		Repository: notifications.NewRepository(pool),
+		Hub:        realtimeHub,
+		Logger:     slog.Default(),
+	})
+	lowBalanceMonitor := stores.NewLowBalanceMonitor(stores.LowBalanceMonitorOptions{
+		Repository:    stores.NewRepository(pool),
+		Ledger:        ledger.NewService(ledger.NewRepository(pool)),
+		Notifications: notifications.NewStoreEmitter(notifications.NewAsyncEmitter(notificationService, slog.Default())),
+		Cooldown:      cfg.Alert.LowBalanceCooldown,
+	})
 
 	interval := cfg.ProviderCatalog.SyncInterval
 	if interval <= 0 {
@@ -60,6 +99,7 @@ func main() {
 	go runProviderCatalogSync(ctx, service, interval)
 	go runAuditRetentionPrune(ctx, auditService, cfg.Audit.PruneInterval)
 	go runChatRetentionPrune(ctx, chatService, cfg.Chat.PruneInterval)
+	go runLowBalanceSweep(ctx, lowBalanceMonitor, cfg.Alert.LowBalanceSweepInterval)
 
 	<-ctx.Done()
 	log.Println("scheduler stopped")
@@ -134,6 +174,48 @@ func runChatRetentionPrune(ctx context.Context, service chat.Service, interval t
 		}
 
 		log.Printf("chat retention prune complete: %d message(s) removed", pruned)
+	}
+
+	runOnce()
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			runOnce()
+		}
+	}
+}
+
+func runLowBalanceSweep(ctx context.Context, monitor stores.LowBalanceMonitor, interval time.Duration) {
+	if interval <= 0 {
+		interval = 15 * time.Minute
+	}
+
+	runOnce := func() {
+		result, err := monitor.Sweep(ctx)
+		if err != nil {
+			log.Printf("low balance sweep failed: %v", err)
+			return
+		}
+
+		if result.SkippedLocked {
+			log.Printf("low balance sweep skipped: lock already held")
+			return
+		}
+
+		log.Printf(
+			"low balance sweep complete: scanned=%d alerted=%d skipped_healthy=%d skipped_cooldown=%d errors=%d",
+			result.Scanned,
+			result.Alerted,
+			result.SkippedHealthy,
+			result.SkippedCooldown,
+			result.Errors,
+		)
 	}
 
 	runOnce()

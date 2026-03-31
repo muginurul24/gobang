@@ -43,6 +43,8 @@ func TestLoadDefaults(t *testing.T) {
 		"NEXUSGGR_AGENT_TOKEN",
 		"NEXUSGGR_TIMEOUT",
 		"PROVIDER_CATALOG_SYNC_INTERVAL",
+		"LOW_BALANCE_SWEEP_INTERVAL",
+		"LOW_BALANCE_ALERT_COOLDOWN",
 		"GAME_RECONCILE_INTERVAL",
 		"GAME_RECONCILE_BATCH_SIZE",
 		"QRIS_RECONCILE_INTERVAL",
@@ -97,6 +99,8 @@ func TestLoadOverrides(t *testing.T) {
 	t.Setenv("CALLBACK_DELIVERY_TIMEOUT", "12s")
 	t.Setenv("NEXUSGGR_TIMEOUT", "25s")
 	t.Setenv("PROVIDER_CATALOG_SYNC_INTERVAL", "45m")
+	t.Setenv("LOW_BALANCE_SWEEP_INTERVAL", "20m")
+	t.Setenv("LOW_BALANCE_ALERT_COOLDOWN", "8h")
 	t.Setenv("GAME_RECONCILE_INTERVAL", "45s")
 	t.Setenv("GAME_RECONCILE_BATCH_SIZE", "77")
 	t.Setenv("QRIS_RECONCILE_INTERVAL", "35s")
@@ -146,6 +150,14 @@ func TestLoadOverrides(t *testing.T) {
 
 	if cfg.ProviderCatalog.SyncInterval != 45*time.Minute {
 		t.Fatalf("ProviderCatalog.SyncInterval = %v, want 45m", cfg.ProviderCatalog.SyncInterval)
+	}
+
+	if cfg.Alert.LowBalanceSweepInterval != 20*time.Minute {
+		t.Fatalf("Alert.LowBalanceSweepInterval = %v, want 20m", cfg.Alert.LowBalanceSweepInterval)
+	}
+
+	if cfg.Alert.LowBalanceCooldown != 8*time.Hour {
+		t.Fatalf("Alert.LowBalanceCooldown = %v, want 8h", cfg.Alert.LowBalanceCooldown)
 	}
 
 	if cfg.Worker.GameReconcileInterval != 45*time.Second {

@@ -18,6 +18,7 @@ type Config struct {
 	QRIS            QRISConfig
 	NexusGGR        NexusGGRConfig
 	ProviderCatalog ProviderCatalogConfig
+	Alert           AlertConfig
 	Worker          WorkerConfig
 	Audit           AuditConfig
 	Chat            ChatConfig
@@ -96,6 +97,11 @@ type ProviderCatalogConfig struct {
 	SyncInterval time.Duration
 }
 
+type AlertConfig struct {
+	LowBalanceSweepInterval time.Duration
+	LowBalanceCooldown      time.Duration
+}
+
 type WorkerConfig struct {
 	GameReconcileInterval      time.Duration
 	GameReconcileBatchSize     int
@@ -158,6 +164,16 @@ func Load() (Config, error) {
 	}
 
 	providerCatalogSyncInterval, err := envDuration("PROVIDER_CATALOG_SYNC_INTERVAL", 30*time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
+
+	lowBalanceSweepInterval, err := envDuration("LOW_BALANCE_SWEEP_INTERVAL", 15*time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
+
+	lowBalanceCooldown, err := envDuration("LOW_BALANCE_ALERT_COOLDOWN", 6*time.Hour)
 	if err != nil {
 		return Config{}, err
 	}
@@ -268,6 +284,10 @@ func Load() (Config, error) {
 		},
 		ProviderCatalog: ProviderCatalogConfig{
 			SyncInterval: providerCatalogSyncInterval,
+		},
+		Alert: AlertConfig{
+			LowBalanceSweepInterval: lowBalanceSweepInterval,
+			LowBalanceCooldown:      lowBalanceCooldown,
 		},
 		Worker: WorkerConfig{
 			GameReconcileInterval:      gameReconcileInterval,

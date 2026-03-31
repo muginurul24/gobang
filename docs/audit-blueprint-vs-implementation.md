@@ -5,8 +5,8 @@
 - Audit basis: `docs/blueprint.md`, `docs/database-final.md`, `docs/plan-execution.md`, dan implementasi saat ini di `main`.
 - Audit order mengikuti prioritas production review: money flow, RBAC, idempotency/reconcile, persistence, worker/scheduler, frontend parity, ops, lalu docs drift.
 - Total checks: `28`
-- `PASS`: `23`
-- `PARTIAL`: `1`
+- `PASS`: `24`
+- `PARTIAL`: `0`
 - `FAIL`: `0`
 - `NOT_IMPLEMENTED`: `3`
 - `INTENTIONAL_DEVIATION`: `1`
@@ -70,7 +70,7 @@ Severity rubric:
 | Check | Blueprint rule | Current implementation | Status | Severity | Action |
 |---|---|---|---|---|---|
 | Background job coverage | QRIS reconcile, game reconcile, withdraw checker, callback retry, provider sync, audit prune, chat prune harus ada | `apps/worker/main.go` dan `apps/scheduler/main.go` sudah menjalankan seluruh job tersebut | PASS | High | Tidak ada aksi |
-| Low balance alerts coverage | Low balance alerts harus operasional, bukan hanya best effort | Event `store.low_balance` hanya di-emit inline setelah `game.deposit.success` dan `withdraw.success`; tidak ada periodic catch-up scan untuk store yang sudah low balance dari awal atau missed event | PARTIAL | Medium | Tambahkan scheduler scan low balance, atau dokumentasikan bahwa alert hanya fire on downward balance mutations |
+| Low balance alerts coverage | Low balance alerts harus operasional, bukan hanya best effort | `apps/scheduler` sekarang menjalankan low-balance sweep periodik melalui `stores.LowBalanceMonitor`, cek `available_balance` dari ledger, dan menahan repeat alert lewat cooldown notification | PASS | Medium | Tidak ada aksi |
 
 ## Domain: Frontend Parity
 
@@ -102,7 +102,6 @@ Severity rubric:
 
 - Tambahkan stale session cleanup untuk `user_sessions`.
 - Tambahkan retention cleanup untuk `outbound_callback_attempts`.
-- Tambahkan periodic low-balance sweep agar store yang sudah low balance sejak awal tetap menghasilkan alert operasional.
 
 ## Intentional Deviations from Blueprint
 

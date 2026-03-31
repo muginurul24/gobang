@@ -37,12 +37,12 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `./scripts/bootstrap-staging.sh`: apply migrations and upsert the demo baseline without dropping existing schema objects.
 - `./appctl sync providers`: pull provider list and game list from NexusGGR, then upsert the local catalog tables.
 - `./appctl worker run`: start the background worker and process game reconcile backlog, QRIS check-status reconcile, withdraw status checks, and outbound callback retries.
-- `./appctl scheduler run`: start the scheduler and periodically refresh the provider catalog.
+- `./appctl scheduler run`: start the scheduler and periodically refresh the provider catalog, sweep low-balance alerts, and prune retained data.
 - `./scripts/podman-up.sh`: start PostgreSQL, Redis, API, and web in one command via Podman Compose.
 - `npm run perf:k6`: run the Hari 43 k6 baseline with local PostgreSQL, Redis, mock upstreams, and the API bound to `127.0.0.1`.
 - `go run ./apps/api`: starts the API and exposes `/health/live` plus `/health/ready`.
 - `go run ./apps/worker`: starts the background worker and periodically resolves game transactions in `pending_reconcile`, QRIS pending transactions, store withdraw status checks, plus outbound callback retries.
-- `go run ./apps/scheduler`: starts the scheduler and periodically refreshes the local provider catalog.
+- `go run ./apps/scheduler`: starts the scheduler and periodically refreshes the local provider catalog, sweeps low-balance alerts, and runs retention jobs.
 - `npm run dev:web`: starts the SvelteKit shell with public, auth, and app layouts.
 
 ## Performance Baseline
@@ -120,6 +120,7 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `GET /v1/catalog/providers`: browse and search synced providers with optional `query`, `status`, and `limit`.
 - `GET /v1/catalog/games`: browse and search synced games with optional `provider_code`, `query`, `status`, and `limit`.
 - `apps/scheduler` now runs periodic provider catalog syncs using `PROVIDER_CATALOG_SYNC_INTERVAL`.
+- `apps/scheduler` also runs low-balance catch-up sweeps using `LOW_BALANCE_SWEEP_INTERVAL` with duplicate suppression via `LOW_BALANCE_ALERT_COOLDOWN`.
 - The dashboard now includes `/app/catalog` for provider/game browse and filter against the local PostgreSQL catalog.
 
 ## QRIS / VA Wrapper
