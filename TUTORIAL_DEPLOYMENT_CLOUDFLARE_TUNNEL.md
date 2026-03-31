@@ -71,13 +71,12 @@ Script `deploy.sh` sekarang mengikuti urutan ini:
 4. start `postgres` dan `redis`
 5. tunggu keduanya sehat
 6. build image `manage`
-7. create container `manage` satu kali
-8. jalankan migration lewat `podman start -a ${COMPOSE_PROJECT_NAME}_manage_1`
-9. start `api`, `worker`, `scheduler`, `web`, dan `proxy`
-10. verifikasi `api`, `web`, `worker`, `scheduler`, dan `proxy` benar-benar running
-11. verifikasi `http://127.0.0.1:18080/health/live`
-12. verifikasi `http://127.0.0.1:18080/health/ready`
-13. menghapus lagi `deploy/production/.env` sementara
+7. jalankan migration lewat `podman compose up --no-deps manage`
+8. start `api`, `worker`, `scheduler`, `web`, dan `proxy`
+9. verifikasi `api`, `web`, `worker`, `scheduler`, dan `proxy` benar-benar running
+10. verifikasi `http://127.0.0.1:18080/health/live`
+11. verifikasi `http://127.0.0.1:18080/health/ready`
+12. menghapus lagi `deploy/production/.env` sementara
 
 Ini penting karena health API saja tidak cukup. Pada kasus nyata tadi, `worker` dan `scheduler` sempat mati walau `api` sudah hidup. Script sekarang menolak kondisi seperti itu.
 
@@ -268,9 +267,7 @@ cp deploy/production/env.production deploy/production/.env
 cd deploy/production
 podman compose -f docker-compose.yml -f ../cloudflare-tunnel/docker-compose.override.yml up -d --build postgres redis
 podman compose -f docker-compose.yml -f ../cloudflare-tunnel/docker-compose.override.yml build manage
-podman rm -f "${COMPOSE_PROJECT_NAME}_manage_1" || true
-podman compose -f docker-compose.yml -f ../cloudflare-tunnel/docker-compose.override.yml create manage
-podman start -a "${COMPOSE_PROJECT_NAME}_manage_1"
+podman compose -f docker-compose.yml -f ../cloudflare-tunnel/docker-compose.override.yml up --no-deps manage
 podman compose -f docker-compose.yml -f ../cloudflare-tunnel/docker-compose.override.yml up -d --build api worker scheduler web proxy
 
 rm -f .env
@@ -345,9 +342,7 @@ podman compose -f docker-compose.yml -f ../cloudflare-tunnel/docker-compose.over
 Jalankan migration:
 
 ```bash
-podman rm -f "${COMPOSE_PROJECT_NAME}_manage_1" || true
-podman compose -f docker-compose.yml -f ../cloudflare-tunnel/docker-compose.override.yml create manage
-podman start -a "${COMPOSE_PROJECT_NAME}_manage_1"
+podman compose -f docker-compose.yml -f ../cloudflare-tunnel/docker-compose.override.yml up --no-deps manage
 ```
 
 Naikkan app stack:
@@ -465,9 +460,7 @@ Catatan:
 Jadi jalur yang dipakai helper final adalah:
 
 ```bash
-podman rm -f "${COMPOSE_PROJECT_NAME}_manage_1" || true
-podman compose -f docker-compose.yml -f ../cloudflare-tunnel/docker-compose.override.yml create manage
-podman start -a "${COMPOSE_PROJECT_NAME}_manage_1"
+podman compose -f docker-compose.yml -f ../cloudflare-tunnel/docker-compose.override.yml up --no-deps manage
 ```
 
 ## 13. Install Cloudflare Tunnel
