@@ -1470,10 +1470,10 @@ Siap go-live.
 
 ### Checklist
 
-- [ ] secrets rotated
-- [ ] monitoring active
-- [ ] rollback ready
-- [ ] backup ready
+- [x] secrets rotated
+- [x] monitoring active
+- [x] rollback ready
+- [x] backup ready
 
 ---
 

@@ -1,0 +1,259 @@
+services:
+  postgres:
+    image: docker.io/library/postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  redis:
+    image: docker.io/library/redis:7-alpine
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes', '--requirepass', '${REDIS_PASSWORD}']
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli -a "${REDIS_PASSWORD}" ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - redis-data:/data
+
+  manage:
+    build:
+      context: ../..
+      dockerfile: deploy/staging/Dockerfile.app
+      args:
+        TARGET_PACKAGE: ./apps/manage
+    environment:
+      APP_NAME: ${APP_NAME}
+      APP_ENV: ${APP_ENV}
+      APP_TIMEZONE: ${APP_TIMEZONE}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      DATABASE_MAX_OPEN_CONNS: ${DATABASE_MAX_OPEN_CONNS}
+      DATABASE_MAX_IDLE_CONNS: ${DATABASE_MAX_IDLE_CONNS}
+      DATABASE_CONN_MAX_LIFETIME: ${DATABASE_CONN_MAX_LIFETIME}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DB: ${REDIS_DB}
+      AUTH_ENCRYPTION_KEY: ${AUTH_ENCRYPTION_KEY}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      SESSION_TTL: ${SESSION_TTL}
+      STORE_LOW_BALANCE_THRESHOLD: ${STORE_LOW_BALANCE_THRESHOLD}
+      MEMBER_PAYMENT_PLATFORM_FEE_PERCENT: ${MEMBER_PAYMENT_PLATFORM_FEE_PERCENT}
+      STORE_WITHDRAW_PLATFORM_FEE_PERCENT: ${STORE_WITHDRAW_PLATFORM_FEE_PERCENT}
+      QRIS_BANK_INQUIRY_AMOUNT: ${QRIS_BANK_INQUIRY_AMOUNT}
+      QRIS_BANK_INQUIRY_TYPE: ${QRIS_BANK_INQUIRY_TYPE}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ['migrate', 'up']
+
+  api:
+    build:
+      context: ../..
+      dockerfile: deploy/staging/Dockerfile.app
+      args:
+        TARGET_PACKAGE: ./apps/api
+    restart: unless-stopped
+    environment:
+      APP_NAME: ${APP_NAME}
+      APP_ENV: ${APP_ENV}
+      APP_URL: ${APP_URL}
+      APP_TIMEZONE: ${APP_TIMEZONE}
+      APP_LOG_LEVEL: ${APP_LOG_LEVEL}
+      HTTP_ADDRESS: :8080
+      BANK_DIRECTORY_PATH: /app/docs/Bank RTOL.json
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      DATABASE_MAX_OPEN_CONNS: ${DATABASE_MAX_OPEN_CONNS}
+      DATABASE_MAX_IDLE_CONNS: ${DATABASE_MAX_IDLE_CONNS}
+      DATABASE_CONN_MAX_LIFETIME: ${DATABASE_CONN_MAX_LIFETIME}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DB: ${REDIS_DB}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL}
+      SESSION_TTL: ${SESSION_TTL}
+      PASSWORD_BCRYPT_COST: ${PASSWORD_BCRYPT_COST}
+      AUTH_ENCRYPTION_KEY: ${AUTH_ENCRYPTION_KEY}
+      TOTP_ENROLLMENT_TTL: ${TOTP_ENROLLMENT_TTL}
+      LOGIN_ATTEMPT_WINDOW: ${LOGIN_ATTEMPT_WINDOW}
+      LOGIN_MAX_ATTEMPTS_PER_IP: ${LOGIN_MAX_ATTEMPTS_PER_IP}
+      LOGIN_MAX_ATTEMPTS_PER_IDENTIFIER: ${LOGIN_MAX_ATTEMPTS_PER_IDENTIFIER}
+      MIN_TRANSACTION_AMOUNT: ${MIN_TRANSACTION_AMOUNT}
+      STORE_LOW_BALANCE_THRESHOLD: ${STORE_LOW_BALANCE_THRESHOLD}
+      MEMBER_PAYMENT_PLATFORM_FEE_PERCENT: ${MEMBER_PAYMENT_PLATFORM_FEE_PERCENT}
+      STORE_WITHDRAW_PLATFORM_FEE_PERCENT: ${STORE_WITHDRAW_PLATFORM_FEE_PERCENT}
+      CALLBACK_SIGNING_SECRET: ${CALLBACK_SIGNING_SECRET}
+      CALLBACK_DELIVERY_TIMEOUT: ${CALLBACK_DELIVERY_TIMEOUT}
+      QRIS_BASE_URL: ${QRIS_BASE_URL}
+      QRIS_CLIENT: ${QRIS_CLIENT}
+      QRIS_CLIENT_KEY: ${QRIS_CLIENT_KEY}
+      QRIS_GLOBAL_UUID: ${QRIS_GLOBAL_UUID}
+      QRIS_DEFAULT_EXPIRE_SECONDS: ${QRIS_DEFAULT_EXPIRE_SECONDS}
+      QRIS_BANK_INQUIRY_AMOUNT: ${QRIS_BANK_INQUIRY_AMOUNT}
+      QRIS_BANK_INQUIRY_TYPE: ${QRIS_BANK_INQUIRY_TYPE}
+      QRIS_WEBHOOK_SHARED_SECRET: ${QRIS_WEBHOOK_SHARED_SECRET}
+      NEXUSGGR_BASE_URL: ${NEXUSGGR_BASE_URL}
+      NEXUSGGR_AGENT_CODE: ${NEXUSGGR_AGENT_CODE}
+      NEXUSGGR_AGENT_TOKEN: ${NEXUSGGR_AGENT_TOKEN}
+      NEXUSGGR_TIMEOUT: ${NEXUSGGR_TIMEOUT}
+      PROVIDER_CATALOG_SYNC_INTERVAL: ${PROVIDER_CATALOG_SYNC_INTERVAL}
+      GAME_RECONCILE_INTERVAL: ${GAME_RECONCILE_INTERVAL}
+      GAME_RECONCILE_BATCH_SIZE: ${GAME_RECONCILE_BATCH_SIZE}
+      QRIS_RECONCILE_INTERVAL: ${QRIS_RECONCILE_INTERVAL}
+      QRIS_RECONCILE_BATCH_SIZE: ${QRIS_RECONCILE_BATCH_SIZE}
+      WITHDRAW_RECONCILE_INTERVAL: ${WITHDRAW_RECONCILE_INTERVAL}
+      WITHDRAW_RECONCILE_BATCH_SIZE: ${WITHDRAW_RECONCILE_BATCH_SIZE}
+      CALLBACK_RETRY_INTERVAL: ${CALLBACK_RETRY_INTERVAL}
+      CALLBACK_RETRY_BATCH_SIZE: ${CALLBACK_RETRY_BATCH_SIZE}
+      AUDIT_RETENTION_PERIOD: ${AUDIT_RETENTION_PERIOD}
+      AUDIT_PRUNE_INTERVAL: ${AUDIT_PRUNE_INTERVAL}
+      CHAT_RETENTION_PERIOD: ${CHAT_RETENTION_PERIOD}
+      CHAT_PRUNE_INTERVAL: ${CHAT_PRUNE_INTERVAL}
+      WS_HEARTBEAT_SECONDS: ${WS_HEARTBEAT_SECONDS}
+      METRICS_ENABLED: ${METRICS_ENABLED}
+      PROMETHEUS_PORT: ${PROMETHEUS_PORT}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://127.0.0.1:8080/health/live >/dev/null || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: deploy/staging/Dockerfile.app
+      args:
+        TARGET_PACKAGE: ./apps/worker
+    restart: unless-stopped
+    environment:
+      APP_NAME: ${APP_NAME}
+      APP_ENV: ${APP_ENV}
+      APP_TIMEZONE: ${APP_TIMEZONE}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      DATABASE_MAX_OPEN_CONNS: ${DATABASE_MAX_OPEN_CONNS}
+      DATABASE_MAX_IDLE_CONNS: ${DATABASE_MAX_IDLE_CONNS}
+      DATABASE_CONN_MAX_LIFETIME: ${DATABASE_CONN_MAX_LIFETIME}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DB: ${REDIS_DB}
+      AUTH_ENCRYPTION_KEY: ${AUTH_ENCRYPTION_KEY}
+      CALLBACK_SIGNING_SECRET: ${CALLBACK_SIGNING_SECRET}
+      CALLBACK_DELIVERY_TIMEOUT: ${CALLBACK_DELIVERY_TIMEOUT}
+      QRIS_BASE_URL: ${QRIS_BASE_URL}
+      QRIS_CLIENT: ${QRIS_CLIENT}
+      QRIS_CLIENT_KEY: ${QRIS_CLIENT_KEY}
+      QRIS_GLOBAL_UUID: ${QRIS_GLOBAL_UUID}
+      QRIS_BANK_INQUIRY_TYPE: ${QRIS_BANK_INQUIRY_TYPE}
+      NEXUSGGR_BASE_URL: ${NEXUSGGR_BASE_URL}
+      NEXUSGGR_AGENT_CODE: ${NEXUSGGR_AGENT_CODE}
+      NEXUSGGR_AGENT_TOKEN: ${NEXUSGGR_AGENT_TOKEN}
+      NEXUSGGR_TIMEOUT: ${NEXUSGGR_TIMEOUT}
+      GAME_RECONCILE_INTERVAL: ${GAME_RECONCILE_INTERVAL}
+      GAME_RECONCILE_BATCH_SIZE: ${GAME_RECONCILE_BATCH_SIZE}
+      QRIS_RECONCILE_INTERVAL: ${QRIS_RECONCILE_INTERVAL}
+      QRIS_RECONCILE_BATCH_SIZE: ${QRIS_RECONCILE_BATCH_SIZE}
+      WITHDRAW_RECONCILE_INTERVAL: ${WITHDRAW_RECONCILE_INTERVAL}
+      WITHDRAW_RECONCILE_BATCH_SIZE: ${WITHDRAW_RECONCILE_BATCH_SIZE}
+      CALLBACK_RETRY_INTERVAL: ${CALLBACK_RETRY_INTERVAL}
+      CALLBACK_RETRY_BATCH_SIZE: ${CALLBACK_RETRY_BATCH_SIZE}
+      STORE_LOW_BALANCE_THRESHOLD: ${STORE_LOW_BALANCE_THRESHOLD}
+      MEMBER_PAYMENT_PLATFORM_FEE_PERCENT: ${MEMBER_PAYMENT_PLATFORM_FEE_PERCENT}
+      STORE_WITHDRAW_PLATFORM_FEE_PERCENT: ${STORE_WITHDRAW_PLATFORM_FEE_PERCENT}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  scheduler:
+    build:
+      context: ../..
+      dockerfile: deploy/staging/Dockerfile.app
+      args:
+        TARGET_PACKAGE: ./apps/scheduler
+    restart: unless-stopped
+    environment:
+      APP_NAME: ${APP_NAME}
+      APP_ENV: ${APP_ENV}
+      APP_TIMEZONE: ${APP_TIMEZONE}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      DATABASE_MAX_OPEN_CONNS: ${DATABASE_MAX_OPEN_CONNS}
+      DATABASE_MAX_IDLE_CONNS: ${DATABASE_MAX_IDLE_CONNS}
+      DATABASE_CONN_MAX_LIFETIME: ${DATABASE_CONN_MAX_LIFETIME}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DB: ${REDIS_DB}
+      NEXUSGGR_BASE_URL: ${NEXUSGGR_BASE_URL}
+      NEXUSGGR_AGENT_CODE: ${NEXUSGGR_AGENT_CODE}
+      NEXUSGGR_AGENT_TOKEN: ${NEXUSGGR_AGENT_TOKEN}
+      NEXUSGGR_TIMEOUT: ${NEXUSGGR_TIMEOUT}
+      PROVIDER_CATALOG_SYNC_INTERVAL: ${PROVIDER_CATALOG_SYNC_INTERVAL}
+      AUDIT_RETENTION_PERIOD: ${AUDIT_RETENTION_PERIOD}
+      AUDIT_PRUNE_INTERVAL: ${AUDIT_PRUNE_INTERVAL}
+      CHAT_RETENTION_PERIOD: ${CHAT_RETENTION_PERIOD}
+      CHAT_PRUNE_INTERVAL: ${CHAT_PRUNE_INTERVAL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ../..
+      dockerfile: deploy/staging/Dockerfile.web
+    restart: unless-stopped
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+      ORIGIN: ${APP_URL}
+      PUBLIC_API_BASE_URL:
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://127.0.0.1:3000/ >/dev/null || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  proxy:
+    image: docker.io/library/caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      PRODUCTION_DOMAIN: ${PRODUCTION_DOMAIN}
+      TLS_EMAIL: ${TLS_EMAIL}
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    ports:
+      - '${PRODUCTION_HTTP_PORT:-80}:80'
+      - '${PRODUCTION_HTTPS_PORT:-443}:443'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  postgres-data:
+  redis-data:
+  caddy-data:
+  caddy-config:

@@ -11,3 +11,5 @@ apps/web/dist
 coverage.out
 deploy/staging/env.staging
 deploy/staging/backups
+deploy/production/env.production
+deploy/production/backups

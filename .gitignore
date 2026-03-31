@@ -27,3 +27,7 @@ apps/web/node_modules/
 # Local staging artifacts
 deploy/staging/env.staging
 deploy/staging/backups/
+
+# Local production artifacts
+deploy/production/env.production
+deploy/production/backups/

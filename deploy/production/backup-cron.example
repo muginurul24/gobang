@@ -1,0 +1,5 @@
+# Daily PostgreSQL backup at 02:15 server time.
+15 2 * * * cd /srv/onixggr && ./deploy/production/backup-db.sh >> /var/log/onixggr/backup.log 2>&1
+
+# Weekly restore drill every Sunday at 04:00 using the newest dump.
+0 4 * * 0 cd /srv/onixggr && latest="$(ls -1t deploy/production/backups/*.dump | head -n1)" && ./deploy/production/restore-db.sh "$latest" >> /var/log/onixggr/restore-drill.log 2>&1
