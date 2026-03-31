@@ -147,7 +147,7 @@ Index:
 | name | text | |
 | slug | citext unique | |
 | status | text | active/inactive/banned/deleted |
-| api_token_hash | text | 1 token per store |
+| api_token_hash | text | 1 token per store, plaintext tidak disimpan dan hanya one-time reveal saat create/rotate |
 | callback_url | text | full visible to owner/superadmin/dev |
 | current_balance | numeric(20,2) | projection/cache, source of truth tetap ledger |
 | low_balance_threshold | numeric(20,2) | bisa override env bila suatu saat dibutuhkan; jika tidak, nullable |

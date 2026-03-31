@@ -755,7 +755,10 @@ Gunakan **WebSocket** untuk:
 ## 10.4 Store token
 - 1 toko = 1 token
 - token disimpan hashed
-- owner dan superadmin bisa melihat full token
+- plaintext token hanya di-reveal sekali saat create atau rotate
+- setelah itu token tidak bisa diambil lagi dari dashboard
+- owner membuat token awal saat create store
+- owner dan superadmin bisa rotate untuk menerbitkan token baru
 - rotate token mematikan token lama langsung
 
 ## 10.5 Callback security
@@ -950,7 +953,7 @@ Index:
 | name | text | |
 | slug | citext unique | |
 | status | text | active/inactive/banned/deleted |
-| api_token_hash | text | 1 token per store |
+| api_token_hash | text | 1 token per store, plaintext hanya one-time reveal saat create/rotate |
 | callback_url | text | full visible to owner/superadmin/dev |
 | current_balance | numeric(20,2) | projection/cache, source of truth tetap ledger |
 | low_balance_threshold | numeric(20,2) | bisa override env bila suatu saat dibutuhkan; jika tidak, nullable |

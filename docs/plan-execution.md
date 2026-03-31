@@ -424,7 +424,7 @@ Menyelesaikan integration settings toko.
 - rotate token -> token lama mati
 - simpan hash token
 - callback URL update
-- full token visible untuk owner/superadmin
+- plaintext token hanya one-time reveal saat create/rotate
 - full callback URL visible untuk owner/superadmin
 - audit token & callback change
 

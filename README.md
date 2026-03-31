@@ -86,10 +86,10 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 ## Store & Audit APIs
 
 - `GET /v1/stores`: list stores by role scope.
-- `POST /v1/stores`: owner-only store creation and returns one-time `api_token`.
+- `POST /v1/stores`: owner-only store creation and returns one-time `api_token`; plaintext token is not retrievable again afterward.
 - `PATCH /v1/stores/{storeID}`: update store name, status, and low balance threshold.
 - `DELETE /v1/stores/{storeID}`: soft delete a store.
-- `POST /v1/stores/{storeID}/token`: rotate store token and return the new plaintext token once.
+- `POST /v1/stores/{storeID}/token`: rotate store token and return the new plaintext token once; owner and superadmin use rotate to re-issue because only the hash is stored.
 - `PUT /v1/stores/{storeID}/callback-url`: set or clear the callback URL.
 - `GET /v1/stores/{storeID}/staff`: list store staff for non-karyawan roles in scope.
 - `GET /v1/staff/users`: owner-only employee list.

@@ -5,8 +5,8 @@
 - Audit basis: `docs/blueprint.md`, `docs/database-final.md`, `docs/plan-execution.md`, dan implementasi saat ini di `main`.
 - Audit order mengikuti prioritas production review: money flow, RBAC, idempotency/reconcile, persistence, worker/scheduler, frontend parity, ops, lalu docs drift.
 - Total checks: `28`
-- `PASS`: `19`
-- `PARTIAL`: `3`
+- `PASS`: `20`
+- `PARTIAL`: `2`
 - `FAIL`: `1`
 - `NOT_IMPLEMENTED`: `4`
 - `INTENTIONAL_DEVIATION`: `1`
@@ -44,7 +44,7 @@ Severity rubric:
 | Tenant scoping owner/karyawan | Owner hanya store sendiri; karyawan hanya store relation | Store, member, notification, dashboard, dan audit access memakai owner/store_staff scope; handler tidak bypass service | PASS | Critical | Pertahankan test boundary ini |
 | Karyawan tidak boleh lihat data sensitif withdraw/bank/audit | Karyawan tidak boleh lihat callback URL penuh, token penuh, rekening withdraw, atau audit sensitif | `stores.sanitizeStore` mengosongkan `callback_url`; `api_token` disembunyikan untuk non-owner/superadmin; bank accounts dan withdrawals diblok untuk `karyawan`; audit handler menolak `karyawan` | PASS | High | Tidak ada aksi |
 | Callback URL visibility | Full callback URL visible untuk owner/superadmin/dev; karyawan masked | `internal/modules/stores/service.go:631-638` hanya mask untuk `karyawan`; UI `apps/web/src/routes/(app)/app/stores/+page.svelte` mengikuti scope itu | PASS | Medium | Tidak ada aksi |
-| Full store token visibility | Hari 11 dan security blueprint menyebut owner/superadmin bisa melihat full token | Saat list/get store, `sanitizeStore` menghapus `api_token` untuk semua selain owner/superadmin, tetapi token hanya pernah diisi saat create/rotate. UI stores juga hanya merender `revealedTokens` one-time di `apps/web/src/routes/(app)/app/stores/+page.svelte:157-161, 224-240, 592-596` | PARTIAL | Medium | Putuskan kontrak final: retrievable full token, atau ubah docs menjadi one-time reveal + rotate untuk re-issue |
+| Store token reveal model | Kontrak final: token disimpan hashed, plaintext hanya one-time reveal saat create/rotate | Implementasi stores dan UI sekarang sudah sesuai: token hanya muncul saat create/rotate, lalu hilang dari listing berikutnya | PASS | Medium | Tidak ada aksi |
 
 ## Domain: Idempotency & Reconcile
 
@@ -91,12 +91,12 @@ Severity rubric:
 
 | Check | Blueprint rule | Current implementation | Status | Severity | Action |
 |---|---|---|---|---|---|
-| Hari 11 and Hari 33 checklist accuracy | Checklist yang sudah dicentang harus benar-benar tercapai | `docs/plan-execution.md` Hari 11 sudah mencentang `full token visible untuk owner/superadmin`, dan Hari 33 mencentang `notification stream usable`, tetapi implementasi masih partial pada dua area itu | FAIL | Medium | Koreksi checklist atau tutup gap implementasi sebelum pakai docs ini sebagai go-live evidence |
+| Hari 33 checklist accuracy | Checklist yang sudah dicentang harus benar-benar tercapai | Klaim Hari 33 `notification stream usable` masih lebih maju dari implementasi frontend karena belum ada notification center/unread surface | FAIL | Medium | Koreksi checklist atau tambah consumer UI notifikasi |
 | Callback queue contract in docs | Database/blueprint harus memuat constraint penting yang dipakai produksi | Migration `000010_outbound_callbacks.up.sql` menambah unique `outbound_callbacks_event_type_reference_unique`, tetapi `docs/database-final.md` belum mencatat constraint ini | PARTIAL | Low | Update `docs/database-final.md` agar idempotency callback queue tidak hanya implisit di code |
 
 ## Must Fix Before Production
 
-- Putuskan kontrak final token toko: jika docs tetap berkata owner/superadmin bisa melihat full token, implementasi retrievable-token harus ada; jika tidak, docs dan checklist harus diubah ke one-time reveal only.
+- Tidak ada temuan `Must Fix Before Production` yang masih terbuka pada audit saat ini.
 
 ## Should Fix Soon After Launch
 
@@ -111,6 +111,5 @@ Severity rubric:
 
 ## Docs That Must Be Updated
 
-- `docs/plan-execution.md` Hari 11 dan Hari 33 perlu disinkronkan dengan implementasi aktual jika gap token visibility dan notification usability tidak langsung ditutup.
+- `docs/plan-execution.md` Hari 33 masih perlu disinkronkan dengan implementasi aktual jika notification surface frontend tidak langsung ditutup.
 - `docs/database-final.md` perlu menambahkan unique constraint callback queue `event_type + reference_type + reference_id`.
-- Jika keputusan final tetap one-time token reveal, `docs/blueprint.md` dan `docs/plan-execution.md` perlu menyatakan itu secara eksplisit agar tidak bertentangan dengan storage hashed-only saat ini.
