@@ -84,6 +84,10 @@ local_http_port() {
 	printf '%s' "${PRODUCTION_HTTP_PORT##*:}"
 }
 
+manage_container_name() {
+	printf '%s_manage_1' "${COMPOSE_PROJECT_NAME}"
+}
+
 prepare_compose_runtime_env() {
 	if [ -f "${COMPOSE_RUNTIME_ENV}" ]; then
 		COMPOSE_RUNTIME_ENV_BACKUP="${PRODUCTION_DIR}/.env.codex-backup.$$"
@@ -269,10 +273,15 @@ wait_for_redis
 log_step 2 "building manage image"
 compose build manage
 
-log_step 3 "running migrations"
-compose up manage
+log_step 3 "creating migration container"
+manage_container=$(manage_container_name)
+podman rm -f "${manage_container}" >/dev/null 2>&1 || true
+compose create manage
 
-log_step 4 "starting api worker scheduler web proxy"
+log_step 4 "running migrations"
+podman start -a "${manage_container}"
+
+log_step 5 "starting api worker scheduler web proxy"
 compose up -d --build api worker scheduler web proxy
 wait_for_service_running api
 wait_for_service_running web
@@ -280,10 +289,10 @@ wait_for_service_running worker
 wait_for_service_running scheduler
 wait_for_service_running proxy
 
-log_step 5 "waiting for origin live health"
+log_step 6 "waiting for origin live health"
 wait_for_local_proxy_live
 
-log_step 6 "waiting for origin ready health"
+log_step 7 "waiting for origin ready health"
 wait_for_local_proxy_ready
 
 printf '%s\n' \
