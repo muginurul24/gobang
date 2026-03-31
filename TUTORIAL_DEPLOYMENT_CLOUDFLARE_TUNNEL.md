@@ -139,6 +139,7 @@ Untuk mode Cloudflare Tunnel, gunakan:
 - base file: [`deploy/production/docker-compose.yml`](/home/mugiew/project/onixggr/deploy/production/docker-compose.yml)
 - override file: [`deploy/cloudflare-tunnel/docker-compose.override.yml`](/home/mugiew/project/onixggr/deploy/cloudflare-tunnel/docker-compose.override.yml)
 - internal proxy config: [`deploy/cloudflare-tunnel/Caddyfile`](/home/mugiew/project/onixggr/deploy/cloudflare-tunnel/Caddyfile)
+- helper deploy: [`deploy/cloudflare-tunnel/deploy.sh`](/home/mugiew/project/onixggr/deploy/cloudflare-tunnel/deploy.sh)
 
 Override ini melakukan dua hal:
 
@@ -152,11 +153,36 @@ Binding loopback host dikontrol oleh `deploy/production/env.production`:
 
 Dengan begitu, file compose dasar tetap bisa dipakai, tetapi origin tidak membuka `80/443` ke internet.
 
-Start infra:
+Cara yang direkomendasikan:
+
+```bash
+./deploy/cloudflare-tunnel/deploy.sh
+```
+
+Script ini akan:
+
+- me-load `deploy/production/env.production` ke shell lebih dulu
+- menghindari bug `podman-compose 1.0.6` yang sering mengabaikan interpolasi `--env-file`
+- menyalakan `postgres` dan `redis`
+- build image `manage`
+- menjalankan `migrate up`
+- menyalakan `api`, `worker`, `scheduler`, `web`, dan `proxy`
+- menunggu `http://127.0.0.1:18080/health/live` benar-benar hijau
+
+Kalau Anda tetap ingin jalan manual, wajib export env dulu:
+
+```bash
+set -a
+. deploy/production/env.production
+set +a
+```
+
+Baru setelah itu jalankan command Compose berikut.
+
+Start infra manual:
 
 ```bash
 podman compose \
-  --env-file deploy/production/env.production \
   -f deploy/production/docker-compose.yml \
   -f deploy/cloudflare-tunnel/docker-compose.override.yml \
   up -d --build postgres redis
@@ -166,7 +192,15 @@ Jalankan migration:
 
 ```bash
 podman compose \
-  --env-file deploy/production/env.production \
+  -f deploy/production/docker-compose.yml \
+  -f deploy/cloudflare-tunnel/docker-compose.override.yml \
+  build manage
+```
+
+Lalu jalankan migration:
+
+```bash
+podman compose \
   -f deploy/production/docker-compose.yml \
   -f deploy/cloudflare-tunnel/docker-compose.override.yml \
   run --rm -T manage migrate up
@@ -176,7 +210,6 @@ Naikkan app stack:
 
 ```bash
 podman compose \
-  --env-file deploy/production/env.production \
   -f deploy/production/docker-compose.yml \
   -f deploy/cloudflare-tunnel/docker-compose.override.yml \
   up -d --build api worker scheduler web proxy
@@ -315,7 +348,6 @@ Lihat logs app stack:
 
 ```bash
 podman compose \
-  --env-file deploy/production/env.production \
   -f deploy/production/docker-compose.yml \
   -f deploy/cloudflare-tunnel/docker-compose.override.yml \
   logs -f api worker scheduler web proxy
@@ -405,6 +437,7 @@ Kalau Anda ingin alur singkat untuk `app.bola788.store`, urutannya:
 
 1. isi `deploy/production/env.production`
 2. jalankan stack dengan `deploy/production/docker-compose.yml` + [`deploy/cloudflare-tunnel/docker-compose.override.yml`](/home/mugiew/project/onixggr/deploy/cloudflare-tunnel/docker-compose.override.yml)
+   atau langsung `./deploy/cloudflare-tunnel/deploy.sh`
 3. pastikan `curl http://127.0.0.1:18080/health/live` sukses
 4. buat remotely-managed tunnel di Cloudflare
 5. buat public hostname `app.bola788.store -> http://127.0.0.1:18080`

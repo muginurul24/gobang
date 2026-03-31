@@ -13,7 +13,17 @@ cleanup() {
 
 trap cleanup EXIT INT TERM
 
-rg -o 'env(?:String|Int|Int64|Bool|Duration)\("([A-Z0-9_]+)"' -r '$1' internal/platform/config/config.go | sort -u >"$config_keys_file"
+extract_config_keys() {
+	if command -v rg >/dev/null 2>&1; then
+		rg -o 'env(?:String|Int|Int64|Bool|Duration)\("([A-Z0-9_]+)"' -r '$1' internal/platform/config/config.go
+		return 0
+	fi
+
+	grep -Eo 'env(String|Int|Int64|Bool|Duration)\("[A-Z0-9_]+"' internal/platform/config/config.go |
+		sed -E 's/.*"([A-Z0-9_]+)"/\1/'
+}
+
+extract_config_keys | sort -u >"$config_keys_file"
 awk -F= '/^[A-Z0-9_]+=/{print $1}' .env.example | sort -u >"$example_keys_file"
 
 missing_config_keys="$(comm -23 "$config_keys_file" "$example_keys_file" || true)"
