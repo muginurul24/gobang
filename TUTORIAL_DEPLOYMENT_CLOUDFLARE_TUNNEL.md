@@ -66,15 +66,17 @@ File yang harus dianggap sebagai satu paket:
 Script `deploy.sh` sekarang mengikuti urutan ini:
 
 1. load `deploy/production/env.production` ke shell dengan `set -a`
-2. validasi env penting dan menolak placeholder
-3. start `postgres` dan `redis`
-4. tunggu keduanya sehat
-5. build image `manage`
-6. jalankan `migrate up`
-7. start `api`, `worker`, `scheduler`, `web`, dan `proxy`
-8. verifikasi `api`, `web`, `worker`, `scheduler`, dan `proxy` benar-benar running
-9. verifikasi `http://127.0.0.1:18080/health/live`
-10. verifikasi `http://127.0.0.1:18080/health/ready`
+2. menyalin file itu ke `deploy/production/.env` sementara supaya `podman-compose 1.0.6` membaca env yang benar
+3. validasi env penting dan menolak placeholder
+4. start `postgres` dan `redis`
+5. tunggu keduanya sehat
+6. build image `manage`
+7. jalankan migration lewat `podman compose up manage`
+8. start `api`, `worker`, `scheduler`, `web`, dan `proxy`
+9. verifikasi `api`, `web`, `worker`, `scheduler`, dan `proxy` benar-benar running
+10. verifikasi `http://127.0.0.1:18080/health/live`
+11. verifikasi `http://127.0.0.1:18080/health/ready`
+12. menghapus lagi `deploy/production/.env` sementara
 
 Ini penting karena health API saja tidak cukup. Pada kasus nyata tadi, `worker` dan `scheduler` sempat mati walau `api` sudah hidup. Script sekarang menolak kondisi seperti itu.
 
@@ -260,10 +262,15 @@ set -a
 . deploy/production/env.production
 set +a
 
-podman compose -f deploy/production/docker-compose.yml -f deploy/cloudflare-tunnel/docker-compose.override.yml up -d --build postgres redis
-podman compose -f deploy/production/docker-compose.yml -f deploy/cloudflare-tunnel/docker-compose.override.yml build manage
-podman compose -f deploy/production/docker-compose.yml -f deploy/cloudflare-tunnel/docker-compose.override.yml run --rm -T manage migrate up
-podman compose -f deploy/production/docker-compose.yml -f deploy/cloudflare-tunnel/docker-compose.override.yml up -d --build api worker scheduler web proxy
+cp deploy/production/env.production deploy/production/.env
+
+cd deploy/production
+podman compose -f docker-compose.yml -f ../cloudflare-tunnel/docker-compose.override.yml up -d --build postgres redis
+podman compose -f docker-compose.yml -f ../cloudflare-tunnel/docker-compose.override.yml build manage
+podman compose -f docker-compose.yml -f ../cloudflare-tunnel/docker-compose.override.yml up manage
+podman compose -f docker-compose.yml -f ../cloudflare-tunnel/docker-compose.override.yml up -d --build api worker scheduler web proxy
+
+rm -f .env
 ```
 
 Setelah itu helper memverifikasi:
@@ -302,18 +309,22 @@ Kalau `health/live` atau `health/ready` belum hijau, jangan lanjut ke Cloudflare
 
 Helper di atas boleh dilewati kalau Anda ingin debug manual.
 
-Yang penting: export env ke shell dulu.
+Yang penting: siapkan env Compose di direktori `deploy/production`, karena `podman-compose 1.0.6` pada host Ubuntu 24.04 tadi bisa membaca nilai yang salah jika hanya mengandalkan shell export.
 
 ```bash
+cp deploy/production/env.production deploy/production/.env
+
 set -a
 . deploy/production/env.production
 set +a
+
+cd deploy/production
 ```
 
 Lalu jalankan:
 
 ```bash
-podman compose -f deploy/production/docker-compose.yml -f deploy/cloudflare-tunnel/docker-compose.override.yml up -d --build postgres redis
+podman compose -f docker-compose.yml -f ../cloudflare-tunnel/docker-compose.override.yml up -d --build postgres redis
 ```
 
 Tunggu infra sehat:
@@ -325,19 +336,19 @@ podman ps --format 'table {{.Names}}\t{{.Status}}'
 Build migration image:
 
 ```bash
-podman compose -f deploy/production/docker-compose.yml -f deploy/cloudflare-tunnel/docker-compose.override.yml build manage
+podman compose -f docker-compose.yml -f ../cloudflare-tunnel/docker-compose.override.yml build manage
 ```
 
 Jalankan migration:
 
 ```bash
-podman compose -f deploy/production/docker-compose.yml -f deploy/cloudflare-tunnel/docker-compose.override.yml run --rm -T manage migrate up
+podman compose -f docker-compose.yml -f ../cloudflare-tunnel/docker-compose.override.yml up manage
 ```
 
 Naikkan app stack:
 
 ```bash
-podman compose -f deploy/production/docker-compose.yml -f deploy/cloudflare-tunnel/docker-compose.override.yml up -d --build api worker scheduler web proxy
+podman compose -f docker-compose.yml -f ../cloudflare-tunnel/docker-compose.override.yml up -d --build api worker scheduler web proxy
 ```
 
 Verifikasi lagi:
@@ -346,6 +357,12 @@ Verifikasi lagi:
 curl -fsS http://127.0.0.1:18080/health/live
 curl -fsS http://127.0.0.1:18080/health/ready
 podman ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+```
+
+Setelah selesai, bersihkan file env sementara:
+
+```bash
+rm -f .env
 ```
 
 ## 11. Recovery Kalau Stack Sempat Rusak
@@ -421,14 +438,16 @@ Status sekarang:
 Catatan:
 
 - pada `podman-compose 1.0.6`, output `config` kadang menyesatkan untuk interpolasi env
-- source of truth untuk deploy helper ini adalah:
-  - `set -a; . deploy/production/env.production; set +a`
-  - lalu `podman compose ...`
+- pada host nyata, Compose juga bisa tetap mengambil nilai dari tempat yang salah kalau Anda hanya mengandalkan shell export dari repo root
+- karena itu helper sekarang:
+  - source `deploy/production/env.production`
+  - membuat `deploy/production/.env` sementara
+  - menjalankan compose dari direktori `deploy/production`
 
 Jadi:
 
 - pakai helper script
-- atau export env ke shell dulu
+- atau pada jalur manual, buat `deploy/production/.env` sementara lalu jalankan compose dari direktori itu
 - jangan terlalu percaya output `config` mentah kalau versi Podman Compose Anda tua
 
 ## 13. Install Cloudflare Tunnel
