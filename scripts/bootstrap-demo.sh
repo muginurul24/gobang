@@ -2,7 +2,7 @@
 set -eu
 
 ./scripts/podman-up.sh
-./appctl migrate fresh --seed
+./scripts/podman-manage.sh migrate fresh --seed
 
 printf '%s\n' \
   'Demo bootstrap complete.' \

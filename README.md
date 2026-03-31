@@ -21,19 +21,25 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 2. Start the local stack with `./scripts/podman-up.sh` or any Compose-compatible runtime using `docker-compose.yml`. The default host ports are `15432` for PostgreSQL, `16379` for Redis, `8080` for the API, and `4173` for the web shell.
 3. Run `./appctl migrate up` to apply SQL migrations.
 4. Run `./appctl seed demo` to insert the demo rows.
-5. Or use `./scripts/bootstrap-demo.sh` to start the local stack and rebuild the demo baseline in one command.
-6. Run `go test ./...` to verify the Go scaffold.
-7. Run `go run ./apps/api` to start the API on `:8080`.
-8. Run `npm install` to install the web workspace dependencies.
-9. Run `npm run dev:web` to start the SvelteKit app.
+5. Run `./appctl seed dev-only` if you only want one fresh `dev` account and no demo store data.
+6. Or use `./scripts/bootstrap-demo.sh` to start the local stack and rebuild the demo baseline in one command.
+7. Or use `./scripts/bootstrap-dev-only.sh` to start the local stack and rebuild a dev-only baseline in one command.
+8. Run `go test ./...` to verify the Go scaffold.
+9. Run `go run ./apps/api` to start the API on `:8080`.
+10. Run `npm install` to install the web workspace dependencies.
+11. Run `npm run dev:web` to start the SvelteKit app.
 
 ## Local Commands
 
 - `./appctl migrate up`: apply pending migrations.
 - `./appctl migrate down`: roll back the last applied migration.
 - `./appctl migrate fresh --seed`: recreate the public schema, apply migrations, then run demo seeds.
+- `./appctl migrate fresh --seed=dev-only`: recreate the public schema, apply migrations, then insert only one `dev` user.
 - `./appctl seed demo`: apply SQL seed files from `seeds/demo/`.
+- `./appctl seed dev-only`: apply SQL seed files from `seeds/dev-only/`.
+- `./scripts/podman-manage.sh <manage-args...>`: run `apps/manage` inside the local Podman stack, for example `./scripts/podman-manage.sh migrate fresh --seed=dev-only`.
 - `./scripts/bootstrap-demo.sh`: start the local Podman stack, rebuild the schema, and load the full demo baseline.
+- `./scripts/bootstrap-dev-only.sh`: start the local Podman stack, rebuild the schema, and load only one `dev` account.
 - `./scripts/bootstrap-staging.sh`: apply migrations and upsert the demo baseline without dropping existing schema objects.
 - `./scripts/check-env-sync.sh`: verify runtime env keys from `config.go` stay covered by `.env.example`, and any runtime keys present in local `.env` are documented there too.
 - `./appctl sync providers`: pull provider list and game list from NexusGGR, then upsert the local catalog tables.
@@ -244,6 +250,7 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - API readiness is exposed at `/health/ready` and `/readyz`; liveness is exposed at `/health/live` and `/healthz`.
 - `notifications` now backs the realtime notification stream. Use `GET /v1/notifications`, `GET /v1/notifications/unread-count`, and `POST /v1/notifications/{id}/read` with the same scope rules as the dashboard role.
 - Demo seed rows create one `dev`, one `superadmin`, one `owner`, one `karyawan`, one seeded store token, one verified bank account, two demo members, two sample provider/game catalog rows, one store-staff relation, one opening ledger balance, and one audit log entry for local development.
+- Dev-only seed rows create exactly one dashboard user on a fresh schema: `dev@example.com` or `dev` with password `DevDemo123!`.
 - Demo dashboard credentials after `./appctl migrate fresh --seed`:
 - `dev@example.com` or `dev-demo` with password `DevDemo123!`
 - `superadmin@example.com` or `superadmin-demo` with password `SuperadminDemo123!`

@@ -63,7 +63,10 @@ func runMigrate(args []string) error {
 			return nil
 		})
 	case "fresh":
-		seedAfter := len(args) > 1 && args[1] == "--seed"
+		seedAfter, seedProfile, err := parseMigrateFreshSeedArgs(args[1:])
+		if err != nil {
+			return usageError()
+		}
 		return withDatabase(func(ctx context.Context, pool *db.Pool) error {
 			migrator := db.NewMigrator(pool, "migrations")
 			applied, err := migrator.Fresh(ctx)
@@ -74,16 +77,20 @@ func runMigrate(args []string) error {
 			log.Printf("migrate fresh complete: %d migration(s) applied", applied)
 
 			if seedAfter {
-				cfg, err := config.Load()
-				if err != nil {
-					return fmt.Errorf("load config: %w", err)
+				authEncryptionKey := ""
+				if seedProfile == seedProfileDemo {
+					cfg, err := config.Load()
+					if err != nil {
+						return fmt.Errorf("load config: %w", err)
+					}
+					authEncryptionKey = cfg.Auth.EncryptionKey
 				}
 
-				appliedSeeds, err := applyDemoSeed(ctx, pool, cfg.Auth.EncryptionKey)
+				appliedSeeds, err := applySeedProfile(ctx, pool, seedProfile, authEncryptionKey)
 				if err != nil {
-					return fmt.Errorf("run demo seeds: %w", err)
+					return fmt.Errorf("run %s seeds: %w", seedProfile, err)
 				}
-				log.Printf("demo seeds complete: %d file(s) applied", appliedSeeds)
+				log.Printf("%s seeds complete: %d file(s) applied", seedProfile, appliedSeeds)
 			}
 
 			return nil
@@ -94,22 +101,31 @@ func runMigrate(args []string) error {
 }
 
 func runSeed(args []string) error {
-	if len(args) != 1 || args[0] != "demo" {
+	if len(args) != 1 {
+		return usageError()
+	}
+
+	profile, err := parseSeedProfile(args[0])
+	if err != nil {
 		return usageError()
 	}
 
 	return withDatabase(func(ctx context.Context, pool *db.Pool) error {
-		cfg, err := config.Load()
-		if err != nil {
-			return fmt.Errorf("load config: %w", err)
+		authEncryptionKey := ""
+		if profile == seedProfileDemo {
+			cfg, err := config.Load()
+			if err != nil {
+				return fmt.Errorf("load config: %w", err)
+			}
+			authEncryptionKey = cfg.Auth.EncryptionKey
 		}
 
-		applied, err := applyDemoSeed(ctx, pool, cfg.Auth.EncryptionKey)
+		applied, err := applySeedProfile(ctx, pool, profile, authEncryptionKey)
 		if err != nil {
-			return fmt.Errorf("run demo seeds: %w", err)
+			return fmt.Errorf("run %s seeds: %w", profile, err)
 		}
 
-		log.Printf("seed demo complete: %d file(s) applied", applied)
+		log.Printf("seed %s complete: %d file(s) applied", profile, applied)
 		return nil
 	})
 }
@@ -164,5 +180,5 @@ func withDatabase(callback func(context.Context, *db.Pool) error) error {
 }
 
 func usageError() error {
-	return errors.New("usage: go run ./apps/manage migrate <up|down|fresh [--seed]> | go run ./apps/manage seed demo | go run ./apps/manage sync providers")
+	return errors.New("usage: go run ./apps/manage migrate <up|down|fresh [--seed[=demo|dev-only]]> | go run ./apps/manage seed <demo|dev-only> | go run ./apps/manage sync providers")
 }
