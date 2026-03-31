@@ -16,4 +16,25 @@ set -a
 . "${ENV_FILE}"
 set +a
 
-podman compose -f "${STACK_FILE}" -f "${OVERRIDE_FILE}" down "$@"
+ARGS=
+for arg in "$@"; do
+	case "${arg}" in
+		--remove-orphans)
+			echo "ignoring --remove-orphans because podman-compose 1.0.6 does not support it safely" >&2
+			;;
+		*)
+			if [ -n "${ARGS}" ]; then
+				ARGS="${ARGS} ${arg}"
+			else
+				ARGS="${arg}"
+			fi
+			;;
+	esac
+done
+
+if [ -n "${ARGS}" ]; then
+	# shellcheck disable=SC2086
+	podman compose -f "${STACK_FILE}" -f "${OVERRIDE_FILE}" down ${ARGS}
+else
+	podman compose -f "${STACK_FILE}" -f "${OVERRIDE_FILE}" down
+fi
