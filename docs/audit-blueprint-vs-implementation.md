@@ -5,8 +5,8 @@
 - Audit basis: `docs/blueprint.md`, `docs/database-final.md`, `docs/plan-execution.md`, dan implementasi saat ini di `main`.
 - Audit order mengikuti prioritas production review: money flow, RBAC, idempotency/reconcile, persistence, worker/scheduler, frontend parity, ops, lalu docs drift.
 - Total checks: `28`
-- `PASS`: `22`
-- `PARTIAL`: `2`
+- `PASS`: `23`
+- `PARTIAL`: `1`
 - `FAIL`: `0`
 - `NOT_IMPLEMENTED`: `3`
 - `INTENTIONAL_DEVIATION`: `1`
@@ -92,7 +92,7 @@ Severity rubric:
 | Check | Blueprint rule | Current implementation | Status | Severity | Action |
 |---|---|---|---|---|---|
 | Hari 33 checklist accuracy | Checklist yang sudah dicentang harus benar-benar tercapai | Deliverable `notification stream usable` sekarang sudah terpenuhi oleh unread badge shell dan halaman `/app/notifications` yang memakai scope backend asli | PASS | Medium | Tidak ada aksi |
-| Callback queue contract in docs | Database/blueprint harus memuat constraint penting yang dipakai produksi | Migration `000010_outbound_callbacks.up.sql` menambah unique `outbound_callbacks_event_type_reference_unique`, tetapi `docs/database-final.md` belum mencatat constraint ini | PARTIAL | Low | Update `docs/database-final.md` agar idempotency callback queue tidak hanya implisit di code |
+| Callback queue contract in docs | Database/blueprint harus memuat constraint penting yang dipakai produksi | `docs/database-final.md` sekarang mencatat unique `event_type + reference_type + reference_id`, sesuai migration `000010_outbound_callbacks.up.sql` | PASS | Low | Tidak ada aksi |
 
 ## Must Fix Before Production
 
@@ -110,4 +110,4 @@ Severity rubric:
 
 ## Docs That Must Be Updated
 
-- `docs/database-final.md` perlu menambahkan unique constraint callback queue `event_type + reference_type + reference_id`.
+- Tidak ada drift docs kontraktual ber-severity rendah yang masih terbuka pada audit saat ini.

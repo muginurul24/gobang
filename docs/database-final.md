@@ -420,6 +420,7 @@ Index:
 Index:
 - index(store_id, created_at desc)
 - index(status)
+- unique(event_type, reference_type, reference_id)
 - index(reference_type, reference_id)
 
 ### R. `outbound_callback_attempts`
