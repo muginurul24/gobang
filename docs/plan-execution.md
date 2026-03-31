@@ -1441,9 +1441,9 @@ Membuat staging release candidate.
 
 ### Checklist
 
-- [ ] deploy success
-- [ ] smoke test pass
-- [ ] backup restore pass
+- [x] deploy success
+- [x] smoke test pass
+- [x] backup restore pass
 
 ---
 

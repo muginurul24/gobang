@@ -1,0 +1,16 @@
+http://{$STAGING_DOMAIN} {
+	redir https://{$STAGING_DOMAIN}{uri} permanent
+}
+
+https://{$STAGING_DOMAIN} {
+	tls internal
+	encode gzip zstd
+
+	@metrics path /metrics
+	reverse_proxy @metrics api:9090
+
+	@api path /v1/* /health/* /readyz /healthz
+	reverse_proxy @api api:8080
+
+	reverse_proxy web:3000
+}

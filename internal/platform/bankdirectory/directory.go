@@ -111,13 +111,11 @@ func (d *Directory) PrimaryByCode(code string) (Entry, bool) {
 }
 
 func loadFromRepository() (*Directory, error) {
-	_, filename, _, ok := runtime.Caller(0)
-	if !ok {
-		return nil, fmt.Errorf("resolve bank directory caller")
+	path, err := resolveDefaultPath()
+	if err != nil {
+		return nil, err
 	}
 
-	root := filepath.Clean(filepath.Join(filepath.Dir(filename), "../../../"))
-	path := filepath.Join(root, "docs", "Bank RTOL.json")
 	payload, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read bank directory JSON: %w", err)
@@ -133,6 +131,46 @@ func loadFromRepository() (*Directory, error) {
 	}
 
 	return New(entries), nil
+}
+
+func resolveDefaultPath() (string, error) {
+	for _, path := range defaultPaths() {
+		if path == "" {
+			continue
+		}
+
+		info, err := os.Stat(path)
+		if err == nil && !info.IsDir() {
+			return path, nil
+		}
+		if err != nil && !os.IsNotExist(err) {
+			return "", fmt.Errorf("stat bank directory JSON %q: %w", path, err)
+		}
+	}
+
+	return "", fmt.Errorf("read bank directory JSON: no candidate path found")
+}
+
+func defaultPaths() []string {
+	paths := make([]string, 0, 4)
+
+	if override := strings.TrimSpace(os.Getenv("BANK_DIRECTORY_PATH")); override != "" {
+		paths = append(paths, override)
+	}
+
+	if wd, err := os.Getwd(); err == nil {
+		paths = append(paths, filepath.Join(wd, "docs", "Bank RTOL.json"))
+	}
+
+	_, filename, _, ok := runtime.Caller(0)
+	if ok {
+		root := filepath.Clean(filepath.Join(filepath.Dir(filename), "../../../"))
+		paths = append(paths, filepath.Join(root, "docs", "Bank RTOL.json"))
+	}
+
+	paths = append(paths, "/app/docs/Bank RTOL.json")
+
+	return paths
 }
 
 func normalizeCode(code string) string {

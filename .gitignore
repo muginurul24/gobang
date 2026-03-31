@@ -23,3 +23,7 @@ apps/web/node_modules/
 
 # Local drill artifacts
 .tmp/
+
+# Local staging artifacts
+deploy/staging/env.staging
+deploy/staging/backups/

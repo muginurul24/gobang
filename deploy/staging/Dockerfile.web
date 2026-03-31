@@ -1,0 +1,29 @@
+FROM docker.io/library/node:24-alpine AS builder
+
+WORKDIR /workspace
+
+COPY package.json package-lock.json ./
+COPY apps/web/package.json ./apps/web/package.json
+
+RUN npm ci
+
+COPY apps/web ./apps/web
+
+RUN npm --workspace @onixggr/web run build
+
+FROM docker.io/library/node:24-alpine
+
+RUN apk add --no-cache curl
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV HOST=0.0.0.0
+ENV PORT=3000
+
+COPY --from=builder /workspace/node_modules ./node_modules
+COPY --from=builder /workspace/apps/web/build ./build
+
+EXPOSE 3000
+
+CMD ["node", "build"]

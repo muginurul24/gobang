@@ -1,0 +1,13 @@
+.git
+.gitignore
+.idea
+.vscode
+.tmp
+node_modules
+apps/web/node_modules
+apps/web/.svelte-kit
+apps/web/build
+apps/web/dist
+coverage.out
+deploy/staging/env.staging
+deploy/staging/backups

@@ -52,6 +52,15 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `scripts/run-k6-baseline.sh` bootstraps PostgreSQL and Redis only, starts the local mock upstream plus local API, then runs the baseline scenarios.
 - The current baseline notes and bottleneck summary are captured in [`deploy/performance/baseline.md`](deploy/performance/baseline.md).
 
+## Staging Release
+
+- Staging assets now live under `deploy/staging/` with a dedicated `docker-compose.yml`, `Caddyfile`, Go and web Dockerfiles, and an env template at `deploy/staging/env.staging.example`.
+- Copy `deploy/staging/env.staging.example` to `deploy/staging/env.staging`, review the placeholder secrets, then run `./deploy/staging/deploy.sh` to build the images, apply migrations, optionally seed demo data, and boot the full staging stack.
+- Run `./deploy/staging/smoke-test.sh` after deploy to verify reverse proxy, TLS, dashboard login, provider catalog, member listing, and one store API balance call through the staging proxy.
+- Run `./deploy/staging/backup-db.sh` to write a PostgreSQL custom-format dump into `deploy/staging/backups/`, and `./deploy/staging/restore-db.sh <dump-file>` to restore into a temporary verification database.
+- Run `./deploy/staging/down.sh` to stop the staging stack and remove its volumes.
+- The staging-specific flow and file roles are documented in [`deploy/staging/README.md`](deploy/staging/README.md).
+
 ## Auth Core
 
 - `POST /v1/auth/login`: login with `{"login":"dev@example.com","password":"DevDemo123!"}` or `{"login":"owner-demo","password":"OwnerDemo123!"}`. Browser login now returns the access token in JSON, and rotates the refresh token into an `HttpOnly` cookie plus a readable CSRF cookie.
