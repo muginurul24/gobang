@@ -1,0 +1,4 @@
+services:
+  proxy:
+    volumes:
+      - ../cloudflare-tunnel/Caddyfile:/etc/caddy/Caddyfile:ro

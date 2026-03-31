@@ -1,0 +1,16 @@
+:80 {
+	encode zstd gzip
+
+	header {
+		X-Frame-Options "DENY"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+
+	@api path /v1/* /health/* /readyz /healthz
+	reverse_proxy @api api:8080
+
+	handle {
+		reverse_proxy web:3000
+	}
+}

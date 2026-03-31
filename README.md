@@ -66,6 +66,7 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 
 - Production deploy assets now live under `deploy/production/` with a dedicated `docker-compose.yml`, `Caddyfile`, `env.production.example`, backup scripts, rollback doc, and go-live checklist.
 - Copy `deploy/production/env.production.example` to `deploy/production/env.production`, replace every placeholder, then run `./deploy/production/deploy.sh`. The script refuses localhost, mock, or placeholder values for core secrets, domain, and upstream URLs.
+- If public access will use Cloudflare Tunnel instead of direct public Caddy, follow [`TUTORIAL_DEPLOYMENT_CLOUDFLARE_TUNNEL.md`](TUTORIAL_DEPLOYMENT_CLOUDFLARE_TUNNEL.md). In that mode, keep the proxy bound to loopback with `PRODUCTION_HTTP_PORT=127.0.0.1:18080` and `PRODUCTION_HTTPS_PORT=127.0.0.1:18443`.
 - Run `./deploy/production/smoke-test.sh` after deploy with `SMOKE_*` credentials set to verify HTTPS, dashboard login, store listing, provider catalog, member listing, and one store API balance call.
 - Install `deploy/production/backup-cron.example` or an equivalent scheduler before go-live, and keep running `./deploy/production/restore-db.sh <dump-file>` as a restore drill.
 - Prometheus should scrape `api:9090` with [`deploy/production/prometheus-scrape.example.yml`](deploy/production/prometheus-scrape.example.yml) and load [`deploy/monitoring/alerts.rules.yml`](deploy/monitoring/alerts.rules.yml).
