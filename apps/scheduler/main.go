@@ -10,6 +10,7 @@ import (
 
 	"github.com/mugiew/onixggr/internal/modules/audit"
 	"github.com/mugiew/onixggr/internal/modules/auth"
+	"github.com/mugiew/onixggr/internal/modules/callbacks"
 	"github.com/mugiew/onixggr/internal/modules/chat"
 	"github.com/mugiew/onixggr/internal/modules/ledger"
 	"github.com/mugiew/onixggr/internal/modules/notifications"
@@ -75,6 +76,10 @@ func main() {
 		Repository:      audit.NewRepository(pool),
 		RetentionPeriod: cfg.Audit.RetentionPeriod,
 	})
+	callbackCleanupService := callbacks.NewAttemptCleanupService(callbacks.AttemptCleanupOptions{
+		Repository:      callbacks.NewRepository(pool),
+		RetentionPeriod: cfg.Callback.AttemptRetentionPeriod,
+	})
 	sessionCleanupService := auth.NewSessionCleanupService(auth.SessionCleanupOptions{
 		Repository: auth.NewRepository(pool),
 	})
@@ -102,6 +107,7 @@ func main() {
 
 	go runProviderCatalogSync(ctx, service, interval)
 	go runAuditRetentionPrune(ctx, auditService, cfg.Audit.PruneInterval)
+	go runCallbackAttemptRetentionPrune(ctx, callbackCleanupService, cfg.Callback.AttemptPruneInterval)
 	go runSessionCleanup(ctx, sessionCleanupService, cfg.Auth.SessionCleanupInterval)
 	go runChatRetentionPrune(ctx, chatService, cfg.Chat.PruneInterval)
 	go runLowBalanceSweep(ctx, lowBalanceMonitor, cfg.Alert.LowBalanceSweepInterval)
@@ -179,6 +185,36 @@ func runSessionCleanup(ctx context.Context, service auth.SessionCleanupService, 
 		}
 
 		log.Printf("session cleanup complete: %d session row(s) removed", pruned)
+	}
+
+	runOnce()
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			runOnce()
+		}
+	}
+}
+
+func runCallbackAttemptRetentionPrune(ctx context.Context, service callbacks.AttemptCleanupService, interval time.Duration) {
+	if interval <= 0 {
+		interval = 24 * time.Hour
+	}
+
+	runOnce := func() {
+		pruned, err := service.PruneExpired(ctx)
+		if err != nil {
+			log.Printf("callback attempt cleanup failed: %v", err)
+			return
+		}
+
+		log.Printf("callback attempt cleanup complete: %d attempt row(s) removed", pruned)
 	}
 
 	runOnce()

@@ -37,12 +37,12 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `./scripts/bootstrap-staging.sh`: apply migrations and upsert the demo baseline without dropping existing schema objects.
 - `./appctl sync providers`: pull provider list and game list from NexusGGR, then upsert the local catalog tables.
 - `./appctl worker run`: start the background worker and process game reconcile backlog, QRIS check-status reconcile, withdraw status checks, and outbound callback retries.
-- `./appctl scheduler run`: start the scheduler and periodically refresh the provider catalog, sweep low-balance alerts, prune retained data, and clean expired dashboard sessions.
+- `./appctl scheduler run`: start the scheduler and periodically refresh the provider catalog, sweep low-balance alerts, prune retained data, clean expired dashboard sessions, and trim old terminal callback attempts.
 - `./scripts/podman-up.sh`: start PostgreSQL, Redis, API, and web in one command via Podman Compose.
 - `npm run perf:k6`: run the Hari 43 k6 baseline with local PostgreSQL, Redis, mock upstreams, and the API bound to `127.0.0.1`.
 - `go run ./apps/api`: starts the API and exposes `/health/live` plus `/health/ready`.
 - `go run ./apps/worker`: starts the background worker and periodically resolves game transactions in `pending_reconcile`, QRIS pending transactions, store withdraw status checks, plus outbound callback retries.
-- `go run ./apps/scheduler`: starts the scheduler and periodically refreshes the local provider catalog, sweeps low-balance alerts, runs retention jobs, and cleans expired `user_sessions`.
+- `go run ./apps/scheduler`: starts the scheduler and periodically refreshes the local provider catalog, sweeps low-balance alerts, runs retention jobs, cleans expired `user_sessions`, and prunes old terminal `outbound_callback_attempts`.
 - `npm run dev:web`: starts the SvelteKit shell with public, auth, and app layouts.
 
 ## Performance Baseline
@@ -175,6 +175,7 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `member_payment.success` now enqueues one durable callback row in `outbound_callbacks`, keyed by `event_type + reference_type + reference_id` so duplicate webhooks cannot duplicate callback delivery intent.
 - The worker reads due callback rows, signs the stored payload with `X-Onixggr-Signature`, then POSTs it to the store `callback_url` with `X-Onixggr-Event`, `X-Onixggr-Delivery-ID`, and reference headers.
 - Failed callback deliveries are logged in `outbound_callback_attempts` with masked response bodies and exponential backoff for 5 retries; the last failure creates a `callback.delivery_failed` notification for the store.
+- `apps/scheduler` prunes terminal callback attempts older than `CALLBACK_ATTEMPT_RETENTION_PERIOD` on `CALLBACK_ATTEMPT_PRUNE_INTERVAL`, while leaving `pending` and `retrying` callbacks untouched so retry state remains intact.
 - Local tuning uses `CALLBACK_SIGNING_SECRET`, `CALLBACK_DELIVERY_TIMEOUT`, `CALLBACK_RETRY_INTERVAL`, and `CALLBACK_RETRY_BATCH_SIZE`.
 
 ## Realtime Backbone

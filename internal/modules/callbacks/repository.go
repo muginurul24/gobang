@@ -242,6 +242,21 @@ func (r *Repository) RecordAttempt(ctx context.Context, params RecordAttemptPara
 	return nil
 }
 
+func (r *Repository) PruneAttemptsBefore(ctx context.Context, cutoff time.Time) (int64, error) {
+	commandTag, err := r.pool.Exec(ctx, `
+		DELETE FROM outbound_callback_attempts attempts
+		USING outbound_callbacks callbacks
+		WHERE attempts.outbound_callback_id = callbacks.id
+			AND callbacks.status IN ('success', 'failed')
+			AND attempts.created_at < $1
+	`, cutoff.UTC())
+	if err != nil {
+		return 0, fmt.Errorf("prune outbound callback attempts: %w", err)
+	}
+
+	return commandTag.RowsAffected(), nil
+}
+
 func isUniqueViolation(err error, constraintName string) bool {
 	var pgErr *pgconn.PgError
 	if !errors.As(err, &pgErr) {

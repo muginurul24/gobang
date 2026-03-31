@@ -5,10 +5,10 @@
 - Audit basis: `docs/blueprint.md`, `docs/database-final.md`, `docs/plan-execution.md`, dan implementasi saat ini di `main`.
 - Audit order mengikuti prioritas production review: money flow, RBAC, idempotency/reconcile, persistence, worker/scheduler, frontend parity, ops, lalu docs drift.
 - Total checks: `28`
-- `PASS`: `25`
+- `PASS`: `26`
 - `PARTIAL`: `0`
 - `FAIL`: `0`
-- `NOT_IMPLEMENTED`: `2`
+- `NOT_IMPLEMENTED`: `1`
 - `INTENTIONAL_DEVIATION`: `1`
 
 Status rubric:
@@ -63,7 +63,7 @@ Severity rubric:
 | Core constraints and indexes | Unique/FK/index utama harus ada dari awal | Migration saat ini sudah punya unique `(store_id, trx_id)`, `(store_id, real_username)`, `provider_trx_id`, `(store_id, idempotency_key)`, notifications scope index, dan ledger idempotency index | PASS | High | Tidak ada aksi |
 | Monthly partitioning | Docs menyarankan partition by month untuk tabel volume tinggi di tahap berikutnya | Tidak ada partition di migrations saat ini; semua tabel masih plain heap | INTENTIONAL_DEVIATION | Low | Aman ditunda, tetapi tetap catat sebagai scaling backlog |
 | Stale session cleanup | Blueprint ops meminta stale sessions cleanup | `internal/modules/auth/session_cleanup.go` plus `apps/scheduler/main.go` sekarang prune row `user_sessions` yang sudah melewati `expires_at` pada interval `SESSION_CLEANUP_INTERVAL`; Redis tetap hanya memegang TTL active-state | PASS | Medium | Tidak ada aksi |
-| Callback attempt cleanup policy | Blueprint ops meminta old callback attempts cleanup policy | Tidak ada retention config atau cleanup job untuk `outbound_callback_attempts` di worker/scheduler/config | NOT_IMPLEMENTED | Medium | Tambahkan retention policy + cleanup job agar tabel attempt tidak tumbuh tanpa batas |
+| Callback attempt cleanup policy | Blueprint ops meminta old callback attempts cleanup policy | `internal/modules/callbacks/attempt_cleanup.go` plus `apps/scheduler/main.go` sekarang prune `outbound_callback_attempts` lama hanya untuk callback yang sudah terminal `success/failed`, sehingga retry state `pending/retrying` tetap aman | PASS | Medium | Tidak ada aksi |
 
 ## Domain: Worker & Scheduler
 
@@ -100,7 +100,7 @@ Severity rubric:
 
 ## Should Fix Soon After Launch
 
-- Tambahkan retention cleanup untuk `outbound_callback_attempts`.
+- Tambahkan platform-wide error notifications untuk `dev/superadmin`.
 
 ## Intentional Deviations from Blueprint
 

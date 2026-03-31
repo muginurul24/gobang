@@ -72,8 +72,10 @@ type BusinessConfig struct {
 }
 
 type CallbackConfig struct {
-	SigningSecret   string
-	DeliveryTimeout time.Duration
+	SigningSecret          string
+	DeliveryTimeout        time.Duration
+	AttemptRetentionPeriod time.Duration
+	AttemptPruneInterval   time.Duration
 }
 
 type QRISConfig struct {
@@ -189,6 +191,16 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	callbackAttemptRetentionPeriod, err := envDuration("CALLBACK_ATTEMPT_RETENTION_PERIOD", 30*24*time.Hour)
+	if err != nil {
+		return Config{}, err
+	}
+
+	callbackAttemptPruneInterval, err := envDuration("CALLBACK_ATTEMPT_PRUNE_INTERVAL", 24*time.Hour)
+	if err != nil {
+		return Config{}, err
+	}
+
 	gameReconcileInterval, err := envDuration("GAME_RECONCILE_INTERVAL", 30*time.Second)
 	if err != nil {
 		return Config{}, err
@@ -270,8 +282,10 @@ func Load() (Config, error) {
 			StoreWithdrawPlatformFeePct: envFloat64("STORE_WITHDRAW_PLATFORM_FEE_PERCENT", 12),
 		},
 		Callback: CallbackConfig{
-			SigningSecret:   envString("CALLBACK_SIGNING_SECRET", "change-me-callback-signing-secret"),
-			DeliveryTimeout: callbackDeliveryTimeout,
+			SigningSecret:          envString("CALLBACK_SIGNING_SECRET", "change-me-callback-signing-secret"),
+			DeliveryTimeout:        callbackDeliveryTimeout,
+			AttemptRetentionPeriod: callbackAttemptRetentionPeriod,
+			AttemptPruneInterval:   callbackAttemptPruneInterval,
 		},
 		QRIS: QRISConfig{
 			BaseURL:              envString("QRIS_BASE_URL", "https://example-qris.local"),

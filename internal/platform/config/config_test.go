@@ -31,6 +31,8 @@ func TestLoadDefaults(t *testing.T) {
 		"STORE_WITHDRAW_PLATFORM_FEE_PERCENT",
 		"CALLBACK_SIGNING_SECRET",
 		"CALLBACK_DELIVERY_TIMEOUT",
+		"CALLBACK_ATTEMPT_RETENTION_PERIOD",
+		"CALLBACK_ATTEMPT_PRUNE_INTERVAL",
 		"QRIS_BASE_URL",
 		"QRIS_CLIENT",
 		"QRIS_CLIENT_KEY",
@@ -90,6 +92,14 @@ func TestLoadDefaults(t *testing.T) {
 		t.Fatalf("Auth.SessionCleanupInterval = %v, want 1h", cfg.Auth.SessionCleanupInterval)
 	}
 
+	if cfg.Callback.AttemptRetentionPeriod != 30*24*time.Hour {
+		t.Fatalf("Callback.AttemptRetentionPeriod = %v, want 720h", cfg.Callback.AttemptRetentionPeriod)
+	}
+
+	if cfg.Callback.AttemptPruneInterval != 24*time.Hour {
+		t.Fatalf("Callback.AttemptPruneInterval = %v, want 24h", cfg.Callback.AttemptPruneInterval)
+	}
+
 	if !cfg.Observability.MetricsEnabled {
 		t.Fatal("Observability.MetricsEnabled = false, want true")
 	}
@@ -103,6 +113,8 @@ func TestLoadOverrides(t *testing.T) {
 	t.Setenv("STORE_WITHDRAW_PLATFORM_FEE_PERCENT", "10.5")
 	t.Setenv("CALLBACK_SIGNING_SECRET", "callback-secret")
 	t.Setenv("CALLBACK_DELIVERY_TIMEOUT", "12s")
+	t.Setenv("CALLBACK_ATTEMPT_RETENTION_PERIOD", "480h")
+	t.Setenv("CALLBACK_ATTEMPT_PRUNE_INTERVAL", "6h")
 	t.Setenv("NEXUSGGR_TIMEOUT", "25s")
 	t.Setenv("PROVIDER_CATALOG_SYNC_INTERVAL", "45m")
 	t.Setenv("LOW_BALANCE_SWEEP_INTERVAL", "20m")
@@ -152,6 +164,14 @@ func TestLoadOverrides(t *testing.T) {
 
 	if cfg.Callback.DeliveryTimeout != 12*time.Second {
 		t.Fatalf("Callback.DeliveryTimeout = %v, want 12s", cfg.Callback.DeliveryTimeout)
+	}
+
+	if cfg.Callback.AttemptRetentionPeriod != 480*time.Hour {
+		t.Fatalf("Callback.AttemptRetentionPeriod = %v, want 480h", cfg.Callback.AttemptRetentionPeriod)
+	}
+
+	if cfg.Callback.AttemptPruneInterval != 6*time.Hour {
+		t.Fatalf("Callback.AttemptPruneInterval = %v, want 6h", cfg.Callback.AttemptPruneInterval)
 	}
 
 	if cfg.NexusGGR.Timeout != 25*time.Second {
