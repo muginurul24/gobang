@@ -2,8 +2,11 @@ package config
 
 import (
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -241,7 +244,7 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
-	return Config{
+	cfg := Config{
 		App: AppConfig{
 			Name:     envString("APP_NAME", "onixggr"),
 			Env:      envString("APP_ENV", "development"),
@@ -335,7 +338,74 @@ func Load() (Config, error) {
 			MetricsEnabled: envBool("METRICS_ENABLED", true),
 			PrometheusPort: envInt("PROMETHEUS_PORT", 9090),
 		},
-	}, nil
+	}
+
+	if err := validateConfig(cfg); err != nil {
+		return Config{}, err
+	}
+
+	return cfg, nil
+}
+
+func validateConfig(cfg Config) error {
+	if !strings.EqualFold(strings.TrimSpace(cfg.App.Env), "production") {
+		return nil
+	}
+
+	for _, candidate := range []struct {
+		name  string
+		value string
+	}{
+		{name: "JWT_ACCESS_SECRET", value: cfg.Auth.JWTAccessSecret},
+		{name: "AUTH_ENCRYPTION_KEY", value: cfg.Auth.EncryptionKey},
+		{name: "CALLBACK_SIGNING_SECRET", value: cfg.Callback.SigningSecret},
+	} {
+		if err := validateProductionSecret(candidate.name, candidate.value); err != nil {
+			return err
+		}
+	}
+
+	if err := validateProductionAppURL(cfg.App.URL); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateProductionSecret(name string, value string) error {
+	trimmed := strings.TrimSpace(value)
+	switch {
+	case trimmed == "":
+		return fmt.Errorf("%s must be set in production", name)
+	case strings.HasPrefix(strings.ToLower(trimmed), "change-me"):
+		return fmt.Errorf("%s cannot use placeholder value in production", name)
+	case len(trimmed) < 16:
+		return fmt.Errorf("%s must be at least 16 characters in production", name)
+	default:
+		return nil
+	}
+}
+
+func validateProductionAppURL(raw string) error {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return fmt.Errorf("APP_URL must be a valid absolute URL in production: %w", err)
+	}
+
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return fmt.Errorf("APP_URL must be a valid absolute URL in production")
+	}
+
+	host := strings.ToLower(parsed.Hostname())
+	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+		return fmt.Errorf("APP_URL cannot target localhost in production")
+	}
+
+	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+		return fmt.Errorf("APP_URL cannot target loopback IPs in production")
+	}
+
+	return nil
 }
 
 func envString(key string, fallback string) string {

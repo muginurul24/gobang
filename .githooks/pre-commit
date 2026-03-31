@@ -1,6 +1,9 @@
 #!/usr/bin/env sh
 set -eu
 
+echo "Checking environment key sync..."
+./scripts/check-env-sync.sh
+
 echo "Running Go test suite..."
 GOCACHE="${GOCACHE:-/tmp/onixggr-go-build}" go test ./...
 

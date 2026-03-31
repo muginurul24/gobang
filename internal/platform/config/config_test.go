@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -249,5 +250,44 @@ func TestLoadRejectsInvalidDuration(t *testing.T) {
 	_, err := Load()
 	if err == nil {
 		t.Fatal("Load() error = nil, want invalid duration error")
+	}
+}
+
+func TestLoadRejectsProductionPlaceholderSecrets(t *testing.T) {
+	t.Setenv("APP_ENV", "production")
+
+	_, err := Load()
+	if err == nil || !strings.Contains(err.Error(), "JWT_ACCESS_SECRET") {
+		t.Fatalf("Load() error = %v, want JWT_ACCESS_SECRET production validation", err)
+	}
+}
+
+func TestLoadRejectsProductionLocalhostAppURL(t *testing.T) {
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("JWT_ACCESS_SECRET", "production-secret-123456")
+	t.Setenv("AUTH_ENCRYPTION_KEY", "production-auth-key-123456")
+	t.Setenv("CALLBACK_SIGNING_SECRET", "production-callback-secret-123456")
+	t.Setenv("APP_URL", "http://localhost:5173")
+
+	_, err := Load()
+	if err == nil || !strings.Contains(err.Error(), "APP_URL") {
+		t.Fatalf("Load() error = %v, want APP_URL production validation", err)
+	}
+}
+
+func TestLoadAllowsProductionWithStrongSecretsAndPublicURL(t *testing.T) {
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("JWT_ACCESS_SECRET", "production-secret-123456")
+	t.Setenv("AUTH_ENCRYPTION_KEY", "production-auth-key-123456")
+	t.Setenv("CALLBACK_SIGNING_SECRET", "production-callback-secret-123456")
+	t.Setenv("APP_URL", "https://app.example.com")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.App.Env != "production" {
+		t.Fatalf("App.Env = %q, want production", cfg.App.Env)
 	}
 }

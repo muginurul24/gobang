@@ -35,6 +35,7 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `./appctl seed demo`: apply SQL seed files from `seeds/demo/`.
 - `./scripts/bootstrap-demo.sh`: start the local Podman stack, rebuild the schema, and load the full demo baseline.
 - `./scripts/bootstrap-staging.sh`: apply migrations and upsert the demo baseline without dropping existing schema objects.
+- `./scripts/check-env-sync.sh`: verify runtime env keys from `config.go` stay covered by `.env.example`, and any runtime keys present in local `.env` are documented there too.
 - `./appctl sync providers`: pull provider list and game list from NexusGGR, then upsert the local catalog tables.
 - `./appctl worker run`: start the background worker and process game reconcile backlog, QRIS check-status reconcile, withdraw status checks, and outbound callback retries.
 - `./appctl scheduler run`: start the scheduler and periodically refresh the provider catalog, sweep low-balance alerts, prune retained data, clean expired dashboard sessions, and trim old terminal callback attempts.
@@ -68,6 +69,7 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - Run `./deploy/production/smoke-test.sh` after deploy with `SMOKE_*` credentials set to verify HTTPS, dashboard login, store listing, provider catalog, member listing, and one store API balance call.
 - Install `deploy/production/backup-cron.example` or an equivalent scheduler before go-live, and keep running `./deploy/production/restore-db.sh <dump-file>` as a restore drill.
 - Prometheus should scrape `api:9090` with [`deploy/production/prometheus-scrape.example.yml`](deploy/production/prometheus-scrape.example.yml) and load [`deploy/monitoring/alerts.rules.yml`](deploy/monitoring/alerts.rules.yml).
+- `config.Load()` now fails fast in `APP_ENV=production` if core secrets still use placeholders or if `APP_URL` still points at localhost or loopback.
 - The operator checklist and rollback steps live in [`deploy/production/go-live-checklist.md`](deploy/production/go-live-checklist.md) and [`deploy/production/rollback-plan.md`](deploy/production/rollback-plan.md).
 
 ## Auth Core
@@ -75,6 +77,7 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - `POST /v1/auth/login`: login with `{"login":"dev@example.com","password":"DevDemo123!"}` or `{"login":"owner-demo","password":"OwnerDemo123!"}`. Browser login now returns the access token in JSON, and rotates the refresh token into an `HttpOnly` cookie plus a readable CSRF cookie.
 - `POST /v1/auth/refresh`: browser refresh now reads the refresh token from the `HttpOnly` cookie. Dashboard mutations send `X-CSRF-Token` from the CSRF cookie automatically.
 - `GET /v1/auth/me`: read the current dashboard user with `Authorization: Bearer <access_token>`.
+- API responses now add baseline browser hardening headers: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, and HSTS on HTTPS requests.
 - `POST /v1/auth/logout`: revoke the current session.
 - `POST /v1/auth/logout-all`: revoke every active session for the current account.
 - `apps/scheduler` prunes expired `user_sessions` on `SESSION_CLEANUP_INTERVAL`; Redis session state still expires via TTL, but PostgreSQL remains the cleanup source of truth for persisted session rows.

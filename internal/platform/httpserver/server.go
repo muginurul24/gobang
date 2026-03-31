@@ -280,7 +280,9 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 		middleware.Logging(
 			deps.Logger,
 			deps.Metrics,
-			middleware.RequireCSRF(cfg.App.URL, auth.CSRFCookieName, auth.CSRFHeaderName, mux),
+			middleware.SecurityHeaders(
+				middleware.RequireCSRF(cfg.App.URL, auth.CSRFCookieName, auth.CSRFHeaderName, mux),
+			),
 		),
 	)
 }
