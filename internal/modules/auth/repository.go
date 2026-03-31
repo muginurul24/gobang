@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -418,6 +419,18 @@ func (r *Repository) RevokeAllSessions(ctx context.Context, params RevokeAllSess
 	}
 
 	return revokedJTIs, nil
+}
+
+func (r *Repository) PruneSessionsExpiredBefore(ctx context.Context, cutoff time.Time) (int64, error) {
+	commandTag, err := r.pool.Exec(ctx, `
+		DELETE FROM user_sessions
+		WHERE expires_at <= $1
+	`, cutoff)
+	if err != nil {
+		return 0, fmt.Errorf("prune expired sessions: %w", err)
+	}
+
+	return commandTag.RowsAffected(), nil
 }
 
 func nullableString(value string) any {

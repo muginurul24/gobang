@@ -55,6 +55,7 @@ type AuthConfig struct {
 	JWTAccessSecret               string
 	JWTAccessTTL                  time.Duration
 	SessionTTL                    time.Duration
+	SessionCleanupInterval        time.Duration
 	BcryptCost                    int
 	EncryptionKey                 string
 	TOTPEnrollmentTTL             time.Duration
@@ -144,6 +145,11 @@ func Load() (Config, error) {
 	}
 
 	sessionTTL, err := envDuration("SESSION_TTL", 168*time.Hour)
+	if err != nil {
+		return Config{}, err
+	}
+
+	sessionCleanupInterval, err := envDuration("SESSION_CLEANUP_INTERVAL", time.Hour)
 	if err != nil {
 		return Config{}, err
 	}
@@ -249,6 +255,7 @@ func Load() (Config, error) {
 			JWTAccessSecret:               envString("JWT_ACCESS_SECRET", "change-me"),
 			JWTAccessTTL:                  jwtAccessTTL,
 			SessionTTL:                    sessionTTL,
+			SessionCleanupInterval:        sessionCleanupInterval,
 			BcryptCost:                    envInt("PASSWORD_BCRYPT_COST", 12),
 			EncryptionKey:                 envString("AUTH_ENCRYPTION_KEY", "change-me-auth-encryption-key"),
 			TOTPEnrollmentTTL:             totpEnrollmentTTL,

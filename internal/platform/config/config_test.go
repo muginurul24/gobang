@@ -23,6 +23,7 @@ func TestLoadDefaults(t *testing.T) {
 		"JWT_ACCESS_SECRET",
 		"JWT_ACCESS_TTL",
 		"SESSION_TTL",
+		"SESSION_CLEANUP_INTERVAL",
 		"PASSWORD_BCRYPT_COST",
 		"MIN_TRANSACTION_AMOUNT",
 		"STORE_LOW_BALANCE_THRESHOLD",
@@ -85,6 +86,10 @@ func TestLoadDefaults(t *testing.T) {
 		t.Fatalf("Auth.JWTAccessTTL = %v, want 1h", cfg.Auth.JWTAccessTTL)
 	}
 
+	if cfg.Auth.SessionCleanupInterval != time.Hour {
+		t.Fatalf("Auth.SessionCleanupInterval = %v, want 1h", cfg.Auth.SessionCleanupInterval)
+	}
+
 	if !cfg.Observability.MetricsEnabled {
 		t.Fatal("Observability.MetricsEnabled = false, want true")
 	}
@@ -94,6 +99,7 @@ func TestLoadOverrides(t *testing.T) {
 	t.Setenv("APP_NAME", "demo-app")
 	t.Setenv("HTTP_ADDRESS", ":9090")
 	t.Setenv("JWT_ACCESS_TTL", "2h")
+	t.Setenv("SESSION_CLEANUP_INTERVAL", "90m")
 	t.Setenv("STORE_WITHDRAW_PLATFORM_FEE_PERCENT", "10.5")
 	t.Setenv("CALLBACK_SIGNING_SECRET", "callback-secret")
 	t.Setenv("CALLBACK_DELIVERY_TIMEOUT", "12s")
@@ -130,6 +136,10 @@ func TestLoadOverrides(t *testing.T) {
 
 	if cfg.Auth.JWTAccessTTL != 2*time.Hour {
 		t.Fatalf("Auth.JWTAccessTTL = %v, want 2h", cfg.Auth.JWTAccessTTL)
+	}
+
+	if cfg.Auth.SessionCleanupInterval != 90*time.Minute {
+		t.Fatalf("Auth.SessionCleanupInterval = %v, want 90m", cfg.Auth.SessionCleanupInterval)
 	}
 
 	if cfg.Business.StoreWithdrawPlatformFeePct != 10.5 {

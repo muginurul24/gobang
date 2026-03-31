@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/mugiew/onixggr/internal/modules/audit"
+	"github.com/mugiew/onixggr/internal/modules/auth"
 	"github.com/mugiew/onixggr/internal/modules/chat"
 	"github.com/mugiew/onixggr/internal/modules/ledger"
 	"github.com/mugiew/onixggr/internal/modules/notifications"
@@ -74,6 +75,9 @@ func main() {
 		Repository:      audit.NewRepository(pool),
 		RetentionPeriod: cfg.Audit.RetentionPeriod,
 	})
+	sessionCleanupService := auth.NewSessionCleanupService(auth.SessionCleanupOptions{
+		Repository: auth.NewRepository(pool),
+	})
 	chatService := chat.NewService(chat.Options{
 		Repository:      chat.NewRepository(pool),
 		Clock:           nil,
@@ -98,6 +102,7 @@ func main() {
 
 	go runProviderCatalogSync(ctx, service, interval)
 	go runAuditRetentionPrune(ctx, auditService, cfg.Audit.PruneInterval)
+	go runSessionCleanup(ctx, sessionCleanupService, cfg.Auth.SessionCleanupInterval)
 	go runChatRetentionPrune(ctx, chatService, cfg.Chat.PruneInterval)
 	go runLowBalanceSweep(ctx, lowBalanceMonitor, cfg.Alert.LowBalanceSweepInterval)
 
@@ -144,6 +149,36 @@ func runProviderCatalogSync(ctx context.Context, service providercatalog.Service
 		}
 
 		log.Printf("provider catalog sync complete: %d provider(s), %d game(s)", summary.ProvidersSynced, summary.GamesSynced)
+	}
+
+	runOnce()
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			runOnce()
+		}
+	}
+}
+
+func runSessionCleanup(ctx context.Context, service auth.SessionCleanupService, interval time.Duration) {
+	if interval <= 0 {
+		interval = time.Hour
+	}
+
+	runOnce := func() {
+		pruned, err := service.PruneExpired(ctx)
+		if err != nil {
+			log.Printf("session cleanup failed: %v", err)
+			return
+		}
+
+		log.Printf("session cleanup complete: %d session row(s) removed", pruned)
 	}
 
 	runOnce()
