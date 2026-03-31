@@ -108,6 +108,71 @@ func (r *Repository) PostEntry(ctx context.Context, params postEntryParams) (Pos
 	}, nil
 }
 
+func (r *Repository) PostEntries(ctx context.Context, params postEntriesParams) (BatchPostingResult, error) {
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return BatchPostingResult{}, fmt.Errorf("begin post entries transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	state, err := r.loadLockedState(ctx, tx, params.StoreID)
+	if err != nil {
+		return BatchPostingResult{}, err
+	}
+
+	now := time.Now().UTC()
+	nextBalance := state.currentBalance
+	entries := make([]LedgerEntry, 0, len(params.Entries))
+	for _, rawEntry := range params.Entries {
+		amount, err := parseMoney(rawEntry.Amount)
+		if err != nil {
+			return BatchPostingResult{}, ErrInvalidAmount
+		}
+
+		if rawEntry.Direction == DirectionDebit {
+			if nextBalance.Sub(state.reservedAmount).LessThan(amount) {
+				return BatchPostingResult{}, ErrInsufficientFunds
+			}
+			nextBalance = nextBalance.Sub(amount)
+		} else {
+			nextBalance = nextBalance.Add(amount)
+		}
+
+		entry, err := insertEntryTx(ctx, tx, insertEntryParams{
+			storeID:         state.storeID,
+			ledgerAccountID: state.ledgerAccountID,
+			direction:       rawEntry.Direction,
+			entryType:       rawEntry.EntryType,
+			amount:          amount.String(),
+			balanceAfter:    nextBalance.String(),
+			referenceType:   params.ReferenceType,
+			referenceID:     params.ReferenceID,
+			metadata:        rawEntry.Metadata,
+			occurredAt:      now,
+		})
+		if err != nil {
+			return BatchPostingResult{}, err
+		}
+
+		entries = append(entries, entry)
+	}
+
+	if err := updateStoreBalanceTx(ctx, tx, state.storeID, nextBalance.String(), now); err != nil {
+		return BatchPostingResult{}, err
+	}
+
+	state.currentBalance = nextBalance
+
+	if err := tx.Commit(ctx); err != nil {
+		return BatchPostingResult{}, fmt.Errorf("commit post entries transaction: %w", err)
+	}
+
+	return BatchPostingResult{
+		Entries: entries,
+		Balance: state.snapshot(),
+	}, nil
+}
+
 func (r *Repository) HasReferenceEntries(ctx context.Context, referenceType string, referenceID string) (bool, error) {
 	var exists bool
 	err := r.pool.QueryRow(ctx, `

@@ -8,6 +8,7 @@ import (
 type repositoryContract interface {
 	GetBalance(ctx context.Context, storeID string) (BalanceSnapshot, error)
 	PostEntry(ctx context.Context, params postEntryParams) (PostingResult, error)
+	PostEntries(ctx context.Context, params postEntriesParams) (BatchPostingResult, error)
 	HasReferenceEntries(ctx context.Context, referenceType string, referenceID string) (bool, error)
 	Reserve(ctx context.Context, params reserveParams) (ReservationResult, error)
 	CommitReservation(ctx context.Context, params commitReservationParams) (CommitReservationResult, error)
@@ -18,6 +19,7 @@ type Service interface {
 	GetBalance(ctx context.Context, storeID string) (BalanceSnapshot, error)
 	Credit(ctx context.Context, storeID string, input PostEntryInput) (PostingResult, error)
 	Debit(ctx context.Context, storeID string, input PostEntryInput) (PostingResult, error)
+	PostEntries(ctx context.Context, storeID string, input PostEntriesInput) (BatchPostingResult, error)
 	HasReferenceEntries(ctx context.Context, referenceType string, referenceID string) (bool, error)
 	Reserve(ctx context.Context, storeID string, input ReserveInput) (ReservationResult, error)
 	CommitReservation(ctx context.Context, storeID string, input CommitReservationInput) (CommitReservationResult, error)
@@ -56,6 +58,49 @@ func (s *service) Debit(ctx context.Context, storeID string, input PostEntryInpu
 	}
 
 	return s.repository.PostEntry(ctx, params)
+}
+
+func (s *service) PostEntries(ctx context.Context, storeID string, input PostEntriesInput) (BatchPostingResult, error) {
+	normalizedStoreID := strings.TrimSpace(storeID)
+	if normalizedStoreID == "" {
+		return BatchPostingResult{}, ErrNotFound
+	}
+
+	if invalidReference(input.ReferenceType, input.ReferenceID) {
+		return BatchPostingResult{}, ErrInvalidReference
+	}
+
+	if len(input.Entries) == 0 {
+		return BatchPostingResult{}, ErrInvalidAmount
+	}
+
+	entries := make([]batchPostEntryParams, 0, len(input.Entries))
+	for _, entry := range input.Entries {
+		amount, err := parseMoney(entry.Amount)
+		if err != nil || amount.LessThan(1) {
+			return BatchPostingResult{}, ErrInvalidAmount
+		}
+		if !validDirection(entry.Direction) {
+			return BatchPostingResult{}, ErrInvalidDirection
+		}
+		if !validEntryType(entry.EntryType) {
+			return BatchPostingResult{}, ErrInvalidEntryType
+		}
+
+		entries = append(entries, batchPostEntryParams{
+			Direction: entry.Direction,
+			EntryType: entry.EntryType,
+			Amount:    amount.String(),
+			Metadata:  entry.Metadata,
+		})
+	}
+
+	return s.repository.PostEntries(ctx, postEntriesParams{
+		StoreID:       normalizedStoreID,
+		ReferenceType: strings.TrimSpace(input.ReferenceType),
+		ReferenceID:   strings.TrimSpace(input.ReferenceID),
+		Entries:       entries,
+	})
 }
 
 func (s *service) HasReferenceEntries(ctx context.Context, referenceType string, referenceID string) (bool, error) {
@@ -184,6 +229,15 @@ func normalizePostEntryParams(storeID string, direction Direction, input PostEnt
 
 func invalidReference(referenceType string, referenceID string) bool {
 	return strings.TrimSpace(referenceType) == "" || strings.TrimSpace(referenceID) == ""
+}
+
+func validDirection(direction Direction) bool {
+	switch direction {
+	case DirectionDebit, DirectionCredit:
+		return true
+	default:
+		return false
+	}
 }
 
 func validEntryType(entryType EntryType) bool {

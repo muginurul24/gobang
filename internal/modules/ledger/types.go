@@ -105,9 +105,27 @@ type PostingResult struct {
 	Balance BalanceSnapshot `json:"balance"`
 }
 
+type BatchPostEntryInput struct {
+	Direction Direction      `json:"direction"`
+	EntryType EntryType      `json:"entry_type"`
+	Amount    string         `json:"amount"`
+	Metadata  map[string]any `json:"metadata"`
+}
+
+type PostEntriesInput struct {
+	ReferenceType string                `json:"reference_type"`
+	ReferenceID   string                `json:"reference_id"`
+	Entries       []BatchPostEntryInput `json:"entries"`
+}
+
 type ReservationResult struct {
 	Reservation LedgerReservation `json:"reservation"`
 	Balance     BalanceSnapshot   `json:"balance"`
+}
+
+type BatchPostingResult struct {
+	Entries []LedgerEntry   `json:"entries"`
+	Balance BalanceSnapshot `json:"balance"`
 }
 
 type CommitReservationResult struct {
@@ -124,6 +142,20 @@ type postEntryParams struct {
 	ReferenceType string
 	ReferenceID   string
 	Metadata      map[string]any
+}
+
+type batchPostEntryParams struct {
+	Direction Direction
+	EntryType EntryType
+	Amount    string
+	Metadata  map[string]any
+}
+
+type postEntriesParams struct {
+	StoreID       string
+	ReferenceType string
+	ReferenceID   string
+	Entries       []batchPostEntryParams
 }
 
 type reserveParams struct {

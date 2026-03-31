@@ -47,6 +47,43 @@ func TestCreditDebitAndBalanceAfter(t *testing.T) {
 	}
 }
 
+func TestPostEntriesAppliesAtomically(t *testing.T) {
+	service := NewService(newFakeRepository(time.Date(2026, 3, 30, 9, 15, 0, 0, time.UTC)))
+
+	result, err := service.PostEntries(context.Background(), "store-1", PostEntriesInput{
+		ReferenceType: "qris_transaction",
+		ReferenceID:   "1c7179e7-4cee-4db3-84e8-d63d58a422f9",
+		Entries: []BatchPostEntryInput{
+			{
+				Direction: DirectionCredit,
+				EntryType: EntryTypeMemberPaymentCredit,
+				Amount:    "25000.00",
+			},
+			{
+				Direction: DirectionDebit,
+				EntryType: EntryTypeMemberPaymentFee,
+				Amount:    "750.00",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("PostEntries returned error: %v", err)
+	}
+
+	if len(result.Entries) != 2 {
+		t.Fatalf("len(result.Entries) = %d, want 2", len(result.Entries))
+	}
+	if result.Entries[0].BalanceAfter != "25000.00" {
+		t.Fatalf("first balance_after = %s, want 25000.00", result.Entries[0].BalanceAfter)
+	}
+	if result.Entries[1].BalanceAfter != "24250.00" {
+		t.Fatalf("second balance_after = %s, want 24250.00", result.Entries[1].BalanceAfter)
+	}
+	if result.Balance.CurrentBalance != "24250.00" || result.Balance.AvailableBalance != "24250.00" {
+		t.Fatalf("balance = %#v, want current=24250.00 available=24250.00", result.Balance)
+	}
+}
+
 func TestNoNegativeBalanceWithPendingReservation(t *testing.T) {
 	service := NewService(newFakeRepository(time.Date(2026, 3, 30, 9, 30, 0, 0, time.UTC)))
 
@@ -214,6 +251,42 @@ func (r *fakeRepository) PostEntry(_ context.Context, params postEntryParams) (P
 	r.entries = append(r.entries, entry)
 
 	return PostingResult{Entry: entry, Balance: r.snapshot()}, nil
+}
+
+func (r *fakeRepository) PostEntries(_ context.Context, params postEntriesParams) (BatchPostingResult, error) {
+	if params.StoreID != r.storeID {
+		return BatchPostingResult{}, ErrNotFound
+	}
+
+	originalCurrent := r.current
+	originalEntries := append([]LedgerEntry(nil), r.entries...)
+	originalSequence := r.sequence
+
+	resultEntries := make([]LedgerEntry, 0, len(params.Entries))
+	for _, entry := range params.Entries {
+		result, err := r.PostEntry(context.Background(), postEntryParams{
+			StoreID:       params.StoreID,
+			Direction:     entry.Direction,
+			EntryType:     entry.EntryType,
+			Amount:        entry.Amount,
+			ReferenceType: params.ReferenceType,
+			ReferenceID:   params.ReferenceID,
+			Metadata:      entry.Metadata,
+		})
+		if err != nil {
+			r.current = originalCurrent
+			r.entries = originalEntries
+			r.sequence = originalSequence
+			return BatchPostingResult{}, err
+		}
+
+		resultEntries = append(resultEntries, result.Entry)
+	}
+
+	return BatchPostingResult{
+		Entries: resultEntries,
+		Balance: r.snapshot(),
+	}, nil
 }
 
 func (r *fakeRepository) HasReferenceEntries(_ context.Context, referenceType string, referenceID string) (bool, error) {

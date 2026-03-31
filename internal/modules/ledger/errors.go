@@ -5,6 +5,7 @@ import "errors"
 var (
 	ErrNotFound                 = errors.New("ledger: not found")
 	ErrInvalidAmount            = errors.New("ledger: invalid amount")
+	ErrInvalidDirection         = errors.New("ledger: invalid direction")
 	ErrInvalidReference         = errors.New("ledger: invalid reference")
 	ErrInvalidEntryType         = errors.New("ledger: invalid entry type")
 	ErrInvalidReservationCommit = errors.New("ledger: invalid reservation commit")

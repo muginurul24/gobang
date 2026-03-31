@@ -5,9 +5,9 @@
 - Audit basis: `docs/blueprint.md`, `docs/database-final.md`, `docs/plan-execution.md`, dan implementasi saat ini di `main`.
 - Audit order mengikuti prioritas production review: money flow, RBAC, idempotency/reconcile, persistence, worker/scheduler, frontend parity, ops, lalu docs drift.
 - Total checks: `28`
-- `PASS`: `17`
+- `PASS`: `18`
 - `PARTIAL`: `3`
-- `FAIL`: `3`
+- `FAIL`: `2`
 - `NOT_IMPLEMENTED`: `4`
 - `INTENTIONAL_DEVIATION`: `1`
 
@@ -34,7 +34,7 @@ Severity rubric:
 | Game deposit flow | Deposit sukses harus reserve lalu commit debit `game_deposit`; ambigu harus `pending_reconcile` | `internal/modules/game/service.go` reserve dulu, commit `game_deposit` saat success, lalu worker reconcile di `internal/modules/game/reconcile.go` | PASS | High | Tidak ada aksi |
 | Game withdraw flow | Withdraw sukses harus credit `game_withdraw`; ambigu harus `pending_reconcile` | `internal/modules/game/service.go` post credit `game_withdraw` saat success; reconcile worker menutup path ambigu | PASS | High | Tidak ada aksi |
 | QRIS `store_topup` | Webhook success harus credit ledger `store_topup` dan duplicate-safe | `internal/modules/paymentsqris/service.go` melakukan `ledger.Credit` sekali dengan guard `HasReferenceEntries` | PASS | High | Tidak ada aksi |
-| QRIS `member_payment` fee posting | `member_payment success` harus post `member_payment_credit` dan `member_payment_fee` | `internal/modules/paymentsqris/service.go:415-449` hanya membuat satu credit `member_payment_credit`; tidak ada entry `member_payment_fee` walau enum dan docs sudah menuntutnya | FAIL | High | Tambahkan posting fee ledger terpisah atau turunkan kontrak docs jika fee memang hanya disimpan di `qris_transactions` |
+| QRIS `member_payment` fee posting | `member_payment success` harus post `member_payment_credit` dan `member_payment_fee` | `internal/modules/paymentsqris/service.go` sekarang mem-post batch ledger atomik: credit gross `member_payment_credit` lalu debit `member_payment_fee`, sehingga saldo akhir tetap net dan jejak fee masuk ke ledger | PASS | High | Tidak ada aksi |
 | Store withdraw flow | Inquiry -> hitung fee -> cek balance -> reserve -> transfer -> webhook/check-status finalization | `internal/modules/withdrawals/service.go` dan `internal/modules/withdrawals/reconcile.go` sudah mengikuti urutan ini, termasuk split commit `withdraw_commit`, `withdraw_platform_fee`, `withdraw_external_fee` | PASS | High | Tidak ada aksi |
 
 ## Domain: RBAC & Sensitive Visibility
@@ -96,7 +96,6 @@ Severity rubric:
 
 ## Must Fix Before Production
 
-- `member_payment.success` belum menulis `member_payment_fee` ke ledger. Ini membuat ledger contract dan reporting fee tidak sesuai blueprint/database.
 - Realtime `dev/superadmin` belum benar-benar menerima event store-scope. Notification stream dan dashboard cards dev masih bergantung pada polling, bukan event stream sesuai blueprint.
 - Putuskan kontrak final token toko: jika docs tetap berkata owner/superadmin bisa melihat full token, implementasi retrievable-token harus ada; jika tidak, docs dan checklist harus diubah ke one-time reveal only.
 

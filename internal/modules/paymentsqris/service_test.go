@@ -346,14 +346,17 @@ func TestHandlePaymentWebhookStoreTopupCreditsFullAmount(t *testing.T) {
 	if !result.Processed {
 		t.Fatal("result.Processed = false, want true")
 	}
-	if ledgerService.creditCalls != 1 {
-		t.Fatalf("creditCalls = %d, want 1", ledgerService.creditCalls)
+	if ledgerService.batchCalls != 1 {
+		t.Fatalf("batchCalls = %d, want 1", ledgerService.batchCalls)
 	}
-	if ledgerService.lastCredit.Amount != "50000.00" {
-		t.Fatalf("ledger credit amount = %q, want 50000.00", ledgerService.lastCredit.Amount)
+	if len(ledgerService.lastBatch.Entries) != 1 {
+		t.Fatalf("len(lastBatch.Entries) = %d, want 1", len(ledgerService.lastBatch.Entries))
 	}
-	if ledgerService.lastCredit.EntryType != ledger.EntryTypeStoreTopup {
-		t.Fatalf("ledger entry type = %q, want store_topup", ledgerService.lastCredit.EntryType)
+	if ledgerService.lastBatch.Entries[0].Amount != "50000.00" {
+		t.Fatalf("ledger credit amount = %q, want 50000.00", ledgerService.lastBatch.Entries[0].Amount)
+	}
+	if ledgerService.lastBatch.Entries[0].EntryType != ledger.EntryTypeStoreTopup {
+		t.Fatalf("ledger entry type = %q, want store_topup", ledgerService.lastBatch.Entries[0].EntryType)
 	}
 	if repository.finalizeCalls != 1 {
 		t.Fatalf("finalizeCalls = %d, want 1", repository.finalizeCalls)
@@ -417,11 +420,26 @@ func TestHandlePaymentWebhookMemberPaymentCreditsNetAfterFee(t *testing.T) {
 	if !result.Processed {
 		t.Fatal("result.Processed = false, want true")
 	}
-	if ledgerService.lastCredit.Amount != "24250.00" {
-		t.Fatalf("ledger credit amount = %q, want 24250.00", ledgerService.lastCredit.Amount)
+	if len(ledgerService.lastBatch.Entries) != 2 {
+		t.Fatalf("len(lastBatch.Entries) = %d, want 2", len(ledgerService.lastBatch.Entries))
 	}
-	if ledgerService.lastCredit.EntryType != ledger.EntryTypeMemberPaymentCredit {
-		t.Fatalf("ledger entry type = %q, want member_payment_credit", ledgerService.lastCredit.EntryType)
+	if ledgerService.lastBatch.Entries[0].Direction != ledger.DirectionCredit {
+		t.Fatalf("first direction = %q, want credit", ledgerService.lastBatch.Entries[0].Direction)
+	}
+	if ledgerService.lastBatch.Entries[0].Amount != "25000.00" {
+		t.Fatalf("first amount = %q, want 25000.00", ledgerService.lastBatch.Entries[0].Amount)
+	}
+	if ledgerService.lastBatch.Entries[0].EntryType != ledger.EntryTypeMemberPaymentCredit {
+		t.Fatalf("first entry type = %q, want member_payment_credit", ledgerService.lastBatch.Entries[0].EntryType)
+	}
+	if ledgerService.lastBatch.Entries[1].Direction != ledger.DirectionDebit {
+		t.Fatalf("second direction = %q, want debit", ledgerService.lastBatch.Entries[1].Direction)
+	}
+	if ledgerService.lastBatch.Entries[1].Amount != "750.00" {
+		t.Fatalf("second amount = %q, want 750.00", ledgerService.lastBatch.Entries[1].Amount)
+	}
+	if ledgerService.lastBatch.Entries[1].EntryType != ledger.EntryTypeMemberPaymentFee {
+		t.Fatalf("second entry type = %q, want member_payment_fee", ledgerService.lastBatch.Entries[1].EntryType)
 	}
 	if repository.lastFinalize.PlatformFeeAmount != "750.00" {
 		t.Fatalf("platform fee amount = %q, want 750.00", repository.lastFinalize.PlatformFeeAmount)
@@ -455,7 +473,7 @@ func TestHandlePaymentWebhookDuplicateSkipsSecondLedgerPost(t *testing.T) {
 		webhookTransaction: transaction,
 	}
 	ledgerService := newStubLedger()
-	ledgerService.referenceEntries["qris_transaction:qris-topup-dup"] = true
+	ledgerService.duplicateReferences["qris_transaction:qris-topup-dup"] = true
 
 	service := NewService(Options{
 		Repository: repository,
@@ -473,8 +491,8 @@ func TestHandlePaymentWebhookDuplicateSkipsSecondLedgerPost(t *testing.T) {
 		t.Fatalf("HandlePaymentWebhook error = %v", err)
 	}
 
-	if ledgerService.creditCalls != 0 {
-		t.Fatalf("creditCalls = %d, want 0", ledgerService.creditCalls)
+	if ledgerService.batchCalls != 1 {
+		t.Fatalf("batchCalls = %d, want 1", ledgerService.batchCalls)
 	}
 	if repository.finalizeCalls != 1 {
 		t.Fatalf("finalizeCalls = %d, want 1", repository.finalizeCalls)
@@ -610,26 +628,27 @@ func (s *stubUpstream) Generate(_ context.Context, input qris.GenerateInput) (qr
 }
 
 type stubLedger struct {
-	creditCalls      int
-	lastCredit       ledger.PostEntryInput
-	referenceEntries map[string]bool
+	batchCalls          int
+	lastBatch           ledger.PostEntriesInput
+	duplicateReferences map[string]bool
 }
 
 func newStubLedger() *stubLedger {
 	return &stubLedger{
-		referenceEntries: map[string]bool{},
+		duplicateReferences: map[string]bool{},
 	}
 }
 
-func (s *stubLedger) Credit(_ context.Context, _ string, input ledger.PostEntryInput) (ledger.PostingResult, error) {
-	s.creditCalls++
-	s.lastCredit = input
-	s.referenceEntries[input.ReferenceType+":"+input.ReferenceID] = true
-	return ledger.PostingResult{}, nil
-}
+func (s *stubLedger) PostEntries(_ context.Context, _ string, input ledger.PostEntriesInput) (ledger.BatchPostingResult, error) {
+	s.batchCalls++
+	s.lastBatch = input
 
-func (s *stubLedger) HasReferenceEntries(_ context.Context, referenceType string, referenceID string) (bool, error) {
-	return s.referenceEntries[referenceType+":"+referenceID], nil
+	key := input.ReferenceType + ":" + input.ReferenceID
+	if s.duplicateReferences[key] {
+		return ledger.BatchPostingResult{}, ledger.ErrDuplicateReference
+	}
+
+	return ledger.BatchPostingResult{}, nil
 }
 
 type stubCallbacks struct {

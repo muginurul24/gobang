@@ -47,8 +47,7 @@ type UpstreamClient interface {
 }
 
 type LedgerContract interface {
-	Credit(ctx context.Context, storeID string, input ledger.PostEntryInput) (ledger.PostingResult, error)
-	HasReferenceEntries(ctx context.Context, referenceType string, referenceID string) (bool, error)
+	PostEntries(ctx context.Context, storeID string, input ledger.PostEntriesInput) (ledger.BatchPostingResult, error)
 }
 
 type CallbackContract interface {
@@ -424,31 +423,12 @@ func (s *service) HandlePaymentWebhook(ctx context.Context, payload qris.Payment
 			platformFeeAmount, storeCreditAmount = computeMemberPaymentAmounts(grossAmount, s.memberPaymentFeePct)
 		}
 
-		alreadyPosted, checkErr := s.ledger.HasReferenceEntries(ctx, qrisLedgerReferenceType, transaction.ID)
-		if checkErr != nil {
-			return WebhookDispatchResult{}, checkErr
-		}
-
-		if !alreadyPosted {
-			if _, creditErr := s.ledger.Credit(ctx, transaction.StoreID, ledger.PostEntryInput{
-				EntryType:     entryTypeForTransaction(transaction.Type),
-				Amount:        storeCreditAmount,
-				ReferenceType: qrisLedgerReferenceType,
-				ReferenceID:   transaction.ID,
-				Metadata: map[string]any{
-					"qris_transaction_id": transaction.ID,
-					"qris_type":           transaction.Type,
-					"provider_trx_id":     strings.TrimSpace(payload.TrxID),
-					"custom_ref":          transaction.CustomRef,
-					"amount_gross":        transaction.AmountGross,
-					"platform_fee_amount": platformFeeAmount,
-					"store_credit_amount": storeCreditAmount,
-					"rrn":                 strings.TrimSpace(payload.RRN),
-					"vendor":              strings.TrimSpace(payload.Vendor),
-				},
-			}); creditErr != nil && !errors.Is(creditErr, ledger.ErrDuplicateReference) {
-				return WebhookDispatchResult{}, creditErr
-			}
+		if _, postErr := s.ledger.PostEntries(ctx, transaction.StoreID, ledger.PostEntriesInput{
+			ReferenceType: qrisLedgerReferenceType,
+			ReferenceID:   transaction.ID,
+			Entries:       ledgerEntriesForTransaction(transaction, payload, platformFeeAmount, storeCreditAmount),
+		}); postErr != nil && !errors.Is(postErr, ledger.ErrDuplicateReference) {
+			return WebhookDispatchResult{}, postErr
 		}
 	}
 
@@ -712,12 +692,8 @@ func (noopUpstream) Generate(context.Context, qris.GenerateInput) (qris.Generate
 
 type noopLedger struct{}
 
-func (noopLedger) Credit(context.Context, string, ledger.PostEntryInput) (ledger.PostingResult, error) {
-	return ledger.PostingResult{}, ledger.ErrNotFound
-}
-
-func (noopLedger) HasReferenceEntries(context.Context, string, string) (bool, error) {
-	return false, nil
+func (noopLedger) PostEntries(context.Context, string, ledger.PostEntriesInput) (ledger.BatchPostingResult, error) {
+	return ledger.BatchPostingResult{}, ledger.ErrNotFound
 }
 
 type noopCallbacks struct{}
@@ -740,12 +716,44 @@ type noopNotificationEmitter struct{}
 
 func (noopNotificationEmitter) Emit(string, string, string, string) {}
 
-func entryTypeForTransaction(transactionType TransactionType) ledger.EntryType {
-	switch transactionType {
+func ledgerEntriesForTransaction(transaction QRISTransaction, payload qris.PaymentWebhook, platformFeeAmount string, storeCreditAmount string) []ledger.BatchPostEntryInput {
+	baseMetadata := map[string]any{
+		"qris_transaction_id": transaction.ID,
+		"qris_type":           transaction.Type,
+		"provider_trx_id":     strings.TrimSpace(payload.TrxID),
+		"custom_ref":          transaction.CustomRef,
+		"amount_gross":        transaction.AmountGross,
+		"platform_fee_amount": platformFeeAmount,
+		"store_credit_amount": storeCreditAmount,
+		"rrn":                 strings.TrimSpace(payload.RRN),
+		"vendor":              strings.TrimSpace(payload.Vendor),
+	}
+
+	switch transaction.Type {
 	case TransactionTypeMemberPayment:
-		return ledger.EntryTypeMemberPaymentCredit
+		return []ledger.BatchPostEntryInput{
+			{
+				Direction: ledger.DirectionCredit,
+				EntryType: ledger.EntryTypeMemberPaymentCredit,
+				Amount:    transaction.AmountGross,
+				Metadata:  baseMetadata,
+			},
+			{
+				Direction: ledger.DirectionDebit,
+				EntryType: ledger.EntryTypeMemberPaymentFee,
+				Amount:    platformFeeAmount,
+				Metadata:  baseMetadata,
+			},
+		}
 	default:
-		return ledger.EntryTypeStoreTopup
+		return []ledger.BatchPostEntryInput{
+			{
+				Direction: ledger.DirectionCredit,
+				EntryType: ledger.EntryTypeStoreTopup,
+				Amount:    storeCreditAmount,
+				Metadata:  baseMetadata,
+			},
+		}
 	}
 }
 
