@@ -259,6 +259,11 @@ recreate_services() {
 	done
 }
 
+run_manage_migrations() {
+	compose create manage >/dev/null
+	podman start -a "${COMPOSE_PROJECT_NAME}_manage_1"
+}
+
 print_service_diagnostics() {
 	service_name="$1"
 	printf 'service=%s\n' "${service_name}" >&2
@@ -356,7 +361,7 @@ compose build manage
 
 log_step 3 "running migrations"
 recreate_services manage
-compose up --no-deps manage
+run_manage_migrations
 
 log_step 4 "building api worker scheduler web"
 compose build api worker scheduler web
