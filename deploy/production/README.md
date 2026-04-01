@@ -25,6 +25,8 @@ cp deploy/production/env.production.example deploy/production/env.production
 
 Production notes:
 
+- `deploy/production/deploy.sh` is the single production entrypoint. Cloudflare Tunnel mode is chosen automatically when `PRODUCTION_HTTP_PORT` and `PRODUCTION_HTTPS_PORT` both bind to `127.0.0.1:*`.
+- `deploy/cloudflare-tunnel/deploy.sh` and `deploy/cloudflare-tunnel/down.sh` are compatibility shims only.
 - `deploy.sh` rejects placeholder or localhost-like values for core secrets, domain, and upstream URLs.
 - `/metrics` is not proxied publicly. Prometheus should scrape `api:9090` on the internal Compose network.
 - Run `restore-db.sh` during go-live rehearsal and then on a recurring drill cadence.

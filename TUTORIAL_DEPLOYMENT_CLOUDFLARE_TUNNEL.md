@@ -17,13 +17,14 @@ Ada dua mode deploy yang perlu dibedakan jelas:
 | Mode | Tujuan | File env | Compose/script utama | Domain | Upstream |
 |---|---|---|---|---|---|
 | `staging` | verifikasi internal / RC | `deploy/staging/env.staging` | `deploy/staging/deploy.sh` | biasanya `staging.localhost` atau domain internal | boleh mock |
-| `production` + Cloudflare Tunnel | trafik publik final | `deploy/production/env.production` | `deploy/cloudflare-tunnel/deploy.sh` | `app.bola788.store` | wajib real |
+| `production` + Cloudflare Tunnel | trafik publik final | `deploy/production/env.production` | `deploy/production/deploy.sh` | `app.bola788.store` | wajib real |
 
 Rule penting:
 
-- [`deploy/cloudflare-tunnel/deploy.sh`](/home/mugiew/project/onixggr/deploy/cloudflare-tunnel/deploy.sh) adalah helper untuk mode production via tunnel.
+- [`deploy/production/deploy.sh`](/home/mugiew/project/onixggr/deploy/production/deploy.sh) adalah satu-satunya entrypoint deploy production.
+- mode Cloudflare Tunnel dipilih otomatis kalau `PRODUCTION_HTTP_PORT` dan `PRODUCTION_HTTPS_PORT` sama-sama bind ke `127.0.0.1:*`.
 - untuk staging biasa, pakai [`deploy/staging/deploy.sh`](/home/mugiew/project/onixggr/deploy/staging/deploy.sh)
-- jangan campur `env.staging` dengan `deploy/cloudflare-tunnel/deploy.sh`
+- jangan campur `env.staging` dengan `deploy/production/deploy.sh`
 - jangan pakai mock upstream di production tunnel
 
 ## 2. Arsitektur Yang Dipakai
@@ -60,8 +61,10 @@ File yang harus dianggap sebagai satu paket:
 - [`deploy/production/env.production.example`](/home/mugiew/project/onixggr/deploy/production/env.production.example)
 - [`deploy/cloudflare-tunnel/docker-compose.override.yml`](/home/mugiew/project/onixggr/deploy/cloudflare-tunnel/docker-compose.override.yml)
 - [`deploy/cloudflare-tunnel/Caddyfile`](/home/mugiew/project/onixggr/deploy/cloudflare-tunnel/Caddyfile)
-- [`deploy/cloudflare-tunnel/deploy.sh`](/home/mugiew/project/onixggr/deploy/cloudflare-tunnel/deploy.sh)
-- [`deploy/cloudflare-tunnel/down.sh`](/home/mugiew/project/onixggr/deploy/cloudflare-tunnel/down.sh)
+- [`deploy/production/deploy.sh`](/home/mugiew/project/onixggr/deploy/production/deploy.sh)
+- [`deploy/production/down.sh`](/home/mugiew/project/onixggr/deploy/production/down.sh)
+- [`deploy/cloudflare-tunnel/deploy.sh`](/home/mugiew/project/onixggr/deploy/cloudflare-tunnel/deploy.sh) hanya shim kompatibilitas
+- [`deploy/cloudflare-tunnel/down.sh`](/home/mugiew/project/onixggr/deploy/cloudflare-tunnel/down.sh) hanya shim kompatibilitas
 
 Script `deploy.sh` sekarang mengikuti urutan ini:
 
@@ -72,11 +75,12 @@ Script `deploy.sh` sekarang mengikuti urutan ini:
 5. tunggu keduanya sehat
 6. build image `manage`
 7. jalankan migration lewat `podman compose up --no-deps manage`
-8. start `api`, `worker`, `scheduler`, `web`, dan `proxy`
-9. verifikasi `api`, `web`, `worker`, `scheduler`, dan `proxy` benar-benar running
-10. verifikasi `http://127.0.0.1:18080/health/live`
-11. verifikasi `http://127.0.0.1:18080/health/ready`
-12. menghapus lagi `deploy/production/.env` sementara
+8. build image `api`, `worker`, `scheduler`, dan `web`
+9. start `api`, `worker`, `scheduler`, `web`, dan `proxy`
+10. verifikasi `api`, `web`, `worker`, `scheduler`, dan `proxy` benar-benar running
+11. verifikasi `http://127.0.0.1:18080/health/live`
+12. verifikasi `http://127.0.0.1:18080/health/ready`
+13. menghapus lagi `deploy/production/.env` sementara
 
 Ini penting karena health API saja tidak cukup. Pada kasus nyata tadi, `worker` dan `scheduler` sempat mati walau `api` sudah hidup. Script sekarang menolak kondisi seperti itu.
 
@@ -198,7 +202,7 @@ Gunakan:
 - `deploy/production/env.production`
 - `deploy/production/docker-compose.yml`
 - `deploy/cloudflare-tunnel/docker-compose.override.yml`
-- `deploy/cloudflare-tunnel/deploy.sh`
+- `deploy/production/deploy.sh`
 
 Dan pakai:
 
@@ -235,7 +239,7 @@ Rekomendasi paling aman:
 - tetap treat itu sebagai stack terpisah
 - pakai subdomain berbeda, misalnya `staging.bola788.store`
 - jangan campur database, secret, atau provider credential dengan production
-- jangan pakai `deploy/cloudflare-tunnel/deploy.sh` untuk `env.staging`
+- jangan pakai `deploy/production/deploy.sh` untuk `env.staging`
 
 Repo saat ini tidak mengirim helper `staging + tunnel` terpisah. Yang dikirim dan sudah dibuktikan hidup adalah `production + tunnel`.
 
@@ -245,7 +249,7 @@ Ini jalur utama dan paling aman:
 
 ```bash
 git pull origin main
-./deploy/cloudflare-tunnel/deploy.sh
+./deploy/production/deploy.sh
 ```
 
 Kalau sukses, output akhirnya akan mencetak:
@@ -370,7 +374,7 @@ rm -f .env
 Kalau deploy sebelumnya setengah jadi, lakukan stop dulu:
 
 ```bash
-./deploy/cloudflare-tunnel/down.sh
+./deploy/production/down.sh
 ```
 
 Catatan penting:
@@ -587,7 +591,7 @@ Kalau Anda hanya butuh urutan yang benar:
    - `PRODUCTION_HTTP_PORT=127.0.0.1:18080`
    - `PRODUCTION_HTTPS_PORT=127.0.0.1:18443`
 4. jalankan `./scripts/check-env-sync.sh`
-5. jalankan `./deploy/cloudflare-tunnel/deploy.sh`
+5. jalankan `./deploy/production/deploy.sh`
 6. pastikan `curl http://127.0.0.1:18080/health/live` sukses
 7. pastikan `curl http://127.0.0.1:18080/health/ready` sukses
 8. buat tunnel dan public hostname `app.bola788.store -> http://127.0.0.1:18080`
