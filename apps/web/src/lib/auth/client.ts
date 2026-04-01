@@ -88,6 +88,11 @@ export async function initializeAuthSession() {
     return null;
   }
 
+  if (!hasRefreshBootstrapHint()) {
+    clearAuthSession();
+    return null;
+  }
+
   if (initializePromise) {
     return initializePromise;
   }
@@ -131,6 +136,11 @@ export async function login(payload: {
 }
 
 export async function refreshStoredSession() {
+  if (browser && !hasRefreshBootstrapHint()) {
+    clearAuthSession();
+    return null;
+  }
+
   const response = await request<AuthSession>(
     '/v1/auth/refresh',
     {
@@ -317,6 +327,14 @@ function clearLegacyAuthStorage() {
   }
 
   window.localStorage.removeItem(storageKey);
+}
+
+function hasRefreshBootstrapHint() {
+  if (!browser) {
+    return false;
+  }
+
+  return readCookie(csrfCookieName) !== '';
 }
 
 async function readEnvelope<T>(response: Response): Promise<ApiEnvelope<T>> {
