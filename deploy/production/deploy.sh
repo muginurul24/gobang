@@ -260,8 +260,32 @@ recreate_services() {
 }
 
 run_manage_migrations() {
-	compose create manage >/dev/null
-	podman start -a "${COMPOSE_PROJECT_NAME}_manage_1"
+	container_name="${COMPOSE_PROJECT_NAME}_manage_1"
+	compose up -d --no-deps manage >/dev/null
+
+	for _ in $(seq 1 120); do
+		state=$(podman inspect -f '{{.State.Status}}' "${container_name}" 2>/dev/null || printf 'missing')
+		case "${state}" in
+			exited)
+				exit_code=$(podman inspect -f '{{.State.ExitCode}}' "${container_name}" 2>/dev/null || printf '1')
+				if [ "${exit_code}" = "0" ]; then
+					return 0
+				fi
+
+				podman logs --tail 120 "${container_name}" >&2 || true
+				fail "manage migration container exited with code ${exit_code}"
+				;;
+			running|configured|created)
+				sleep 1
+				;;
+			*)
+				sleep 1
+				;;
+		esac
+	done
+
+	podman logs --tail 120 "${container_name}" >&2 || true
+	fail "manage migration container did not finish in time"
 }
 
 print_service_diagnostics() {
