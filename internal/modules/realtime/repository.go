@@ -19,7 +19,7 @@ func (r *Repository) ListAccessibleStoreIDs(ctx context.Context, userID string) 
 	rows, err := r.pool.Query(ctx, `
 		SELECT id
 		FROM stores
-		WHERE owner_user_id = $1
+		WHERE owner_user_id = $1::uuid
 			AND deleted_at IS NULL
 
 		UNION
@@ -27,7 +27,7 @@ func (r *Repository) ListAccessibleStoreIDs(ctx context.Context, userID string) 
 		SELECT ss.store_id
 		FROM store_staff ss
 		INNER JOIN stores s ON s.id = ss.store_id
-		WHERE ss.user_id = $1
+		WHERE ss.user_id = $1::uuid
 			AND s.deleted_at IS NULL
 
 		ORDER BY 1

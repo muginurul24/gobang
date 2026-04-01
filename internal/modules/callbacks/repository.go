@@ -41,7 +41,7 @@ func (r *Repository) FindMemberPaymentCallbackSource(ctx context.Context, qrisTr
 		FROM qris_transactions qt
 		INNER JOIN stores s ON s.id = qt.store_id
 		LEFT JOIN store_members sm ON sm.id = qt.store_member_id
-		WHERE qt.id = $1
+		WHERE qt.id = $1::uuid
 			AND qt.type = 'member_payment'
 			AND s.deleted_at IS NULL
 		LIMIT 1
@@ -86,7 +86,7 @@ func (r *Repository) EnqueueOutboundCallback(ctx context.Context, params Enqueue
 			created_at,
 			updated_at
 		)
-		VALUES ($1, $2, $3, $4, $5::jsonb, $6, 'pending', $7, $7)
+		VALUES ($1::uuid, $2, $3, $4::uuid, $5::jsonb, $6, 'pending', $7, $7)
 		ON CONFLICT (event_type, reference_type, reference_id)
 		DO UPDATE SET
 			payload_json = EXCLUDED.payload_json,
@@ -216,7 +216,7 @@ func (r *Repository) RecordAttempt(ctx context.Context, params RecordAttemptPara
 			next_retry_at,
 			created_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		VALUES ($1::uuid, $2, $3, $4, $5, $6, $7)
 	`, params.OutboundCallbackID, params.AttemptNo, params.HTTPStatus, params.Status, params.ResponseBodyMasked, params.NextRetryAt, params.OccurredAt)
 	if err != nil {
 		if isUniqueViolation(err, "outbound_callback_attempts_outbound_callback_id_attempt_no_unique") {
@@ -229,7 +229,7 @@ func (r *Repository) RecordAttempt(ctx context.Context, params RecordAttemptPara
 	_, err = tx.Exec(ctx, `
 		UPDATE outbound_callbacks
 		SET status = $2, updated_at = $3
-		WHERE id = $1
+		WHERE id = $1::uuid
 	`, params.OutboundCallbackID, params.CallbackStatus, params.OccurredAt)
 	if err != nil {
 		return fmt.Errorf("update outbound callback status: %w", err)
@@ -295,7 +295,7 @@ func (r *Repository) ListQueue(ctx context.Context, filter ListQueueFilter) (Que
 				OR COALESCE(s.callback_url, '') ILIKE '%' || $1 || '%'
 			))
 			AND ($2 = '' OR c.status = $2)
-			AND ($3 = '' OR c.store_id = $3)
+			AND (NULLIF($3, '')::uuid IS NULL OR c.store_id = NULLIF($3, '')::uuid)
 			AND ($4::timestamptz IS NULL OR c.created_at >= $4)
 			AND ($5::timestamptz IS NULL OR c.created_at <= $5)
 		ORDER BY c.created_at DESC, c.id DESC
@@ -362,7 +362,7 @@ func (r *Repository) ListAttempts(ctx context.Context, callbackID string, limit 
 		SELECT EXISTS (
 			SELECT 1
 			FROM outbound_callbacks
-			WHERE id = $1
+			WHERE id = $1::uuid
 		)
 	`, trimmedCallbackID).Scan(&exists); err != nil {
 		return AttemptPage{}, fmt.Errorf("check callback attempts parent: %w", err)
@@ -382,7 +382,7 @@ func (r *Repository) ListAttempts(ctx context.Context, callbackID string, limit 
 			next_retry_at,
 			created_at
 		FROM outbound_callback_attempts
-		WHERE outbound_callback_id = $1
+		WHERE outbound_callback_id = $1::uuid
 		ORDER BY attempt_no DESC
 		LIMIT $2 OFFSET $3
 	`, trimmedCallbackID, limit, offset)
@@ -418,7 +418,7 @@ func (r *Repository) ListAttempts(ctx context.Context, callbackID string, limit 
 	if err := r.pool.QueryRow(ctx, `
 		SELECT COUNT(*)
 		FROM outbound_callback_attempts
-		WHERE outbound_callback_id = $1
+		WHERE outbound_callback_id = $1::uuid
 	`, trimmedCallbackID).Scan(&totalCount); err != nil {
 		return AttemptPage{}, fmt.Errorf("count callback attempts: %w", err)
 	}
@@ -487,7 +487,7 @@ func (r *Repository) listQueueSummary(ctx context.Context, filter ListQueueFilte
 				OR COALESCE(s.callback_url, '') ILIKE '%' || $1 || '%'
 			))
 			AND ($2 = '' OR c.status = $2)
-			AND ($3 = '' OR c.store_id = $3)
+			AND (NULLIF($3, '')::uuid IS NULL OR c.store_id = NULLIF($3, '')::uuid)
 			AND ($4::timestamptz IS NULL OR c.created_at >= $4)
 			AND ($5::timestamptz IS NULL OR c.created_at <= $5)
 	`, filter.Query, stringValue(filter.Status), stringValue(filter.StoreID), filter.CreatedFrom, filter.CreatedTo).Scan(

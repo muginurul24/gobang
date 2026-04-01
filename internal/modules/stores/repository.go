@@ -108,7 +108,7 @@ func (r *Repository) ListStoresForOwner(ctx context.Context, ownerUserID string)
 			s.deleted_at
 		FROM stores s
 		LEFT JOIN store_staff ss ON ss.store_id = s.id
-		WHERE s.owner_user_id = $1 AND s.deleted_at IS NULL
+		WHERE s.owner_user_id = $1::uuid AND s.deleted_at IS NULL
 		GROUP BY s.id
 		ORDER BY s.created_at DESC
 	`, ownerUserID)
@@ -138,7 +138,7 @@ func (r *Repository) ListStoresForStaff(ctx context.Context, userID string) ([]S
 		FROM store_staff ss
 		JOIN stores s ON s.id = ss.store_id
 		LEFT JOIN store_staff ss2 ON ss2.store_id = s.id
-		WHERE ss.user_id = $1 AND s.deleted_at IS NULL
+		WHERE ss.user_id = $1::uuid AND s.deleted_at IS NULL
 		GROUP BY s.id
 		ORDER BY s.created_at DESC
 	`, userID)
@@ -184,7 +184,7 @@ func (r *Repository) ListStoreDirectoryForOwner(ctx context.Context, ownerUserID
 		joins: []string{},
 		clauses: []string{
 			"s.deleted_at IS NULL",
-			"s.owner_user_id = $1",
+			"s.owner_user_id = $1::uuid",
 		},
 		args: []any{ownerUserID},
 	}, filter)
@@ -193,7 +193,7 @@ func (r *Repository) ListStoreDirectoryForOwner(ctx context.Context, ownerUserID
 func (r *Repository) ListStoreDirectoryForStaff(ctx context.Context, userID string, filter ListStoreDirectoryFilter) (StorePage, error) {
 	return r.listStoreDirectory(ctx, storeDirectoryQuery{
 		joins: []string{
-			"INNER JOIN store_staff access_ss ON access_ss.store_id = s.id AND access_ss.user_id = $1",
+			"INNER JOIN store_staff access_ss ON access_ss.store_id = s.id AND access_ss.user_id = $1::uuid",
 		},
 		clauses: []string{
 			"s.deleted_at IS NULL",
@@ -233,7 +233,7 @@ func (r *Repository) GetStoreByID(ctx context.Context, storeID string) (Store, e
 			s.updated_at,
 			s.deleted_at
 		FROM stores s
-		WHERE s.id = $1
+		WHERE s.id = $1::uuid
 		LIMIT 1
 	`, storeID).Scan(
 		&store.ID,
@@ -266,7 +266,7 @@ func (r *Repository) IsStoreStaff(ctx context.Context, storeID string, userID st
 		SELECT EXISTS (
 			SELECT 1
 			FROM store_staff
-			WHERE store_id = $1 AND user_id = $2
+			WHERE store_id = $1::uuid AND user_id = $2::uuid
 		)
 	`, storeID, userID).Scan(&exists)
 	if err != nil {
@@ -295,7 +295,7 @@ func (r *Repository) CreateStore(ctx context.Context, params CreateStoreParams) 
 			created_at,
 			updated_at
 		)
-		VALUES ($1, $2, $3, 'active', $4, $5, $6, $6)
+		VALUES ($1::uuid, $2, $3, 'active', $4, $5, $6, $6)
 		RETURNING
 			id,
 			owner_user_id,
@@ -354,7 +354,7 @@ func (r *Repository) UpdateStore(ctx context.Context, params UpdateStoreParams) 
 			status = $3,
 			low_balance_threshold = $4,
 			updated_at = $5
-		WHERE id = $1 AND deleted_at IS NULL
+		WHERE id = $1::uuid AND deleted_at IS NULL
 		RETURNING
 			id,
 			owner_user_id,
@@ -404,7 +404,7 @@ func (r *Repository) SoftDeleteStore(ctx context.Context, params SoftDeleteStore
 			status = 'deleted',
 			deleted_at = $2,
 			updated_at = $2
-		WHERE id = $1 AND deleted_at IS NULL
+		WHERE id = $1::uuid AND deleted_at IS NULL
 	`, params.StoreID, params.OccurredAt)
 	if err != nil {
 		return fmt.Errorf("soft delete store: %w", err)
@@ -421,7 +421,7 @@ func (r *Repository) RotateToken(ctx context.Context, params RotateTokenParams) 
 	commandTag, err := r.pool.Exec(ctx, `
 		UPDATE stores
 		SET api_token_hash = $2, updated_at = $3
-		WHERE id = $1 AND deleted_at IS NULL
+		WHERE id = $1::uuid AND deleted_at IS NULL
 	`, params.StoreID, params.APITokenHash, params.OccurredAt)
 	if err != nil {
 		return fmt.Errorf("rotate store token: %w", err)
@@ -439,7 +439,7 @@ func (r *Repository) UpdateCallbackURL(ctx context.Context, params UpdateCallbac
 	err := r.pool.QueryRow(ctx, `
 		UPDATE stores
 		SET callback_url = $2, updated_at = $3
-		WHERE id = $1 AND deleted_at IS NULL
+		WHERE id = $1::uuid AND deleted_at IS NULL
 		RETURNING
 			id,
 			owner_user_id,
@@ -495,7 +495,7 @@ func (r *Repository) CreateEmployee(ctx context.Context, params CreateEmployeePa
 			created_at,
 			updated_at
 		)
-		VALUES ($1, $2, $3, 'karyawan', TRUE, $4, $5, $5)
+		VALUES ($1, $2, $3, 'karyawan', TRUE, $4::uuid, $5, $5)
 		RETURNING
 			id,
 			email,
@@ -535,7 +535,7 @@ func (r *Repository) ListEmployeesByOwner(ctx context.Context, ownerUserID strin
 			created_at,
 			last_login_at
 		FROM users
-		WHERE role = 'karyawan' AND created_by_user_id = $1
+		WHERE role = 'karyawan' AND created_by_user_id = $1::uuid
 		ORDER BY created_at DESC
 	`, ownerUserID)
 	if err != nil {
@@ -625,7 +625,7 @@ func (r *Repository) GetEmployeeByID(ctx context.Context, userID string) (StaffU
 			created_at,
 			last_login_at
 		FROM users
-		WHERE id = $1
+		WHERE id = $1::uuid
 		LIMIT 1
 	`, userID).Scan(
 		&user.ID,
@@ -659,7 +659,7 @@ func (r *Repository) ListStoreStaff(ctx context.Context, storeID string) ([]Staf
 			u.last_login_at
 		FROM store_staff ss
 		JOIN users u ON u.id = ss.user_id
-		WHERE ss.store_id = $1
+		WHERE ss.store_id = $1::uuid
 		ORDER BY ss.created_at DESC
 	`, storeID)
 	if err != nil {
@@ -747,7 +747,7 @@ func (r *Repository) AssignStaff(ctx context.Context, params AssignStaffParams) 
 			created_by_owner_id,
 			created_at
 		)
-		VALUES ($1, $2, $3, $4)
+		VALUES ($1::uuid, $2::uuid, $3::uuid, $4)
 	`, params.StoreID, params.UserID, params.CreatedByOwnerID, params.OccurredAt)
 	if err != nil {
 		if duplicateStaff(err) {
@@ -763,7 +763,7 @@ func (r *Repository) AssignStaff(ctx context.Context, params AssignStaffParams) 
 func (r *Repository) UnassignStaff(ctx context.Context, storeID string, userID string) error {
 	commandTag, err := r.pool.Exec(ctx, `
 		DELETE FROM store_staff
-		WHERE store_id = $1 AND user_id = $2
+		WHERE store_id = $1::uuid AND user_id = $2::uuid
 	`, storeID, userID)
 	if err != nil {
 		return fmt.Errorf("unassign staff from store: %w", err)
@@ -807,7 +807,7 @@ func (r *Repository) InsertAuditLog(
 			user_agent,
 			created_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10)
+		VALUES ($1::uuid, $2, $3::uuid, $4, $5, $6::uuid, $7::jsonb, $8, $9, $10)
 	`, actorUserID, actorRole, storeID, action, targetType, targetID, string(encoded), nullableStringValue(ipAddress), nullableStringValue(userAgent), occurredAt)
 	if err != nil {
 		return fmt.Errorf("insert store audit log: %w", err)
@@ -1045,7 +1045,7 @@ func buildStoreDirectoryWhere(query storeDirectoryQuery, filter ListStoreDirecto
 func buildEmployeeDirectoryWhere(ownerUserID string, filter ListEmployeesFilter) (string, []any) {
 	clauses := []string{
 		"role = 'karyawan'",
-		"created_by_user_id = $1",
+		"created_by_user_id = $1::uuid",
 	}
 	args := []any{ownerUserID}
 	next := 2
@@ -1073,7 +1073,7 @@ func buildEmployeeDirectoryWhere(ownerUserID string, filter ListEmployeesFilter)
 
 func buildStoreStaffWhere(filter ListStoreStaffFilter) (string, []any) {
 	clauses := []string{
-		"ss.store_id = $1",
+		"ss.store_id = $1::uuid",
 	}
 	args := []any{filter.StoreID}
 	next := 2

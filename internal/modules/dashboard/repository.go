@@ -27,7 +27,7 @@ func (r *Repository) GetStoreMetricsForUser(ctx context.Context, userID string, 
 		WITH accessible_stores AS (
 			SELECT s.id, s.status, s.current_balance, s.low_balance_threshold
 			FROM stores s
-			WHERE s.owner_user_id = $1
+			WHERE s.owner_user_id = $1::uuid
 				AND s.deleted_at IS NULL
 
 			UNION
@@ -35,7 +35,7 @@ func (r *Repository) GetStoreMetricsForUser(ctx context.Context, userID string, 
 			SELECT s.id, s.status, s.current_balance, s.low_balance_threshold
 			FROM store_staff ss
 			INNER JOIN stores s ON s.id = ss.store_id
-			WHERE ss.user_id = $1
+			WHERE ss.user_id = $1::uuid
 				AND s.deleted_at IS NULL
 		)
 		SELECT

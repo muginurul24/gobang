@@ -22,15 +22,15 @@ func (r *AccessRepository) HasStoreAccess(ctx context.Context, userID string, st
 		SELECT EXISTS (
 			SELECT 1
 			FROM stores s
-			WHERE s.id = $2
+			WHERE s.id = $2::uuid
 				AND s.deleted_at IS NULL
 				AND (
-					s.owner_user_id = $1
+					s.owner_user_id = $1::uuid
 					OR EXISTS (
 						SELECT 1
 						FROM store_staff ss
 						WHERE ss.store_id = s.id
-							AND ss.user_id = $1
+							AND ss.user_id = $1::uuid
 					)
 				)
 		)
