@@ -188,6 +188,8 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - Failed callback deliveries are logged in `outbound_callback_attempts` with masked response bodies and exponential backoff for 5 retries; the last failure creates a `callback.delivery_failed` notification for the store.
 - Final `callback.delivery_failed` juga dipublish ke scope role `dev` dan `superadmin`, jadi platform stream punya error notifications lintas store tanpa menunggu polling kartu dashboard.
 - `apps/scheduler` prunes terminal callback attempts older than `CALLBACK_ATTEMPT_RETENTION_PERIOD` on `CALLBACK_ATTEMPT_PRUNE_INTERVAL`, while leaving `pending` and `retrying` callbacks untouched so retry state remains intact.
+- `GET /v1/callbacks/queue`: platform-only read path untuk callback queue, dengan server-side search, status filter, store filter, date range, summary counts, dan pagination.
+- `GET /v1/callbacks/{callbackID}/attempts`: platform-only masked attempt log viewer untuk incident review di page `/app/ops`.
 - Local tuning uses `CALLBACK_SIGNING_SECRET`, `CALLBACK_DELIVERY_TIMEOUT`, `CALLBACK_RETRY_INTERVAL`, and `CALLBACK_RETRY_BATCH_SIZE`.
 
 ## Realtime Backbone
@@ -260,4 +262,5 @@ Initial monorepo scaffold for the multi-tenant API bridge described in [`docs/bl
 - Demo store members: `member-demo` and `member-alpha`
 - Demo seeded balance: `2500000.00`
 - `apps/web` now contains a working login page plus `/app/stores`, `/app/topups`, `/app/withdrawals`, `/app/members`, `/app/bank-accounts`, `/app/audit`, and `/app/security` for store ops, QRIS topup generation, store withdraw requests, member mapping, verified bank accounts, scoped audit, TOTP enrollment, recovery code handoff, and dashboard IP allowlist management.
+- Frontend shell now also includes `/app/ops` for dev/superadmin health plus callback observability, and `/app/api-docs` includes a local HMAC callback playground so owner/developer teams can test outbound callback verification without leaving the dashboard.
 - Set `PUBLIC_API_BASE_URL` only when the web shell should talk to a different API origin; otherwise dev mode proxies `/v1` to `http://127.0.0.1:8080`.

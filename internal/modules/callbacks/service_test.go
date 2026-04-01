@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mugiew/onixggr/internal/modules/auth"
 	"github.com/mugiew/onixggr/internal/platform/clock"
 )
 
@@ -223,6 +224,82 @@ func TestRunPendingFinalFailureCreatesNotification(t *testing.T) {
 	}
 }
 
+func TestListQueueRejectsNonPlatformRole(t *testing.T) {
+	service := NewService(Options{
+		Repository: &stubRepository{},
+	})
+
+	_, err := service.ListQueue(context.Background(), auth.Subject{
+		UserID: "owner-1",
+		Role:   auth.RoleOwner,
+	}, ListQueueFilter{})
+	if !errors.Is(err, auth.ErrUnauthorized) {
+		t.Fatalf("ListQueue error = %v, want auth.ErrUnauthorized", err)
+	}
+}
+
+func TestListQueuePassesNormalizedFilter(t *testing.T) {
+	repository := &stubRepository{
+		queuePage: QueuePage{
+			Items: []QueueItem{},
+		},
+	}
+	service := NewService(Options{
+		Repository: repository,
+	})
+
+	status := Status(" pending ")
+	storeID := " store-1 "
+	createdFrom := time.Date(2026, time.April, 1, 9, 0, 0, 0, time.UTC)
+	createdTo := time.Date(2026, time.April, 1, 10, 0, 0, 0, time.UTC)
+
+	_, err := service.ListQueue(context.Background(), auth.Subject{
+		UserID: "dev-1",
+		Role:   auth.RoleDev,
+	}, ListQueueFilter{
+		Query:       " member_payment.success ",
+		Status:      &status,
+		StoreID:     &storeID,
+		CreatedFrom: &createdFrom,
+		CreatedTo:   &createdTo,
+		Limit:       0,
+		Offset:      -5,
+	})
+	if err != nil {
+		t.Fatalf("ListQueue error = %v", err)
+	}
+
+	if repository.lastQueueFilter.Query != "member_payment.success" {
+		t.Fatalf("query = %q", repository.lastQueueFilter.Query)
+	}
+	if repository.lastQueueFilter.Status == nil || *repository.lastQueueFilter.Status != StatusPending {
+		t.Fatalf("status = %v, want pending", repository.lastQueueFilter.Status)
+	}
+	if repository.lastQueueFilter.StoreID == nil || *repository.lastQueueFilter.StoreID != "store-1" {
+		t.Fatalf("storeID = %v, want store-1", repository.lastQueueFilter.StoreID)
+	}
+	if repository.lastQueueFilter.Limit != 25 {
+		t.Fatalf("limit = %d, want 25", repository.lastQueueFilter.Limit)
+	}
+	if repository.lastQueueFilter.Offset != 0 {
+		t.Fatalf("offset = %d, want 0", repository.lastQueueFilter.Offset)
+	}
+}
+
+func TestListAttemptsRejectsNonPlatformRole(t *testing.T) {
+	service := NewService(Options{
+		Repository: &stubRepository{},
+	})
+
+	_, err := service.ListAttempts(context.Background(), auth.Subject{
+		UserID: "owner-1",
+		Role:   auth.RoleOwner,
+	}, "callback-1", 10, 0)
+	if !errors.Is(err, auth.ErrUnauthorized) {
+		t.Fatalf("ListAttempts error = %v, want auth.ErrUnauthorized", err)
+	}
+}
+
 type fixedClock struct {
 	now time.Time
 }
@@ -232,12 +309,18 @@ func (f fixedClock) Now() time.Time {
 }
 
 type stubRepository struct {
-	source       MemberPaymentCallbackSource
-	dueCallbacks []DueOutboundCallback
-	enqueueCalls int
-	recordCalls  int
-	lastEnqueue  EnqueueOutboundCallbackParams
-	lastRecord   RecordAttemptParams
+	source            MemberPaymentCallbackSource
+	dueCallbacks      []DueOutboundCallback
+	enqueueCalls      int
+	recordCalls       int
+	lastEnqueue       EnqueueOutboundCallbackParams
+	lastRecord        RecordAttemptParams
+	queuePage         QueuePage
+	attemptPage       AttemptPage
+	lastQueueFilter   ListQueueFilter
+	lastAttemptID     string
+	lastAttemptLimit  int
+	lastAttemptOffset int
 }
 
 func (s *stubRepository) FindMemberPaymentCallbackSource(context.Context, string) (MemberPaymentCallbackSource, error) {
@@ -258,6 +341,18 @@ func (s *stubRepository) RecordAttempt(_ context.Context, params RecordAttemptPa
 	s.recordCalls++
 	s.lastRecord = params
 	return nil
+}
+
+func (s *stubRepository) ListQueue(_ context.Context, filter ListQueueFilter) (QueuePage, error) {
+	s.lastQueueFilter = filter
+	return s.queuePage, nil
+}
+
+func (s *stubRepository) ListAttempts(_ context.Context, callbackID string, limit int, offset int) (AttemptPage, error) {
+	s.lastAttemptID = callbackID
+	s.lastAttemptLimit = limit
+	s.lastAttemptOffset = offset
+	return s.attemptPage, nil
 }
 
 type stubDispatcher struct {

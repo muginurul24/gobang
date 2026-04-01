@@ -78,7 +78,7 @@
   <title>Login | onixggr</title>
 </svelte:head>
 
-<div class="space-y-6">
+<main class="space-y-6" id="app-main">
   <div class="space-y-3">
     <p class="section-kicker">Command Login</p>
     <h1 class="font-display text-4xl font-bold tracking-tight text-ink-900 sm:text-5xl">
@@ -173,4 +173,4 @@
       credential secara otomatis agar aman untuk staging dan production.
     </p>
   </article>
-</div>
+</main>

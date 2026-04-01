@@ -149,6 +149,7 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 			PlatformNotifications: platformNotifier,
 			SigningSecret:         cfg.Callback.SigningSecret,
 		})
+		callbacks.NewHandler(callbackService, authService).Register(mux)
 
 		stores.NewHandler(
 			stores.NewService(

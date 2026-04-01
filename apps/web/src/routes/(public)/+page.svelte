@@ -23,7 +23,7 @@
   />
 </svelte:head>
 
-<main class="relative z-10 shell-width mx-auto pb-20 pt-6">
+<main class="relative z-10 shell-width mx-auto pb-20 pt-6" id="app-main">
   <section class="surface-dark surface-grid overflow-hidden rounded-[2.6rem]">
     <div class="grid gap-10 px-6 py-8 md:px-10 md:py-10 xl:grid-cols-[1.15fr_0.85fr]">
       <div class="space-y-6 text-white">

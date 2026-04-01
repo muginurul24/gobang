@@ -17,6 +17,7 @@ const publicRoutes = ['/', '/login'];
 
 const desktopAppRoutes = [
   '/app',
+  '/app/ops',
   '/app/stores',
   '/app/api-docs',
   '/app/catalog',
@@ -32,6 +33,7 @@ const desktopAppRoutes = [
 
 const mobileRoutes = [
   '/app',
+  '/app/ops',
   '/app/stores',
   '/app/topups',
   '/app/withdrawals',

@@ -242,6 +242,196 @@ func (r *Repository) RecordAttempt(ctx context.Context, params RecordAttemptPara
 	return nil
 }
 
+func (r *Repository) ListQueue(ctx context.Context, filter ListQueueFilter) (QueuePage, error) {
+	filter = normalizeQueueFilter(filter)
+
+	summary, err := r.listQueueSummary(ctx, filter)
+	if err != nil {
+		return QueuePage{}, err
+	}
+
+	rows, err := r.pool.Query(ctx, `
+		SELECT
+			c.id,
+			c.store_id,
+			s.name,
+			s.slug,
+			s.callback_url,
+			c.event_type,
+			c.reference_type,
+			c.reference_id::text,
+			c.status,
+			c.created_at,
+			c.updated_at,
+			COALESCE(last_attempt.attempt_no, 0) AS latest_attempt_no,
+			last_attempt.http_status,
+			last_attempt.status,
+			COALESCE(last_attempt.response_body_masked, ''),
+			last_attempt.next_retry_at,
+			last_attempt.created_at
+		FROM outbound_callbacks c
+		INNER JOIN stores s ON s.id = c.store_id
+		LEFT JOIN LATERAL (
+			SELECT
+				attempt_no,
+				http_status,
+				status,
+				response_body_masked,
+				next_retry_at,
+				created_at
+			FROM outbound_callback_attempts
+			WHERE outbound_callback_id = c.id
+			ORDER BY attempt_no DESC
+			LIMIT 1
+		) AS last_attempt ON TRUE
+		WHERE s.deleted_at IS NULL
+			AND ($1 = '' OR (
+				c.id::text ILIKE '%' || $1 || '%'
+				OR c.event_type ILIKE '%' || $1 || '%'
+				OR c.reference_type ILIKE '%' || $1 || '%'
+				OR c.reference_id::text ILIKE '%' || $1 || '%'
+				OR s.name ILIKE '%' || $1 || '%'
+				OR s.slug ILIKE '%' || $1 || '%'
+				OR COALESCE(s.callback_url, '') ILIKE '%' || $1 || '%'
+			))
+			AND ($2 = '' OR c.status = $2)
+			AND ($3 = '' OR c.store_id = $3)
+			AND ($4::timestamptz IS NULL OR c.created_at >= $4)
+			AND ($5::timestamptz IS NULL OR c.created_at <= $5)
+		ORDER BY c.created_at DESC, c.id DESC
+		LIMIT $6 OFFSET $7
+	`, filter.Query, stringValue(filter.Status), stringValue(filter.StoreID), filter.CreatedFrom, filter.CreatedTo, filter.Limit, filter.Offset)
+	if err != nil {
+		return QueuePage{}, fmt.Errorf("list callback queue: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]QueueItem, 0, filter.Limit)
+	for rows.Next() {
+		var item QueueItem
+		var latestAttemptStatus *AttemptStatus
+		if err := rows.Scan(
+			&item.ID,
+			&item.StoreID,
+			&item.StoreName,
+			&item.StoreSlug,
+			&item.CallbackURL,
+			&item.EventType,
+			&item.ReferenceType,
+			&item.ReferenceID,
+			&item.Status,
+			&item.CreatedAt,
+			&item.UpdatedAt,
+			&item.LatestAttemptNo,
+			&item.LatestHTTPStatus,
+			&latestAttemptStatus,
+			&item.LatestResponseBodyMasked,
+			&item.LatestNextRetryAt,
+			&item.LatestAttemptAt,
+		); err != nil {
+			return QueuePage{}, fmt.Errorf("scan callback queue item: %w", err)
+		}
+
+		item.LatestAttemptStatus = latestAttemptStatus
+		items = append(items, item)
+	}
+
+	if err := rows.Err(); err != nil {
+		return QueuePage{}, fmt.Errorf("iterate callback queue: %w", err)
+	}
+
+	return QueuePage{
+		Items:   items,
+		Summary: summary,
+		Limit:   filter.Limit,
+		Offset:  filter.Offset,
+	}, nil
+}
+
+func (r *Repository) ListAttempts(ctx context.Context, callbackID string, limit int, offset int) (AttemptPage, error) {
+	trimmedCallbackID := strings.TrimSpace(callbackID)
+	if trimmedCallbackID == "" {
+		return AttemptPage{}, ErrNotFound
+	}
+
+	limit = clampLimit(limit, 50, 200)
+	offset = clampOffset(offset)
+
+	var exists bool
+	if err := r.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM outbound_callbacks
+			WHERE id = $1
+		)
+	`, trimmedCallbackID).Scan(&exists); err != nil {
+		return AttemptPage{}, fmt.Errorf("check callback attempts parent: %w", err)
+	}
+	if !exists {
+		return AttemptPage{}, ErrNotFound
+	}
+
+	rows, err := r.pool.Query(ctx, `
+		SELECT
+			id,
+			outbound_callback_id,
+			attempt_no,
+			http_status,
+			status,
+			response_body_masked,
+			next_retry_at,
+			created_at
+		FROM outbound_callback_attempts
+		WHERE outbound_callback_id = $1
+		ORDER BY attempt_no DESC
+		LIMIT $2 OFFSET $3
+	`, trimmedCallbackID, limit, offset)
+	if err != nil {
+		return AttemptPage{}, fmt.Errorf("list callback attempts: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]AttemptRecord, 0, limit)
+	for rows.Next() {
+		var item AttemptRecord
+		if err := rows.Scan(
+			&item.ID,
+			&item.OutboundCallbackID,
+			&item.AttemptNo,
+			&item.HTTPStatus,
+			&item.Status,
+			&item.ResponseBodyMasked,
+			&item.NextRetryAt,
+			&item.CreatedAt,
+		); err != nil {
+			return AttemptPage{}, fmt.Errorf("scan callback attempt: %w", err)
+		}
+
+		items = append(items, item)
+	}
+
+	if err := rows.Err(); err != nil {
+		return AttemptPage{}, fmt.Errorf("iterate callback attempts: %w", err)
+	}
+
+	var totalCount int
+	if err := r.pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM outbound_callback_attempts
+		WHERE outbound_callback_id = $1
+	`, trimmedCallbackID).Scan(&totalCount); err != nil {
+		return AttemptPage{}, fmt.Errorf("count callback attempts: %w", err)
+	}
+
+	return AttemptPage{
+		CallbackID: trimmedCallbackID,
+		Items:      items,
+		TotalCount: totalCount,
+		Limit:      limit,
+		Offset:     offset,
+	}, nil
+}
+
 func (r *Repository) PruneAttemptsBefore(ctx context.Context, cutoff time.Time) (int64, error) {
 	commandTag, err := r.pool.Exec(ctx, `
 		DELETE FROM outbound_callback_attempts attempts
@@ -273,4 +463,105 @@ func toJSON(payload any) string {
 	}
 
 	return string(encoded)
+}
+
+func (r *Repository) listQueueSummary(ctx context.Context, filter ListQueueFilter) (QueueSummary, error) {
+	var summary QueueSummary
+	err := r.pool.QueryRow(ctx, `
+		SELECT
+			COUNT(*) AS total_count,
+			COUNT(*) FILTER (WHERE c.status = 'pending') AS pending_count,
+			COUNT(*) FILTER (WHERE c.status = 'retrying') AS retrying_count,
+			COUNT(*) FILTER (WHERE c.status = 'success') AS success_count,
+			COUNT(*) FILTER (WHERE c.status = 'failed') AS failed_count
+		FROM outbound_callbacks c
+		INNER JOIN stores s ON s.id = c.store_id
+		WHERE s.deleted_at IS NULL
+			AND ($1 = '' OR (
+				c.id::text ILIKE '%' || $1 || '%'
+				OR c.event_type ILIKE '%' || $1 || '%'
+				OR c.reference_type ILIKE '%' || $1 || '%'
+				OR c.reference_id::text ILIKE '%' || $1 || '%'
+				OR s.name ILIKE '%' || $1 || '%'
+				OR s.slug ILIKE '%' || $1 || '%'
+				OR COALESCE(s.callback_url, '') ILIKE '%' || $1 || '%'
+			))
+			AND ($2 = '' OR c.status = $2)
+			AND ($3 = '' OR c.store_id = $3)
+			AND ($4::timestamptz IS NULL OR c.created_at >= $4)
+			AND ($5::timestamptz IS NULL OR c.created_at <= $5)
+	`, filter.Query, stringValue(filter.Status), stringValue(filter.StoreID), filter.CreatedFrom, filter.CreatedTo).Scan(
+		&summary.TotalCount,
+		&summary.PendingCount,
+		&summary.RetryingCount,
+		&summary.SuccessCount,
+		&summary.FailedCount,
+	)
+	if err != nil {
+		return QueueSummary{}, fmt.Errorf("list callback queue summary: %w", err)
+	}
+
+	return summary, nil
+}
+
+func normalizeQueueFilter(filter ListQueueFilter) ListQueueFilter {
+	filter.Query = strings.TrimSpace(filter.Query)
+	filter.StoreID = normalizeOptionalString(filter.StoreID)
+	filter.Status = normalizeOptionalStatus(filter.Status)
+	filter.Limit = clampLimit(filter.Limit, 25, 200)
+	filter.Offset = clampOffset(filter.Offset)
+	return filter
+}
+
+func normalizeOptionalString(value *string) *string {
+	if value == nil {
+		return nil
+	}
+
+	trimmed := strings.TrimSpace(*value)
+	if trimmed == "" {
+		return nil
+	}
+
+	return &trimmed
+}
+
+func normalizeOptionalStatus(value *Status) *Status {
+	if value == nil {
+		return nil
+	}
+
+	trimmed := Status(strings.TrimSpace(string(*value)))
+	if trimmed == "" {
+		return nil
+	}
+
+	return &trimmed
+}
+
+func clampLimit(value int, defaultValue int, maxValue int) int {
+	switch {
+	case value <= 0:
+		return defaultValue
+	case value > maxValue:
+		return maxValue
+	default:
+		return value
+	}
+}
+
+func clampOffset(value int) int {
+	if value < 0 {
+		return 0
+	}
+
+	return value
+}
+
+func stringValue[T ~string](value *T) string {
+	if value == nil {
+		return ""
+	}
+
+	return string(*value)
 }

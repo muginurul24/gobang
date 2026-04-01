@@ -3,6 +3,7 @@
 
   import EmptyState from '$lib/components/app/empty-state.svelte';
   import MetricCard from '$lib/components/app/metric-card.svelte';
+  import Notice from '$lib/components/app/notice.svelte';
   import StoreScopePicker from '$lib/components/app/store-scope-picker.svelte';
   import Button from '$lib/components/ui/button/button.svelte';
   import { authSession } from '$lib/auth/client';
@@ -69,6 +70,11 @@
   let baseURL = 'https://app.bola788.store';
   let copiedKey = '';
   let endpointSearch = '';
+  let callbackTesterSecret = '';
+  let callbackTesterPayload = '';
+  let callbackTesterSignature = '';
+  let callbackTesterBusy = false;
+  let callbackTesterError = '';
 
   $: currentStore = selectedStore;
   $: role = $authSession?.user.role ?? '';
@@ -83,7 +89,7 @@
     'Pastikan setiap transaksi uang memakai trx_id unik supaya retry aman dan idempotent.',
   ];
   $: responseEnvelopeExample = `{\n  "status": true,\n  "message": "SUCCESS",\n  "data": {\n    "id": "uuid",\n    "custom_ref": "TOPUP-001",\n    "status": "pending"\n  }\n}`;
-  $: callbackExample = `POST ${baseURL}/v1/webhooks/qris\nHeaders:\n  Content-Type: application/json\n  X-Onixggr-Signature: sha256=<hmac>\n\nBody contoh event outbound ke website owner:\n{\n  "event_type": "member_payment.success",\n  "reference_id": "trx_123",\n  "store_id": "${currentStore?.id ?? 'store_uuid'}",\n  "username": "member-alpha",\n  "amount_gross": "25000.00",\n  "platform_fee_amount": "750.00",\n  "store_credit_amount": "24250.00",\n  "occurred_at": "${new Date().toISOString()}"\n}`;
+  $: callbackExample = `POST ${currentStore?.callback_url || 'https://merchant.example.com/callback'}\nHeaders:\n  Content-Type: application/json\n  X-Onixggr-Signature: sha256=<hmac>\n\nBody contoh event outbound ke website owner:\n{\n  "event_type": "member_payment.success",\n  "occurred_at": "${new Date().toISOString()}",\n  "reference_type": "qris_transaction",\n  "reference_id": "trx_123",\n  "data": {\n    "qris_transaction_id": "trx_123",\n    "store_id": "${currentStore?.id ?? 'store_uuid'}",\n    "store_member_id": "member_uuid",\n    "real_username": "member-alpha",\n    "status": "success",\n    "custom_ref": "ORDER-2026-001",\n    "provider_trx_id": "provider-rrn-001",\n    "amount_gross": "25000.00",\n    "platform_fee_amount": "750.00",\n    "store_credit_amount": "24250.00",\n    "paid_at": "${new Date().toISOString()}"\n  }\n}`;
   $: signatureCheckNode = `import crypto from 'node:crypto';\n\nfunction verifyOnixSignature(rawBody, signatureHeader, secret) {\n  const expected = 'sha256=' + crypto.createHmac('sha256', secret).update(rawBody).digest('hex');\n  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signatureHeader || ''));\n}`;
   $: errorDeck = [
     {
@@ -125,6 +131,7 @@
     selectedStoreID = getPreferredStoreID();
     baseURL =
       (import.meta.env.PUBLIC_API_BASE_URL ?? '').trim() || window.location.origin;
+    callbackTesterPayload = sampleCallbackPayload();
   });
 
   async function copySnippet(key: string, value: string) {
@@ -175,6 +182,87 @@
     return method === 'GET'
       ? 'bg-brand-100 text-brand-700'
       : 'bg-accent-100 text-accent-700';
+  }
+
+  async function generateCallbackSignature() {
+    callbackTesterError = '';
+    callbackTesterSignature = '';
+
+    const secret = callbackTesterSecret.trim();
+    const payload = callbackTesterPayload.trim();
+    if (secret === '' || payload === '') {
+      callbackTesterError = 'Secret dan payload wajib diisi.';
+      return;
+    }
+
+    if (!globalThis.crypto?.subtle) {
+      callbackTesterError = 'Web Crypto tidak tersedia di browser ini.';
+      return;
+    }
+
+    callbackTesterBusy = true;
+
+    try {
+      const encoder = new TextEncoder();
+      const key = await globalThis.crypto.subtle.importKey(
+        'raw',
+        encoder.encode(secret),
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+      );
+      const signature = await globalThis.crypto.subtle.sign(
+        'HMAC',
+        key,
+        encoder.encode(payload)
+      );
+      callbackTesterSignature = `sha256=${toHex(signature)}`;
+    } catch (error) {
+      callbackTesterError =
+        error instanceof Error
+          ? error.message
+          : 'Gagal menghasilkan signature callback.';
+    } finally {
+      callbackTesterBusy = false;
+    }
+  }
+
+  function loadSamplePayload() {
+    callbackTesterPayload = sampleCallbackPayload();
+    callbackTesterError = '';
+    callbackTesterSignature = '';
+  }
+
+  function sampleCallbackPayload() {
+    return JSON.stringify(
+      {
+        event_type: 'member_payment.success',
+        occurred_at: new Date().toISOString(),
+        reference_type: 'qris_transaction',
+        reference_id: 'trx_123',
+        data: {
+          qris_transaction_id: 'trx_123',
+          store_id: currentStore?.id ?? 'store_uuid',
+          store_member_id: 'member_uuid',
+          real_username: 'member-alpha',
+          status: 'success',
+          custom_ref: 'ORDER-2026-001',
+          provider_trx_id: 'provider-rrn-001',
+          amount_gross: '25000.00',
+          platform_fee_amount: '750.00',
+          store_credit_amount: '24250.00',
+          paid_at: new Date().toISOString(),
+        },
+      },
+      null,
+      2,
+    );
+  }
+
+  function toHex(buffer: ArrayBuffer) {
+    return Array.from(new Uint8Array(buffer))
+      .map((value) => value.toString(16).padStart(2, '0'))
+      .join('');
   }
 </script>
 
@@ -270,6 +358,83 @@
           </p>
 
           <pre class="code-block mt-5">{callbackExample}</pre>
+        </article>
+
+        <article class="glass-panel rounded-[2.2rem] p-5 sm:p-6">
+          <div class="flex items-end justify-between gap-4">
+            <div>
+              <p class="section-kicker !text-brand-700">Callback playground</p>
+              <h2 class="mt-3 font-display text-3xl font-bold tracking-tight text-ink-900">
+                Generate HMAC header locally
+              </h2>
+            </div>
+            <span class="surface-chip">local only</span>
+          </div>
+
+          <p class="mt-3 text-sm leading-7 text-ink-700">
+            Secret tidak dikirim ke backend. Browser hanya memakai Web Crypto untuk menghasilkan
+            header `X-Onixggr-Signature` dari payload callback yang Anda siapkan sendiri.
+          </p>
+
+          <div class="mt-5 grid gap-4">
+            <label class="space-y-2">
+              <span class="text-sm font-medium text-ink-700">CALLBACK_SIGNING_SECRET</span>
+              <input
+                bind:value={callbackTesterSecret}
+                class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300"
+                placeholder="Masukkan secret callback owner"
+                type="password"
+              />
+            </label>
+
+            <label class="space-y-2">
+              <span class="text-sm font-medium text-ink-700">Payload callback</span>
+              <textarea
+                bind:value={callbackTesterPayload}
+                class="min-h-[240px] w-full rounded-[1.5rem] border border-ink-100 bg-white px-4 py-4 font-mono text-xs leading-6 text-ink-900 outline-none transition focus:border-accent-300"
+                spellcheck="false"
+              ></textarea>
+            </label>
+
+            <div class="flex flex-wrap gap-2">
+              <Button variant="brand" size="sm" onclick={generateCallbackSignature}>
+                {callbackTesterBusy ? 'Generating…' : 'Generate signature'}
+              </Button>
+              <Button variant="outline" size="sm" onclick={loadSamplePayload}>
+                Load sample payload
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onclick={() => copySnippet('callback-payload', callbackTesterPayload)}
+              >
+                {copiedKey === 'callback-payload' ? 'Copied payload' : 'Copy payload'}
+              </Button>
+            </div>
+
+            {#if callbackTesterError !== ''}
+              <Notice tone="warning" message={callbackTesterError} />
+            {/if}
+
+            <div class="rounded-[1.6rem] border border-ink-100 bg-canvas-50 px-4 py-4">
+              <p class="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-ink-300">
+                X-Onixggr-Signature
+              </p>
+              <p class="mt-3 break-all font-mono text-xs leading-6 text-ink-900">
+                {callbackTesterSignature || 'sha256=<generated-hmac-signature>'}
+              </p>
+              <div class="mt-4 flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={callbackTesterSignature === ''}
+                  onclick={() => copySnippet('callback-signature', callbackTesterSignature)}
+                >
+                  {copiedKey === 'callback-signature' ? 'Copied signature' : 'Copy signature'}
+                </Button>
+              </div>
+            </div>
+          </div>
         </article>
 
         <div class="grid gap-6 xl:grid-cols-2">

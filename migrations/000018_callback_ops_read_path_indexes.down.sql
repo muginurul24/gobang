@@ -1,0 +1,3 @@
+DROP INDEX IF EXISTS outbound_callback_attempts_outbound_callback_id_created_at_desc_idx;
+DROP INDEX IF EXISTS outbound_callbacks_status_created_at_desc_idx;
+DROP INDEX IF EXISTS outbound_callbacks_created_at_desc_idx;

@@ -58,6 +58,11 @@
   $: nav = [
     { href: '/app', label: 'Dashboard', description: 'realtime cards' },
     { href: '/app/notifications', label: 'Notifications', description: 'event stream', badge: notificationBadge },
+    ...(
+      role === 'dev' || role === 'superadmin'
+        ? [{ href: '/app/ops', label: 'Ops', description: 'health + callbacks' }]
+        : []
+    ),
     { href: '/app/stores', label: 'Stores', description: 'token + callback' },
     { href: '/app/api-docs', label: 'API Docs', description: 'owner integration' },
     { href: '/app/catalog', label: 'Catalog', description: 'provider + games' },
@@ -393,7 +398,12 @@
         <div class="mt-6 overflow-x-auto soft-scroll">
           <nav class="flex min-w-max gap-3 pb-1">
             {#each nav as item}
-              <a class="app-nav-link" data-active={isActive(item.href)} href={item.href}>
+              <a
+                aria-current={isActive(item.href) ? 'page' : undefined}
+                class="app-nav-link"
+                data-active={isActive(item.href)}
+                href={item.href}
+              >
                 <span>{item.label}</span>
                 {#if item.badge}
                   <span class="rounded-full bg-white/10 px-2 py-1 text-[0.68rem] font-semibold">
@@ -574,7 +584,7 @@
           {/if}
         </aside>
 
-        <main class="min-w-0 space-y-6">
+        <main class="min-w-0 space-y-6" id="app-main" tabindex="-1">
           <slot />
         </main>
       </div>

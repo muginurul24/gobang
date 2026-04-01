@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mugiew/onixggr/internal/modules/auth"
 	"github.com/mugiew/onixggr/internal/platform/clock"
 )
 
@@ -18,6 +19,8 @@ type RepositoryContract interface {
 	EnqueueOutboundCallback(ctx context.Context, params EnqueueOutboundCallbackParams) (OutboundCallback, error)
 	ListDueOutboundCallbacks(ctx context.Context, now time.Time, limit int) ([]DueOutboundCallback, error)
 	RecordAttempt(ctx context.Context, params RecordAttemptParams) error
+	ListQueue(ctx context.Context, filter ListQueueFilter) (QueuePage, error)
+	ListAttempts(ctx context.Context, callbackID string, limit int, offset int) (AttemptPage, error)
 }
 
 type Dispatcher interface {
@@ -27,6 +30,8 @@ type Dispatcher interface {
 type Service interface {
 	EnqueueMemberPaymentSuccess(ctx context.Context, qrisTransactionID string) error
 	RunPending(ctx context.Context, limit int) (RunSummary, error)
+	ListQueue(ctx context.Context, subject auth.Subject, filter ListQueueFilter) (QueuePage, error)
+	ListAttempts(ctx context.Context, subject auth.Subject, callbackID string, limit int, offset int) (AttemptPage, error)
 }
 
 type NotificationEmitter interface {
@@ -167,6 +172,23 @@ func (s *service) RunPending(ctx context.Context, limit int) (RunSummary, error)
 	return summary, runErr
 }
 
+func (s *service) ListQueue(ctx context.Context, subject auth.Subject, filter ListQueueFilter) (QueuePage, error) {
+	if !isPlatformRole(subject.Role) {
+		return QueuePage{}, auth.ErrUnauthorized
+	}
+
+	filter = normalizeQueueFilter(filter)
+	return s.repository.ListQueue(ctx, filter)
+}
+
+func (s *service) ListAttempts(ctx context.Context, subject auth.Subject, callbackID string, limit int, offset int) (AttemptPage, error) {
+	if !isPlatformRole(subject.Role) {
+		return AttemptPage{}, auth.ErrUnauthorized
+	}
+
+	return s.repository.ListAttempts(ctx, callbackID, clampLimit(limit, 25, 200), clampOffset(offset))
+}
+
 func (s *service) processCallback(ctx context.Context, callback DueOutboundCallback, summary *RunSummary) error {
 	now := s.clock.Now().UTC()
 	attemptNo := callback.AttemptNo + 1
@@ -252,3 +274,7 @@ func (noopNotificationEmitter) Emit(string, string, string, string) {}
 type noopPlatformNotificationEmitter struct{}
 
 func (noopPlatformNotificationEmitter) Emit(string, string, string) {}
+
+func isPlatformRole(role auth.Role) bool {
+	return role == auth.RoleDev || role == auth.RoleSuperadmin
+}
