@@ -427,9 +427,13 @@
             <div class="flex items-start justify-between gap-4">
               <div>
                 <p class="section-kicker !text-brand-700">Navigation</p>
-                <h2 class="mt-3 font-display text-2xl font-bold tracking-tight text-ink-900">
-                  Command lanes
+                <h2 class="mt-3 font-display text-[1.85rem] font-bold tracking-tight text-ink-900">
+                  Control lanes
                 </h2>
+                <p class="mt-2 text-sm leading-6 text-ink-700">
+                  Sidebar ini sekarang jadi pusat orientasi utama, jadi user tidak perlu scroll jauh
+                  hanya untuk tahu sedang berada di halaman mana.
+                </p>
               </div>
 
               <div class="flex flex-wrap justify-end gap-2">
@@ -438,6 +442,20 @@
                   <Button variant="outline" size="sm" onclick={closeSidebar}>Close</Button>
                 {/if}
               </div>
+            </div>
+
+            <div class="shell-sidebar-user mt-5">
+              <div class="space-y-2">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="surface-chip">{$authSession?.user.username ?? '-'}</span>
+                  <span class="surface-chip">{currentPageTitle}</span>
+                </div>
+                <p class="text-sm leading-6 text-ink-700">
+                  {$authSession?.user.email ?? 'unknown'}
+                </p>
+              </div>
+
+              <ThemeToggle compact={true} />
             </div>
 
             <nav class="nav-cluster mt-5">
@@ -635,8 +653,9 @@
             <Button variant="outline" size="sm" onclick={toggleSidebar}>
               {isWideViewport ? (sidebarVisible ? 'Hide Nav' : 'Show Nav') : (sidebarVisible ? 'Close Menu' : 'Open Menu')}
             </Button>
-            <span class="surface-chip">view {currentPageTitle}</span>
+            <span class="surface-chip">lane {currentPageTitle}</span>
             <span class="surface-chip">realtime {realtimeLabel()}</span>
+            <span class="surface-chip">store {currentStore?.slug ?? 'platform-wide'}</span>
           </div>
 
           <div class="shell-utility-bar__group">
@@ -647,83 +666,52 @@
           </div>
         </section>
 
-        <section class="shell-command-bar surface-dark surface-grid overflow-hidden rounded-[2.8rem] px-5 py-5 text-white sm:px-7 sm:py-6">
-          <div class="grid gap-6 2xl:grid-cols-[minmax(0,1.2fr)_minmax(18rem,24rem)]">
-            <div class="space-y-5">
-              <div class="flex flex-wrap items-center gap-3">
-                <span class="status-chip">role {role || 'guest'}</span>
-                <span class="status-chip">realtime {realtimeLabel()}</span>
-                <span class="status-chip">view {currentPageTitle}</span>
-                {#if notificationBadge !== ''}
-                  <span class="status-chip">{notificationBadge} unread</span>
-                {/if}
+        <section class="shell-header glass-panel rounded-[2.15rem] p-5 sm:p-6">
+          <div class="shell-header__main">
+            <div class="space-y-3">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="section-kicker !text-brand-700">Current Lane</span>
+                <span class="surface-chip">{currentPath}</span>
+                <span class="surface-chip">{$authSession?.user.username ?? '-'}</span>
               </div>
 
-              <div class="space-y-3">
-                <p class="section-kicker">Onixggr Matrix</p>
-                <div class="space-y-2">
-                  <p class="font-mono text-[0.72rem] uppercase tracking-[0.32em] text-white/42">
-                    Current lane / {currentPageDescription}
-                  </p>
-                  <h1 class="font-display text-4xl font-bold tracking-tight text-white sm:text-5xl">
-                    Enterprise control plane untuk transaksi, store ops, dan integrasi API.
+              <div class="space-y-2">
+                <div class="flex flex-wrap items-center gap-3">
+                  <h1 class="font-display text-3xl font-bold tracking-tight text-ink-900 sm:text-[2.5rem]">
+                    {currentPageTitle}
                   </h1>
+                  <span class="surface-chip">role {role || 'guest'}</span>
+                  <span class="surface-chip">realtime {realtimeLabel()}</span>
                 </div>
-                <p class="max-w-3xl text-sm leading-7 text-white/72 sm:text-base">
-                  {pageSummary()}
+                <p class="max-w-3xl text-sm leading-7 text-ink-700 sm:text-base">
+                  {currentPageDescription}. {pageSummary()}
                 </p>
-              </div>
-
-              <div class="metric-strip">
-                <article class="metric-strip__item">
-                  <span class="metric-strip__label">Session</span>
-                  <strong class="metric-strip__value">{$authSession?.user.username ?? '-'}</strong>
-                  <span class="metric-strip__meta">{$authSession?.user.role ?? '-'}</span>
-                </article>
-                <article class="metric-strip__item">
-                  <span class="metric-strip__label">Realtime</span>
-                  <strong class="metric-strip__value">{$realtimeState.channels.length}</strong>
-                  <span class="metric-strip__meta">channel aktif</span>
-                </article>
-                <article class="metric-strip__item">
-                  <span class="metric-strip__label">Store Focus</span>
-                  <strong class="metric-strip__value">{currentStore?.name ?? 'No store'}</strong>
-                  <span class="metric-strip__meta">
-                    {currentStore ? formatCurrency(currentStore.current_balance) : 'waiting directory'}
-                  </span>
-                </article>
               </div>
             </div>
 
-            <div class="shell-command-bar__stats">
-              <article class="shell-command-card">
-                <div class="shell-command-card__header">
-                  <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-white/45">
-                    Current View
-                  </p>
-                  <span class="status-chip">{currentPath}</span>
-                </div>
-                <h2 class="mt-4 font-display text-3xl font-semibold tracking-tight text-white">
-                  {currentPageTitle}
-                </h2>
-                <p class="mt-2 text-sm leading-6 text-white/68">
-                  {currentPageDescription}. Navigation sekarang tinggal dibuka dari sidebar toggle dan tidak lagi terkubur di bawah hero.
-                </p>
+            <div class="shell-header__rail">
+              <article class="shell-header__metric">
+                <span class="shell-header__metric-label">Notifications</span>
+                <strong class="shell-header__metric-value">
+                  {notificationBadge === '' ? '0' : notificationBadge}
+                </strong>
+                <span class="shell-header__metric-meta">{notificationScope.label}</span>
               </article>
 
-              <article class="shell-command-card">
-                <div class="flex items-start justify-between gap-4">
-                  <div>
-                    <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-white/45">
-                      Display
-                    </p>
-                    <p class="mt-3 text-lg font-semibold text-white">Theme runtime</p>
-                  </div>
-                  <span class="surface-chip !bg-white/10 !text-white/90">desktop + mobile</span>
-                </div>
-                <div class="mt-4">
-                  <ThemeToggle />
-                </div>
+              <article class="shell-header__metric">
+                <span class="shell-header__metric-label">Store focus</span>
+                <strong class="shell-header__metric-value">{currentStore?.name ?? 'Platform-wide'}</strong>
+                <span class="shell-header__metric-meta">
+                  {currentStore ? formatCurrency(currentStore.current_balance) : 'lintas store'}
+                </span>
+              </article>
+
+              <article class="shell-header__metric">
+                <span class="shell-header__metric-label">Transport</span>
+                <strong class="shell-header__metric-value">{realtimeLabel()}</strong>
+                <span class="shell-header__metric-meta">
+                  {formatNumber($realtimeState.channels.length)} channel aktif
+                </span>
               </article>
             </div>
           </div>
@@ -737,37 +725,6 @@
               message={sessionBootstrapWarning}
             />
           {/if}
-
-          <section class="page-presence glass-panel rounded-[2.2rem] p-5 sm:p-6">
-            <div class="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_18rem] 2xl:items-center">
-              <div class="space-y-3">
-                <p class="section-kicker !text-brand-700">Current Page</p>
-                <div class="space-y-2">
-                  <h2 class="font-display text-3xl font-bold tracking-tight text-ink-900 sm:text-4xl">
-                    {currentPageTitle}
-                  </h2>
-                  <p class="max-w-3xl text-sm leading-7 text-ink-700 sm:text-base">
-                    {currentPageDescription}. Halaman aktif selalu punya identity strip yang konsisten untuk desktop maupun mobile.
-                  </p>
-                </div>
-              </div>
-
-              <div class="page-presence__stack">
-                <article class="page-presence__chip">
-                  <span class="page-presence__chip-label">Store focus</span>
-                  <strong class="page-presence__chip-value">{currentStore?.slug ?? 'platform-wide'}</strong>
-                </article>
-                <article class="page-presence__chip">
-                  <span class="page-presence__chip-label">Notifications</span>
-                  <strong class="page-presence__chip-value">{notificationBadge === '' ? '0' : notificationBadge}</strong>
-                </article>
-                <article class="page-presence__chip">
-                  <span class="page-presence__chip-label">Transport</span>
-                  <strong class="page-presence__chip-value">{realtimeLabel()}</strong>
-                </article>
-              </div>
-            </div>
-          </section>
           <slot />
         </main>
       </div>

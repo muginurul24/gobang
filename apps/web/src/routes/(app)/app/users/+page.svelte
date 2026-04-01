@@ -320,7 +320,7 @@
 {:else}
   <div class="space-y-6">
     <section class="surface-dark surface-grid overflow-hidden rounded-[2.4rem] px-6 py-6 text-white sm:px-7 sm:py-7">
-      <div class="grid gap-6 2xl:grid-cols-[1.08fr_0.92fr]">
+      <div class="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
         <div class="space-y-4">
           <div class="flex flex-wrap gap-3">
             <span class="status-chip">user onboarding</span>
@@ -397,7 +397,7 @@
       />
     </div>
 
-    <div class="grid gap-6 2xl:grid-cols-[0.94fr_1.06fr]">
+    <div class="grid gap-6 xl:grid-cols-[0.94fr_1.06fr]">
       <section class="form-surface">
         <div class="space-y-3">
           <p class="section-kicker !text-brand-700">Create dashboard user</p>

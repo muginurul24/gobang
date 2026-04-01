@@ -8,12 +8,18 @@ const chromiumPath = process.env.CHROMIUM_PATH || '/usr/bin/chromium-browser';
 const routes = [
   '/app',
   '/app/users',
+  '/app/ops',
   '/app/stores',
+  '/app/api-docs',
   '/app/catalog',
   '/app/members',
   '/app/topups',
+  '/app/bank-accounts',
+  '/app/withdrawals',
   '/app/notifications',
   '/app/security',
+  '/app/chat',
+  '/app/audit',
 ];
 
 const browser = await chromium.launch({
@@ -115,6 +121,57 @@ async function collectSnapshot(page, context, label) {
     theme: window.localStorage.getItem('onixggr.theme.preference'),
     cookie: document.cookie,
   }));
+  const layoutState = await page.evaluate(() => {
+    const doc = document.documentElement;
+    const body = document.body;
+    const overflowThreshold = 1;
+    const rootScrollWidth = Math.max(
+      doc?.scrollWidth ?? 0,
+      body?.scrollWidth ?? 0,
+    );
+    const rootClientWidth = Math.max(
+      doc?.clientWidth ?? 0,
+      body?.clientWidth ?? 0,
+    );
+    const activeLinks = Array.from(
+      document.querySelectorAll('.app-nav-link[data-active="true"]'),
+    );
+    const pageHeading =
+      document.querySelector('#app-main h1')?.textContent?.trim() ?? '';
+    const offenders = Array.from(
+      document.querySelectorAll('main *, section *, article *, aside *'),
+    )
+      .map((element) => {
+        const node = /** @type {HTMLElement} */ (element);
+        return {
+          tag: node.tagName.toLowerCase(),
+          classes: Array.from(node.classList).slice(0, 4),
+          scrollWidth: node.scrollWidth,
+          clientWidth: node.clientWidth,
+        };
+      })
+      .filter(
+        (item) =>
+          item.scrollWidth > 0 &&
+          item.clientWidth > 0 &&
+          item.scrollWidth - item.clientWidth > overflowThreshold,
+      )
+      .sort((left, right) => right.scrollWidth - left.scrollWidth)
+      .slice(0, 5);
+
+    return {
+      active_nav_count: activeLinks.length,
+      active_nav_labels: activeLinks
+        .map((link) => link.querySelector('.app-nav-link__label')?.textContent?.trim() ?? '')
+        .filter(Boolean),
+      page_heading: pageHeading,
+      root_scroll_width: rootScrollWidth,
+      root_client_width: rootClientWidth,
+      has_horizontal_overflow:
+        rootScrollWidth - rootClientWidth > overflowThreshold,
+      overflow_offenders: offenders,
+    };
+  });
 
   return {
     label,
@@ -131,6 +188,7 @@ async function collectSnapshot(page, context, label) {
     has_session_storage: authStorage.session !== null,
     cookie_string: authStorage.cookie,
     theme: authStorage.theme,
+    layout: layoutState,
   };
 }
 

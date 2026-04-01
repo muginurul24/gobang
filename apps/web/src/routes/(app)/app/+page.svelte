@@ -424,7 +424,7 @@
 
 <section class="space-y-6">
   <section class="surface-dark surface-grid overflow-hidden rounded-[2.4rem] px-6 py-6 text-white sm:px-7 sm:py-7">
-    <div class="grid gap-6 2xl:grid-cols-[1.18fr_0.82fr]">
+    <div class="grid gap-6 xl:grid-cols-[1.18fr_0.82fr]">
       <div class="space-y-4">
         <p class="status-chip w-fit">Dashboard command</p>
         <div class="space-y-3">
@@ -509,7 +509,7 @@
     {/if}
 
     <section class="dashboard-chart-card dashboard-chart-card--dark surface-grid">
-      <div class="grid gap-6 2xl:grid-cols-[minmax(0,1.12fr)_minmax(18rem,22rem)]">
+      <div class="grid gap-6 xl:grid-cols-[minmax(0,1.12fr)_minmax(18rem,22rem)]">
         <div class="space-y-5">
           <div class="space-y-3">
             <p class="section-kicker">Store Matrix</p>
@@ -619,7 +619,7 @@
       />
     </div>
 
-    <div class="grid gap-6 2xl:grid-cols-[1.1fr_0.9fr]">
+    <div class="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
       <section class="dashboard-chart-card rounded-[2.2rem] p-5 sm:p-6">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -792,7 +792,7 @@
     {/if}
 
     <section class="dashboard-chart-card dashboard-chart-card--dark surface-grid">
-      <div class="grid gap-6 2xl:grid-cols-[minmax(0,1.12fr)_minmax(18rem,22rem)]">
+      <div class="grid gap-6 xl:grid-cols-[minmax(0,1.12fr)_minmax(18rem,22rem)]">
         <div class="space-y-5">
           <div class="space-y-3">
             <p class="section-kicker">Platform Matrix</p>
@@ -896,7 +896,7 @@
       />
     </div>
 
-    <div class="grid gap-6 2xl:grid-cols-[1.08fr_0.92fr]">
+    <div class="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
       <section class="dashboard-chart-card rounded-[2.2rem] p-5 sm:p-6">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>

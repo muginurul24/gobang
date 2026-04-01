@@ -40,6 +40,8 @@
 
 :root {
   color-scheme: dark;
+  --datetime-picker-filter: brightness(0) saturate(100%) invert(91%) sepia(18%)
+    saturate(374%) hue-rotate(351deg) brightness(103%) contrast(95%);
   --page-text: #f8f1df;
   --page-text-secondary: rgba(248, 241, 223, 0.76);
   --page-text-muted: rgba(219, 210, 193, 0.6);
@@ -138,6 +140,8 @@
 
 :root[data-theme='light'] {
   color-scheme: light;
+  --datetime-picker-filter: brightness(0) saturate(100%) invert(12%) sepia(15%)
+    saturate(837%) hue-rotate(94deg) brightness(96%) contrast(92%);
   --page-text: #17140f;
   --page-text-secondary: #544c3d;
   --page-text-muted: #8f846f;
@@ -238,6 +242,7 @@
   html {
     @apply antialiased;
     background: #08100c;
+    scrollbar-gutter: stable;
   }
 
   body {
@@ -246,7 +251,7 @@
     background: var(--page-background);
     background-attachment: fixed;
     color: var(--page-text);
-    overflow-x: clip;
+    overflow-x: hidden;
   }
 
   :focus-visible {
@@ -285,7 +290,7 @@
 
 @layer utilities {
   .shell-width {
-    width: min(1320px, calc(100% - 1.25rem));
+    width: min(1480px, calc(100% - 1.25rem));
   }
 
   .glass-panel {
@@ -331,6 +336,7 @@
     position: relative;
     isolation: isolate;
     min-height: 100vh;
+    overflow-x: clip;
   }
 
   .matrix-page::before {
@@ -378,7 +384,7 @@
 
   .shell-frame {
     display: grid;
-    gap: 1.5rem;
+    gap: 1rem;
     align-items: start;
   }
 
@@ -408,10 +414,24 @@
 
   .shell-sidebar__panel {
     display: grid;
-    gap: 1.5rem;
+    gap: 1rem;
     max-height: calc(100vh - 2rem);
     overflow-y: auto;
     padding-right: 0.25rem;
+  }
+
+  .shell-sidebar-user {
+    display: grid;
+    gap: 0.9rem;
+    border-radius: 1.6rem;
+    border: 1px solid var(--panel-surface-border);
+    background: color-mix(
+      in srgb,
+      var(--panel-surface-background) 92%,
+      transparent
+    );
+    padding: 1rem;
+    box-shadow: var(--panel-surface-shadow);
   }
 
   .shell-sidebar-scrim {
@@ -431,6 +451,15 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.9rem;
+    position: sticky;
+    top: 0.75rem;
+    z-index: 30;
+    border-radius: 999px;
+    border: 1px solid var(--glass-panel-border);
+    background: color-mix(in srgb, var(--glass-panel-bg) 88%, transparent);
+    padding: 0.75rem 0.9rem;
+    backdrop-filter: blur(20px);
+    box-shadow: 0 14px 36px rgba(7, 16, 12, 0.14);
   }
 
   .shell-utility-bar__group {
@@ -439,6 +468,93 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 0.65rem;
+  }
+
+  .shell-header {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .shell-header::after {
+    content: '';
+    position: absolute;
+    inset: auto -4rem -5rem auto;
+    height: 12rem;
+    width: 12rem;
+    border-radius: 999px;
+    background: radial-gradient(
+      circle,
+      rgba(34, 201, 119, 0.14),
+      transparent 68%
+    );
+    pointer-events: none;
+  }
+
+  .shell-header__main {
+    display: grid;
+    gap: 1.25rem;
+    align-items: start;
+  }
+
+  .shell-header__rail {
+    display: grid;
+    gap: 0.85rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+  }
+
+  .shell-header__metric {
+    position: relative;
+    overflow: hidden;
+    border-radius: 1.55rem;
+    border: 1px solid var(--panel-surface-border);
+    background:
+      linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.06),
+        rgba(255, 255, 255, 0.02)
+      ),
+      color-mix(in srgb, var(--panel-surface-background) 92%, transparent);
+    padding: 1rem 1rem 1.05rem;
+    box-shadow: var(--panel-surface-shadow);
+  }
+
+  .shell-header__metric::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 0.28rem;
+    background: linear-gradient(
+      180deg,
+      rgba(239, 200, 109, 0.96),
+      rgba(34, 201, 119, 0.92)
+    );
+  }
+
+  .shell-header__metric-label {
+    display: block;
+    font-size: 0.66rem;
+    font-weight: 800;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--panel-surface-text-muted);
+  }
+
+  .shell-header__metric-value {
+    display: block;
+    margin-top: 0.45rem;
+    font-family: var(--font-display);
+    font-size: clamp(1.05rem, 0.9rem + 0.5vw, 1.45rem);
+    font-weight: 700;
+    line-height: 1.15;
+    color: var(--panel-surface-text);
+  }
+
+  .shell-header__metric-meta {
+    display: block;
+    margin-top: 0.35rem;
+    font-size: 0.82rem;
+    line-height: 1.55;
+    color: var(--panel-surface-text-secondary);
   }
 
   .matrix-page
@@ -1219,12 +1335,20 @@
 
   .field-input[type='datetime-local'] {
     min-height: 3.35rem;
+    appearance: none;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
   }
 
   .field-input[type='datetime-local']::-webkit-calendar-picker-indicator {
     cursor: pointer;
     opacity: 0.88;
-    filter: saturate(1.15);
+    filter: var(--datetime-picker-filter);
+  }
+
+  .field-input[type='datetime-local']::-webkit-datetime-edit,
+  .field-input[type='datetime-local']::-webkit-date-and-time-value {
+    color: inherit;
   }
 
   .field-select option {
@@ -1272,7 +1396,26 @@
   .date-filter-grid {
     display: grid;
     gap: 0.9rem;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  }
+
+  .date-filter-field {
+    position: relative;
+  }
+
+  .date-filter-stamp {
+    position: absolute;
+    inset-inline-end: 0.85rem;
+    inset-block-start: 2.35rem;
+    border-radius: 999px;
+    background: var(--status-chip-background);
+    padding: 0.22rem 0.48rem;
+    font-size: 0.58rem;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--panel-surface-text-muted);
+    pointer-events: none;
   }
 
   .date-filter-presets {
@@ -1491,16 +1634,11 @@
   )[class*='bg-white'],
 :root[data-theme='dark']
   .matrix-page
-  :is(
-    article,
-    section,
-    div,
-    aside,
-    form,
-    header,
-    footer,
-    li
-  )[class*='bg-canvas-50'] {
+  :is(article, section, div, aside, form, header, footer, li):is(
+    [class*='bg-canvas-50'],
+    [class*='bg-canvas-100'],
+    [class*='to-white']
+  ) {
   background:
     linear-gradient(180deg, rgba(17, 26, 21, 0.94), rgba(11, 19, 15, 0.9)),
     linear-gradient(135deg, rgba(34, 201, 119, 0.05), transparent 38%) !important;
@@ -1525,16 +1663,11 @@
   )[class*='bg-white'],
 :root[data-theme='dark']
   .surface-dark
-  :is(
-    article,
-    section,
-    div,
-    aside,
-    form,
-    header,
-    footer,
-    li
-  )[class*='bg-canvas-50'] {
+  :is(article, section, div, aside, form, header, footer, li):is(
+    [class*='bg-canvas-50'],
+    [class*='bg-canvas-100'],
+    [class*='to-white']
+  ) {
   background:
     linear-gradient(
       180deg,
@@ -1556,7 +1689,7 @@
     .page-presence__chip,
     .event-marquee
   )
-  :is(.bg-canvas-50, [class*='bg-white']) {
+  :is(.bg-canvas-50, .bg-canvas-100, [class*='bg-white'], [class*='to-white']) {
   background:
     linear-gradient(180deg, rgba(17, 26, 21, 0.94), rgba(11, 19, 15, 0.9)),
     linear-gradient(135deg, rgba(34, 201, 119, 0.05), transparent 38%) !important;
@@ -1584,6 +1717,23 @@
 :root[data-theme='dark'] .matrix-page select option {
   background: #0d1512;
   color: #f7f0de;
+}
+
+:root[data-theme='light'] .surface-dark {
+  border-color: rgba(18, 31, 24, 0.12);
+  box-shadow:
+    0 22px 48px rgba(28, 39, 33, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+:root[data-theme='light']
+  .matrix-page
+  :is(article, section, div, aside, form, header, footer, li):is(
+    [class*='bg-white'],
+    [class*='bg-canvas-50'],
+    [class*='bg-canvas-100']
+  ) {
+  color: var(--panel-surface-text);
 }
 
 :root[data-theme='light'] .app-nav-link[data-active='true'] {
@@ -1616,7 +1766,7 @@
 
 @media (min-width: 1280px) {
   .shell-frame[data-sidebar='true'] {
-    grid-template-columns: minmax(19rem, 21rem) minmax(0, 1fr);
+    grid-template-columns: minmax(19rem, 20.5rem) minmax(0, 1fr);
   }
 
   .shell-frame[data-sidebar='false'] {
@@ -1643,6 +1793,10 @@
     max-height: calc(100vh - 1.5rem);
     padding-right: 0.35rem;
   }
+
+  .shell-header__main {
+    grid-template-columns: minmax(0, 1.3fr) minmax(18rem, 24rem);
+  }
 }
 
 @media (max-width: 1279px) {
@@ -1658,6 +1812,11 @@
 }
 
 @media (max-width: 767px) {
+  .shell-utility-bar {
+    top: 0.55rem;
+    border-radius: 1.6rem;
+  }
+
   .app-nav-link[data-active='true'] {
     transform: none;
   }

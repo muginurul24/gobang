@@ -49,13 +49,15 @@
   </div>
 
   <div class="date-filter-grid mt-4">
-    <label class="field-stack">
+    <label class="field-stack date-filter-field">
       <span class="field-label">{label} · Dari</span>
+      <span class="date-filter-stamp">start</span>
       <input bind:value={start} class="field-input" type="datetime-local" />
     </label>
 
-    <label class="field-stack">
+    <label class="field-stack date-filter-field">
       <span class="field-label">{label} · Sampai</span>
+      <span class="date-filter-stamp">end</span>
       <input bind:value={end} class="field-input" type="datetime-local" />
     </label>
   </div>

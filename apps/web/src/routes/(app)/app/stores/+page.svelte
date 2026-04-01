@@ -707,7 +707,7 @@
 {:else}
   <div class="space-y-6">
     <section class="surface-dark surface-grid overflow-hidden rounded-[2.4rem] px-6 py-6 text-white sm:px-7 sm:py-7">
-      <div class="grid gap-6 2xl:grid-cols-[1.08fr_0.92fr]">
+      <div class="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
         <div class="space-y-4">
           <div class="flex flex-wrap gap-3">
             <span class="status-chip">store control plane</span>
@@ -785,10 +785,10 @@
       />
     </div>
 
-    <div class="grid gap-6 2xl:grid-cols-[0.95fr_1.05fr]">
+    <div class="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
       <section class="space-y-6">
         {#if canManageEmployees()}
-          <div class="grid gap-6 2xl:grid-cols-[1.02fr_0.98fr]">
+          <div class="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
             <section class="glass-panel rounded-[2.2rem] p-6">
               <p class="section-kicker !text-brand-700">Provision store</p>
               <h2 class="mt-3 font-display text-3xl font-bold tracking-tight text-ink-900">

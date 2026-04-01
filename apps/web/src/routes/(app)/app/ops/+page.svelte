@@ -646,7 +646,7 @@
 {:else}
   <section class="space-y-6">
     <section class="surface-dark surface-grid overflow-hidden rounded-[2.4rem] px-6 py-6 text-white sm:px-7 sm:py-7">
-      <div class="grid gap-6 2xl:grid-cols-[1.06fr_0.94fr]">
+      <div class="grid gap-6 xl:grid-cols-[1.06fr_0.94fr]">
         <div class="space-y-4">
           <span class="status-chip w-fit">Platform ops room</span>
           <div class="space-y-3">
@@ -680,7 +680,7 @@
       <Notice tone="warning" message={errorMessage} />
     {/if}
 
-    <div class="grid gap-6 2xl:grid-cols-[0.78fr_1.22fr]">
+    <div class="grid gap-6 xl:grid-cols-[0.78fr_1.22fr]">
       <section class="space-y-6">
         <article class="glass-panel rounded-[2.2rem] p-5 sm:p-6">
           <div class="flex items-end justify-between gap-4">

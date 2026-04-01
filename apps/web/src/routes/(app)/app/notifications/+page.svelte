@@ -380,7 +380,7 @@
 
 <section class="space-y-6">
   <section class="surface-dark surface-grid overflow-hidden rounded-[2.4rem] px-6 py-6 text-white sm:px-7 sm:py-7">
-    <div class="grid gap-6 2xl:grid-cols-[1.12fr_0.88fr]">
+    <div class="grid gap-6 xl:grid-cols-[1.12fr_0.88fr]">
       <div class="space-y-4">
         <div class="flex flex-wrap gap-3">
           <span class="status-chip">{scope.label}</span>
@@ -464,7 +464,7 @@
       {/each}
     </div>
   {:else}
-    <div class="grid gap-6 2xl:grid-cols-[0.92fr_1.08fr]">
+    <div class="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
       <section class="space-y-6">
         <div class="grid gap-4 sm:grid-cols-2">
           <GaugeRing
