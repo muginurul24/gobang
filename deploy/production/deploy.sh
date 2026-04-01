@@ -233,6 +233,20 @@ service_running() {
 		--format '{{.Names}}' | grep -q .
 }
 
+remove_service_containers() {
+	service_name="$1"
+
+	for container_name in $(service_container_names "${service_name}"); do
+		podman rm -f "${container_name}" >/dev/null 2>&1 || true
+	done
+}
+
+recreate_services() {
+	for service_name in "$@"; do
+		remove_service_containers "${service_name}"
+	done
+}
+
 print_service_diagnostics() {
 	service_name="$1"
 	printf 'service=%s\n' "${service_name}" >&2
@@ -328,12 +342,14 @@ log_step 2 "building manage image"
 compose build manage
 
 log_step 3 "running migrations"
+recreate_services manage
 compose up --no-deps manage
 
 log_step 4 "building api worker scheduler web"
 compose build api worker scheduler web
 
 log_step 5 "starting api worker scheduler web proxy"
+recreate_services api worker scheduler web proxy
 compose up -d api worker scheduler web proxy
 wait_for_service_running api
 wait_for_service_running web
