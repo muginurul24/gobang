@@ -391,7 +391,7 @@
           </div>
         </div>
 
-        <div class="mt-5 grid gap-4 2xl:grid-cols-[12rem_minmax(0,1fr)]">
+        <div class="mt-5 grid gap-4 xl:grid-cols-[12rem_minmax(0,1fr)]">
           <label class="space-y-2">
             <span class="text-sm font-medium text-ink-700">Status</span>
             <select
@@ -414,7 +414,7 @@
           </label>
         </div>
 
-        <div class="mt-4 grid gap-4 2xl:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]">
+        <div class="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]">
           <DateRangeFilter bind:start={createdFrom} bind:end={createdTo} label="Created at" />
           <ExportActions
             count={members.length}

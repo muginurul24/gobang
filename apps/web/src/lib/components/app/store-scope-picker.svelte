@@ -236,7 +236,7 @@
     {/if}
   </div>
 
-  <div class={`mt-5 grid gap-4 ${compact ? 'xl:grid-cols-[minmax(0,1fr)_12rem] 2xl:grid-cols-[minmax(0,1fr)_12rem_auto] xl:items-end' : '2xl:grid-cols-[minmax(0,1fr)_14rem_auto] 2xl:items-end'}`}>
+  <div class={`mt-5 grid gap-4 ${compact ? 'xl:grid-cols-[minmax(0,1fr)_12rem_auto] xl:items-end' : 'xl:grid-cols-[minmax(0,1fr)_14rem_auto] xl:items-end'}`}>
     <label class="field-stack">
       <span class="field-label">Search directory</span>
       <input
@@ -271,7 +271,7 @@
     </div>
   </div>
 
-  <div class={`mt-4 grid gap-4 ${compact ? 'xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end' : '2xl:grid-cols-[minmax(0,1fr)_auto] 2xl:items-end'}`}>
+  <div class={`mt-4 grid gap-4 ${compact ? 'xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end' : 'xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end'}`}>
     <label class="field-stack">
       <span class="field-label">Store aktif</span>
       <select

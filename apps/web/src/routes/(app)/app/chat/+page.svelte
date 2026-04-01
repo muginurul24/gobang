@@ -260,7 +260,7 @@
 
 <section class="space-y-6">
   <section class="surface-dark surface-grid overflow-hidden rounded-[2.4rem] px-6 py-6 text-white sm:px-7 sm:py-7">
-    <div class="grid gap-6 2xl:grid-cols-[1.08fr_0.92fr]">
+    <div class="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
       <div class="space-y-4">
         <div class="flex flex-wrap gap-3">
           <span class="status-chip">global_chat</span>
@@ -301,7 +301,7 @@
   </section>
 
   <section class="glass-panel overflow-hidden rounded-[2.3rem]">
-    <div class="grid gap-4 p-6 2xl:grid-cols-[minmax(0,1fr)_18rem]">
+    <div class="grid gap-4 p-6 xl:grid-cols-[minmax(0,1fr)_18rem]">
       <div class="space-y-3">
         <article class="rounded-[1.8rem] bg-canvas-100 px-5 py-4 text-sm leading-6 text-ink-700">
           Chat ini hanya punya satu room: `global_chat`. Tidak ada DM, tidak ada edit, dan history
@@ -330,7 +330,7 @@
         </div>
 
         <div class="mt-4 space-y-3">
-          <div class="grid gap-4 2xl:grid-cols-[12rem_minmax(0,1fr)]">
+          <div class="grid gap-4 xl:grid-cols-[12rem_minmax(0,1fr)]">
             <label class="space-y-2">
               <span class="text-sm font-medium text-ink-700">Role</span>
               <select
@@ -354,7 +354,7 @@
             </label>
           </div>
 
-          <div class="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]">
+          <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]">
             <DateRangeFilter bind:start={createdFrom} bind:end={createdTo} label="Created at" />
             <ExportActions
               count={messages.length}

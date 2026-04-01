@@ -993,6 +993,8 @@
   .nav-cluster {
     display: grid;
     gap: 0.8rem;
+    min-width: 0;
+    overflow: clip;
   }
 
   .surface-chip {

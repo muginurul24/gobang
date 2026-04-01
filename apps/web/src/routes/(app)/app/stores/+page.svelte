@@ -878,7 +878,7 @@
               />
             </div>
 
-            <div class="mt-5 grid gap-4 2xl:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]">
+            <div class="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]">
               <label class="field-stack">
                 <span class="field-label">Cari karyawan</span>
                 <input bind:value={employeeSearchTerm} class="field-input" placeholder="Cari username atau email" />
@@ -1004,7 +1004,7 @@
           />
         </div>
 
-        <div class="mt-5 grid gap-4 2xl:grid-cols-[12rem_12rem_minmax(0,1fr)]">
+        <div class="mt-5 grid gap-4 xl:grid-cols-[12rem_12rem_minmax(0,1fr)]">
           <label class="field-stack">
             <span class="field-label">Status</span>
             <select bind:value={storeStatusFilter} class="field-select">
@@ -1032,7 +1032,7 @@
           </label>
         </div>
 
-        <div class="mt-4 grid gap-4 2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div class="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <DateRangeFilter bind:start={storeCreatedFrom} bind:end={storeCreatedTo} label="Store created" />
           <div class="grid gap-4">
             <label class="field-stack">

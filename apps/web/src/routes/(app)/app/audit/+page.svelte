@@ -256,7 +256,7 @@
         on:change={handleStoreScopeChange}
       />
 
-      <div class="mt-5 grid gap-4 2xl:grid-cols-[180px_180px_220px_auto]">
+      <div class="mt-5 grid gap-4 xl:grid-cols-[180px_180px_220px_auto]">
 
         <label class="space-y-2">
           <span class="text-sm font-medium text-ink-700">Legacy window</span>
@@ -345,7 +345,7 @@
         </div>
       </div>
 
-      <div class="mt-4 grid gap-4 2xl:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]">
+      <div class="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]">
         <DateRangeFilter bind:start={auditFrom} bind:end={auditTo} label="Created at" />
         <ExportActions
           count={logs.length}

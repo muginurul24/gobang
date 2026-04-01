@@ -513,7 +513,7 @@
         />
       </div>
 
-      <div class="grid gap-6 2xl:grid-cols-[1.05fr_0.95fr]">
+      <div class="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <section class="glass-panel rounded-4xl p-6">
           <h2 class="font-display text-2xl font-bold text-ink-900">Create withdrawal</h2>
           <p class="mt-2 text-sm leading-6 text-ink-700">
@@ -658,7 +658,7 @@
             </label>
           </div>
 
-          <div class="mt-4 grid gap-4 2xl:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]">
+          <div class="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]">
             <DateRangeFilter bind:start={withdrawalCreatedFrom} bind:end={withdrawalCreatedTo} />
             <div class="grid gap-4">
               <div class="flex flex-wrap items-center justify-end gap-3">

@@ -89,7 +89,9 @@ func (r *Repository) ListMessages(ctx context.Context, cutoff time.Time, filter 
 		INNER JOIN users u ON u.id = m.sender_user_id
 		WHERE `+whereClause+`
 		ORDER BY m.created_at DESC
-		LIMIT $`+fmt.Sprintf("%d", len(args)-1)+` OFFSET $`+fmt.Sprintf("%d", len(args)))
+		LIMIT $`+fmt.Sprintf("%d", len(args)-1)+` OFFSET $`+fmt.Sprintf("%d", len(args)),
+		args...,
+	)
 	if err != nil {
 		return ListMessagesResult{}, fmt.Errorf("list chat messages: %w", err)
 	}
