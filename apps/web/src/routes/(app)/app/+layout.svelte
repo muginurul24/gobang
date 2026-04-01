@@ -5,7 +5,6 @@
   import { onMount } from 'svelte';
 
   import Button from '$lib/components/ui/button/button.svelte';
-  import PaginationControls from '$lib/components/app/pagination-controls.svelte';
   import ThemeToggle from '$lib/components/app/theme-toggle.svelte';
   import Notice from '$lib/components/app/notice.svelte';
   import {
@@ -35,7 +34,7 @@
   };
   let storeQuery = '';
   let storePage = 1;
-  let storePageSize = 12;
+  let storePageSize = 18;
   let selectedStoreID = '';
   let selectedStoreSummary: Store | null = null;
   let unreadNotificationCount = 0;
@@ -57,6 +56,9 @@
     (selectedStoreSummary?.id === selectedStoreID ? selectedStoreSummary : null);
   $: visibleLowBalanceStores = accessibleStores.filter((store) => isStoreLowBalance(store));
   $: selectedStoreIsLowBalance = currentStore ? isStoreLowBalance(currentStore) : false;
+  $: storePageCount = Math.max(1, Math.ceil((storeDirectorySummary.total_count || 0) / storePageSize));
+  $: canGoPrevStorePage = storePage > 1;
+  $: canGoNextStorePage = storePage < storePageCount;
   $: notificationScope = resolveNotificationScope(role, selectedStoreID);
   $: notificationBadge = unreadNotificationCount > 99
     ? '99+'
@@ -66,6 +68,11 @@
   $: currentPath = normalizePath($page.url.pathname);
   $: nav = [
     { href: '/app', label: 'Dashboard', description: 'realtime cards' },
+    ...(
+      role === 'karyawan'
+        ? []
+        : [{ href: '/app/onboarding', label: 'Onboarding', description: 'dev -> owner -> store' }]
+    ),
     { href: '/app/notifications', label: 'Notifications', description: 'event stream', badge: notificationBadge },
     ...(
       role === 'dev' || role === 'superadmin'
@@ -332,6 +339,26 @@
     closeSidebar();
   }
 
+  async function goToPreviousStorePage() {
+    if (!canGoPrevStorePage) {
+      return;
+    }
+
+    storePage -= 1;
+    lastStoreDirectoryKey = '';
+    await loadAccessibleStores();
+  }
+
+  async function goToNextStorePage() {
+    if (!canGoNextStorePage) {
+      return;
+    }
+
+    storePage += 1;
+    lastStoreDirectoryKey = '';
+    await loadAccessibleStores();
+  }
+
   async function syncSelectedStoreSummary(storeID: string) {
     const matched = accessibleStores.find((store) => store.id === storeID) ?? null;
     if (matched) {
@@ -423,7 +450,7 @@
     <div class="shell-width shell-frame mx-auto min-h-screen gap-6 pb-10 pt-4 sm:pt-6" data-sidebar={sidebarVisible}>
       <aside class="shell-sidebar" data-open={sidebarVisible}>
         <div class="shell-sidebar__panel soft-scroll">
-          <section class="glass-panel rounded-[2rem] p-5">
+          <section class="glass-panel shell-sidebar-shell rounded-[2rem] p-5">
             <div class="flex items-start justify-between gap-4">
               <div>
                 <p class="section-kicker !text-brand-700">Navigation</p>
@@ -431,8 +458,8 @@
                   Control lanes
                 </h2>
                 <p class="mt-2 text-sm leading-6 text-ink-700">
-                  Sidebar ini sekarang jadi pusat orientasi utama, jadi user tidak perlu scroll jauh
-                  hanya untuk tahu sedang berada di halaman mana.
+                  Jalur utama untuk berpindah lane. Context store, notification, dan action rail
+                  sudah dipindah ke area utama agar sidebar tetap ringkas di desktop.
                 </p>
               </div>
 
@@ -448,7 +475,7 @@
               <div class="space-y-2">
                 <div class="flex flex-wrap items-center gap-2">
                   <span class="surface-chip">{$authSession?.user.username ?? '-'}</span>
-                  <span class="surface-chip">{currentPageTitle}</span>
+                  <span class="surface-chip">{role || 'guest'}</span>
                 </div>
                 <p class="text-sm leading-6 text-ink-700">
                   {$authSession?.user.email ?? 'unknown'}
@@ -489,161 +516,6 @@
               </Button>
             </div>
           </section>
-
-          <section class="glass-panel rounded-[2rem] p-5">
-            <div class="flex items-start justify-between gap-4">
-              <div>
-                <p class="section-kicker !text-brand-700">Access Rail</p>
-                <h2 class="mt-3 font-display text-2xl font-bold tracking-tight text-ink-900">
-                  Tenant context
-                </h2>
-              </div>
-
-              <span class="surface-chip">{$authSession?.user.role ?? '-'}</span>
-            </div>
-
-            <div class="mt-5 rounded-[1.6rem] bg-canvas-50 px-4 py-4">
-              <p class="text-sm font-semibold text-ink-900">Notification scope</p>
-              <p class="mt-2 text-xs leading-5 text-ink-500">{notificationScope.description}</p>
-              <div class="mt-4 flex flex-wrap items-center gap-2">
-                <span class="surface-chip">{notificationScope.label}</span>
-                <span class="surface-chip">
-                  {notificationLoading ? 'syncing' : `${formatNumber(unreadNotificationCount)} unread`}
-                </span>
-              </div>
-            </div>
-          </section>
-
-          <section class="glass-panel rounded-[2rem] p-5">
-            <div class="flex items-start justify-between gap-4">
-              <div>
-                <p class="section-kicker !text-brand-700">Quick Switch</p>
-                <h2 class="mt-3 font-display text-2xl font-bold tracking-tight text-ink-900">
-                  Active store
-                </h2>
-              </div>
-
-              <span class="surface-chip">{formatNumber(storeDirectorySummary.total_count)} store</span>
-            </div>
-
-            {#if storeDirectoryLoading}
-              <div class="mt-5 animate-pulse rounded-[1.6rem] bg-canvas-50 px-4 py-5">
-                <div class="h-3 w-24 rounded-full bg-white/80"></div>
-                <div class="mt-3 h-11 rounded-2xl bg-white/80"></div>
-              </div>
-            {:else if storeDirectoryError !== ''}
-              <div class="mt-5">
-                <Notice tone="warning" message={storeDirectoryError} />
-              </div>
-            {:else if accessibleStores.length === 0}
-              <div class="mt-5 rounded-[1.6rem] bg-canvas-50 px-4 py-5 text-sm leading-6 text-ink-700">
-                Belum ada toko di scope sesi ini.
-              </div>
-            {:else}
-              <div class="mt-5 space-y-4">
-                <label class="field-stack">
-                  <span class="field-label">Cari store untuk switch context</span>
-                  <input
-                    bind:value={storeQuery}
-                    type="search"
-                    placeholder="Cari nama, slug, atau callback URL..."
-                    class="field-input"
-                  />
-                </label>
-
-                <div class="flex flex-wrap gap-2">
-                  <Button variant="brand" size="sm" onclick={applyStoreDirectorySearch}>
-                    Search
-                  </Button>
-                  <Button variant="outline" size="sm" onclick={resetStoreDirectorySearch}>
-                    Reset
-                  </Button>
-                  <span class="surface-chip">{formatNumber(accessibleStores.length)} on page</span>
-                  <span class="surface-chip">{formatNumber(storeDirectorySummary.low_balance_count)} low balance</span>
-                </div>
-
-                <label class="field-stack">
-                  <span class="field-label">Store aktif untuk command flow</span>
-                  <select
-                    bind:value={selectedStoreID}
-                    class="field-select"
-                    onchange={(event) => switchStore((event.currentTarget as HTMLSelectElement).value)}
-                  >
-                    {#each accessibleStores as store}
-                      <option value={store.id}>{store.name} · {store.slug}</option>
-                    {/each}
-                  </select>
-                </label>
-
-                <PaginationControls
-                  bind:page={storePage}
-                  bind:pageSize={storePageSize}
-                  totalItems={storeDirectorySummary.total_count}
-                  pageSizeOptions={[6, 12, 24]}
-                />
-              </div>
-            {/if}
-
-            {#if currentStore}
-              <div class="mt-4 rounded-[1.6rem] border border-ink-100 bg-white/74 px-4 py-4">
-                <p class="text-sm font-semibold text-ink-900">{currentStore.name}</p>
-                <div class="mt-3 space-y-2 text-xs leading-5 text-ink-500">
-                  <p>Balance: {formatCurrency(currentStore.current_balance)}</p>
-                  <p>
-                    Threshold:
-                    {currentStore.low_balance_threshold
-                      ? formatCurrency(currentStore.low_balance_threshold)
-                      : '-'}
-                  </p>
-                  <p>Staff: {formatNumber(currentStore.staff_count)}</p>
-                </div>
-              </div>
-            {/if}
-          </section>
-
-          {#if storeDirectorySummary.low_balance_count > 0}
-            <section class="glass-panel rounded-[2rem] p-5">
-              <div class="flex items-center justify-between gap-3">
-                <div>
-                  <p class="section-kicker !text-accent-700">Alert</p>
-                  <h2 class="mt-3 font-display text-2xl font-bold tracking-tight text-ink-900">
-                    Low balance
-                  </h2>
-                </div>
-
-                <span class="surface-chip">{formatNumber(storeDirectorySummary.low_balance_count)} store</span>
-              </div>
-
-              <p class="mt-3 text-sm leading-6 text-ink-700">
-                Store di bawah threshold akan ikut memicu notification event dan bisa berdampak ke
-                deposit atau withdrawal flow.
-              </p>
-
-              <div class="mt-4 space-y-3">
-                {#each visibleLowBalanceStores.slice(0, 3) as store}
-                  <div class="rounded-[1.4rem] border border-amber-200/60 bg-linear-to-r from-accent-100/45 to-white px-4 py-4">
-                    <p class="text-sm font-semibold text-ink-900">{store.name}</p>
-                    <p class="mt-1 text-xs text-ink-500">{formatCurrency(store.current_balance)}</p>
-                  </div>
-                {/each}
-              </div>
-
-              {#if visibleLowBalanceStores.length === 0}
-                <div class="mt-4 rounded-[1.4rem] border border-ink-100 bg-white/76 px-4 py-4 text-xs leading-6 text-ink-600">
-                  Store low balance ada di scope backend, tetapi tidak sedang tampil pada page switcher saat ini. Gunakan search atau pagination untuk menemukannya.
-                </div>
-              {/if}
-
-              {#if currentStore && selectedStoreIsLowBalance}
-                <div class="mt-4">
-                  <Notice
-                    tone="warning"
-                    message={`Store aktif saat ini juga low balance: ${currentStore.name}.`}
-                  />
-                </div>
-              {/if}
-            </section>
-          {/if}
         </div>
       </aside>
 
@@ -715,6 +587,188 @@
               </article>
             </div>
           </div>
+        </section>
+
+        <section class="shell-context-grid">
+          <article class="glass-panel shell-context-card rounded-[2rem] p-5">
+            <div class="flex items-end justify-between gap-3">
+              <div>
+                <p class="section-kicker !text-brand-700">Store context</p>
+                <h2 class="mt-2 font-display text-xl font-bold tracking-tight text-ink-900">
+                  Active store rail
+                </h2>
+              </div>
+              <span class="surface-chip">{formatNumber(storeDirectorySummary.total_count)} scoped</span>
+            </div>
+
+            {#if storeDirectoryLoading}
+              <div class="mt-5 animate-pulse rounded-[1.6rem] bg-canvas-50 px-4 py-5">
+                <div class="h-3 w-24 rounded-full bg-white/80"></div>
+                <div class="mt-3 h-11 rounded-2xl bg-white/80"></div>
+              </div>
+            {:else if storeDirectoryError !== ''}
+              <div class="mt-5">
+                <Notice tone="warning" message={storeDirectoryError} />
+              </div>
+            {:else if accessibleStores.length === 0}
+              <div class="mt-5 rounded-[1.6rem] bg-canvas-50 px-4 py-5 text-sm leading-6 text-ink-700">
+                Belum ada toko di scope sesi ini. Gunakan onboarding untuk provision owner dan
+                tenant pertama, lalu selector ini akan aktif otomatis.
+                <div class="mt-4 flex flex-wrap gap-2">
+                  <a class="surface-chip" href={role === 'karyawan' ? '/app/stores' : '/app/onboarding'}>
+                    {role === 'karyawan' ? 'Open stores' : 'Open onboarding'}
+                  </a>
+                  <a class="surface-chip" href="/app/api-docs">Open API docs</a>
+                </div>
+              </div>
+            {:else}
+              <div class="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_15rem] xl:items-end">
+                <label class="field-stack">
+                  <span class="field-label">Cari store untuk command flow</span>
+                  <input
+                    bind:value={storeQuery}
+                    type="search"
+                    placeholder="Cari nama, slug, atau callback URL..."
+                    class="field-input"
+                  />
+                </label>
+
+                <label class="field-stack">
+                  <span class="field-label">Store aktif</span>
+                  <select
+                    bind:value={selectedStoreID}
+                    class="field-select"
+                    onchange={(event) => switchStore((event.currentTarget as HTMLSelectElement).value)}
+                  >
+                    {#each accessibleStores as store}
+                      <option value={store.id}>{store.name} · {store.slug}</option>
+                    {/each}
+                  </select>
+                </label>
+              </div>
+              <div class="shell-context-card__toolbar mt-4">
+                <div class="toolbar-actions">
+                  <Button variant="brand" size="sm" onclick={applyStoreDirectorySearch}>
+                    Search
+                  </Button>
+                  <Button variant="outline" size="sm" onclick={resetStoreDirectorySearch}>
+                    Reset
+                  </Button>
+                  <a class="surface-chip" href="/app/stores">Open stores</a>
+                </div>
+
+                <div class="shell-context-card__pager">
+                  <span class="surface-chip">page {storePage}/{storePageCount}</span>
+                  <Button variant="outline" size="sm" onclick={goToPreviousStorePage} disabled={!canGoPrevStorePage}>
+                    Prev
+                  </Button>
+                  <Button variant="outline" size="sm" onclick={goToNextStorePage} disabled={!canGoNextStorePage}>
+                    Next
+                  </Button>
+                </div>
+              </div>
+
+              <div class="mt-4 flex flex-wrap gap-2">
+                <span class="surface-chip">{formatNumber(accessibleStores.length)} loaded</span>
+                <span class="surface-chip">{formatNumber(storeDirectorySummary.low_balance_count)} low balance</span>
+                {#if currentStore}
+                  <span class="surface-chip">{currentStore.slug}</span>
+                  <span class="surface-chip">{formatCurrency(currentStore.current_balance)}</span>
+                {/if}
+              </div>
+            {/if}
+          </article>
+
+          <article class="glass-panel shell-context-card rounded-[2rem] p-5">
+            <div class="flex items-end justify-between gap-3">
+              <div>
+                <p class="section-kicker !text-brand-700">Realtime scope</p>
+                <h2 class="mt-2 font-display text-xl font-bold tracking-tight text-ink-900">
+                  Notification and transport
+                </h2>
+              </div>
+              <span class="surface-chip">{notificationScope.label}</span>
+            </div>
+
+            <div class="mt-4 grid gap-3 sm:grid-cols-2">
+              <div class="rounded-[1.5rem] bg-canvas-50 px-4 py-4">
+                <p class="text-xs font-semibold uppercase tracking-[0.24em] text-ink-500">Unread</p>
+                <p class="mt-2 font-display text-2xl font-semibold tracking-tight text-ink-900">
+                  {notificationBadge === '' ? '0' : notificationBadge}
+                </p>
+                <p class="mt-2 text-xs leading-5 text-ink-500">
+                  {notificationLoading ? 'Counter sedang disinkronkan.' : notificationScope.description}
+                </p>
+              </div>
+
+              <div class="rounded-[1.5rem] bg-canvas-50 px-4 py-4">
+                <p class="text-xs font-semibold uppercase tracking-[0.24em] text-ink-500">Transport</p>
+                <p class="mt-2 font-display text-2xl font-semibold tracking-tight text-ink-900">
+                  {realtimeLabel()}
+                </p>
+                <p class="mt-2 text-xs leading-5 text-ink-500">
+                  {formatNumber($realtimeState.channels.length)} channel aktif untuk sesi ini.
+                </p>
+              </div>
+            </div>
+
+            {#if currentStore}
+              <div class="mt-4 flex flex-wrap gap-2">
+                <span class="surface-chip">{currentStore.name}</span>
+                <span class="surface-chip">staff {formatNumber(currentStore.staff_count)}</span>
+                <span class="surface-chip">
+                  threshold {currentStore.low_balance_threshold
+                    ? formatCurrency(currentStore.low_balance_threshold)
+                    : '-'}
+                </span>
+              </div>
+            {/if}
+          </article>
+
+          <article class="glass-panel shell-context-card rounded-[2rem] p-5">
+            <div class="flex items-end justify-between gap-3">
+              <div>
+                <p class="section-kicker !text-brand-700">Action lane</p>
+                <h2 class="mt-2 font-display text-xl font-bold tracking-tight text-ink-900">
+                  Next best action
+                </h2>
+              </div>
+              <span class="surface-chip">role {role || 'guest'}</span>
+            </div>
+
+            <p class="mt-4 text-sm leading-6 text-ink-700">
+              {#if role === 'dev' || role === 'superadmin'}
+                Provision owner lalu pindah ke Ops saat callback atau health bermasalah.
+              {:else if role === 'owner'}
+                Buat store, atur callback, siapkan staff, lalu lanjutkan integrasi.
+              {:else}
+                Fokus ke store yang sudah diassign dan pantau notification stream.
+              {/if}
+            </p>
+
+            <div class="mt-4 flex flex-wrap gap-3">
+              {#if role === 'dev' || role === 'superadmin'}
+                <a class="surface-chip" href="/app/onboarding">Open onboarding</a>
+                <a class="surface-chip" href="/app/users">Provision owner</a>
+                <a class="surface-chip" href="/app/ops">Open ops</a>
+              {:else if role === 'owner'}
+                <a class="surface-chip" href="/app/onboarding">Create first store</a>
+                <a class="surface-chip" href="/app/stores">Manage stores</a>
+                <a class="surface-chip" href="/app/api-docs">Read API docs</a>
+              {:else}
+                <a class="surface-chip" href="/app/stores">View stores</a>
+                <a class="surface-chip" href="/app/notifications">Open notifications</a>
+                <a class="surface-chip" href="/app/security">Open security</a>
+              {/if}
+            </div>
+
+            {#if storeDirectorySummary.low_balance_count > 0}
+              <div class="mt-4 rounded-[1.5rem] border border-amber-200/60 bg-linear-to-r from-accent-100/40 to-white px-4 py-4 text-sm leading-6 text-ink-700">
+                Ada {formatNumber(storeDirectorySummary.low_balance_count)} store low balance di scope
+                sesi ini. Gunakan Stores atau dashboard cards untuk triage lebih lanjut.
+              </div>
+            {/if}
+          </article>
         </section>
 
         <main class="min-w-0 space-y-6" id="app-main" tabindex="-1">

@@ -7,6 +7,7 @@
   import ExportActions from '$lib/components/app/export-actions.svelte';
   import MetricCard from '$lib/components/app/metric-card.svelte';
   import Notice from '$lib/components/app/notice.svelte';
+  import PageTabs from '$lib/components/app/page-tabs.svelte';
   import PaginationControls from '$lib/components/app/pagination-controls.svelte';
   import Button from '$lib/components/ui/button/button.svelte';
   import { authSession, initializeAuthSession } from '$lib/auth/client';
@@ -36,6 +37,14 @@
     low_balance_threshold: string;
     callback_url: string;
     assign_user_id: string;
+  };
+
+  type StoreWorkspaceTab = 'setup' | 'staff' | 'directory';
+  type PageTabItem = {
+    id: string;
+    label: string;
+    description?: string;
+    badge?: string;
   };
 
   const emptyStoreSummary: StoreDirectorySummary = {
@@ -96,6 +105,7 @@
   let staffSearchTerm = '';
   let staffAssignedFrom = '';
   let staffAssignedTo = '';
+  let activeWorkspaceTab: StoreWorkspaceTab = 'directory';
 
   $: role = $authSession?.user.role ?? '';
   $: visibleEmployeeOptions = employees;
@@ -103,6 +113,10 @@
   $: visibleStoreCount = stores.length;
   $: visibleStaffCount = Object.values(staffByStore).reduce((total, users) => total + users.length, 0);
   $: totalAssignedStaffCount = Object.values(staffCountByStore).reduce((total, count) => total + count, 0);
+  $: workspaceTabs = buildWorkspaceTabs();
+  $: if (!workspaceTabs.some((tab) => tab.id === activeWorkspaceTab)) {
+    activeWorkspaceTab = defaultWorkspaceTab();
+  }
 
   onMount(async () => {
     await initializeAuthSession();
@@ -565,6 +579,67 @@
     return ['active', 'inactive', 'banned'];
   }
 
+  function buildWorkspaceTabs(): PageTabItem[] {
+    if (canManageEmployees()) {
+      return [
+        {
+          id: 'setup',
+          label: 'Tenant Setup',
+          description: 'create store + first token',
+        },
+        {
+          id: 'staff',
+          label: 'Staff Workspace',
+          description: 'create karyawan + assignment',
+          badge: employeeTotalCount > 0 ? String(employeeTotalCount) : undefined,
+        },
+        {
+          id: 'directory',
+          label: 'Store Directory',
+          description: 'callback, token, staff preview',
+          badge: storeSummary.total_count > 0 ? String(storeSummary.total_count) : undefined,
+        },
+      ];
+    }
+
+    if (currentRole() === 'dev' || currentRole() === 'superadmin') {
+      return [
+        {
+          id: 'setup',
+          label: 'Owner Onboarding',
+          description: 'users -> owner -> store',
+        },
+        {
+          id: 'directory',
+          label: 'Store Directory',
+          description: 'tenant roster + callback',
+          badge: storeSummary.total_count > 0 ? String(storeSummary.total_count) : undefined,
+        },
+      ];
+    }
+
+    return [
+      {
+        id: 'directory',
+        label: 'Store Directory',
+        description: 'scope yang sudah diassign',
+        badge: storeSummary.total_count > 0 ? String(storeSummary.total_count) : undefined,
+      },
+    ];
+  }
+
+  function defaultWorkspaceTab(): StoreWorkspaceTab {
+    if (canManageEmployees() && storeSummary.total_count === 0) {
+      return 'setup';
+    }
+
+    if ((currentRole() === 'dev' || currentRole() === 'superadmin') && storeSummary.total_count === 0) {
+      return 'setup';
+    }
+
+    return 'directory';
+  }
+
   function toMessage(message: string) {
     switch (message) {
       case 'UNAUTHORIZED':
@@ -785,76 +860,147 @@
       />
     </div>
 
-    <div class="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-      <section class="space-y-6">
-        {#if canManageEmployees()}
-          <div class="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
-            <section class="glass-panel rounded-[2.2rem] p-6">
-              <p class="section-kicker !text-brand-700">Provision store</p>
-              <h2 class="mt-3 font-display text-3xl font-bold tracking-tight text-ink-900">
-                Buat tenant baru
-              </h2>
-              <p class="mt-3 text-sm leading-7 text-ink-700">
-                Store baru otomatis mendapat ledger account dan one-time token integration.
+    <PageTabs bind:value={activeWorkspaceTab} items={workspaceTabs} />
+
+    {#if activeWorkspaceTab === 'setup'}
+      {#if canManageEmployees()}
+        <div class="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
+          <section class="glass-panel rounded-[2.2rem] p-6">
+            <p class="section-kicker !text-brand-700">Provision store</p>
+            <h2 class="mt-3 font-display text-3xl font-bold tracking-tight text-ink-900">
+              Buat tenant baru
+            </h2>
+            <p class="mt-3 text-sm leading-7 text-ink-700">
+              Flow owner sekarang dimulai dari sini: buat store, simpan token one-time reveal,
+              lanjutkan callback URL, lalu integrasikan website dari API Docs.
+            </p>
+
+            <div class="mt-5 grid gap-4 md:grid-cols-2">
+              <label class="field-stack">
+                <span class="field-label">Nama toko</span>
+                <input bind:value={createStoreForm.name} class="field-input" placeholder="Alpha Store" />
+              </label>
+
+              <label class="field-stack">
+                <span class="field-label">Slug</span>
+                <input bind:value={createStoreForm.slug} class="field-input" placeholder="alpha-store" />
+              </label>
+
+              <label class="field-stack md:col-span-2">
+                <span class="field-label">Low balance threshold</span>
+                <input bind:value={createStoreForm.low_balance_threshold} class="field-input" inputmode="decimal" placeholder="150000" />
+              </label>
+            </div>
+
+            <div class="mt-5 flex flex-wrap gap-3">
+              <Button variant="brand" size="lg" onclick={submitCreateStore} disabled={busy}>
+                Buat Toko
+              </Button>
+              <a class="surface-chip" href="/app/onboarding">Open onboarding</a>
+              <a class="surface-chip" href="/app/api-docs">Open API Docs</a>
+            </div>
+          </section>
+
+          <section class="glass-panel rounded-[2.2rem] p-6">
+            <p class="section-kicker !text-brand-700">Owner runway</p>
+            <h2 class="mt-3 font-display text-3xl font-bold tracking-tight text-ink-900">
+              Setelah store dibuat
+            </h2>
+            <ol class="command-list mt-5">
+              <li>Simpan token yang baru terekspos, karena plaintext tidak disimpan lagi.</li>
+              <li>Atur callback URL dan threshold dari directory workspace.</li>
+              <li>Buat akun karyawan dari tab Staff Workspace.</li>
+              <li>Buka API Docs untuk integrasi website owner dan callback verification.</li>
+            </ol>
+          </section>
+        </div>
+      {:else if currentRole() === 'dev' || currentRole() === 'superadmin'}
+        <section class="glass-panel rounded-[2.2rem] p-6">
+          <p class="section-kicker !text-brand-700">Owner onboarding</p>
+          <h2 class="mt-3 font-display text-3xl font-bold tracking-tight text-ink-900">
+            Dev mendaftarkan owner, owner membuat store
+          </h2>
+          <p class="mt-3 text-sm leading-7 text-ink-700">
+            Flow onboarding sekarang dipisah dengan jelas. Role platform memprovisi owner dari
+            Users atau Onboarding, lalu owner login dan menerbitkan tenant pertama dari sesi owner.
+          </p>
+
+          <div class="mt-5 grid gap-3 sm:grid-cols-3">
+            <div class="rounded-[1.5rem] bg-canvas-50 px-4 py-4">
+              <p class="text-sm font-semibold text-ink-900">1. Create owner</p>
+              <p class="mt-2 text-sm leading-6 text-ink-700">
+                Gunakan onboarding atau Users untuk membuat akun owner tanpa SQL manual.
               </p>
-
-              <div class="mt-5 grid gap-4 md:grid-cols-2">
-                <label class="field-stack">
-                  <span class="field-label">Nama toko</span>
-                  <input bind:value={createStoreForm.name} class="field-input" placeholder="Alpha Store" />
-                </label>
-
-                <label class="field-stack">
-                  <span class="field-label">Slug</span>
-                  <input bind:value={createStoreForm.slug} class="field-input" placeholder="alpha-store" />
-                </label>
-
-                <label class="field-stack md:col-span-2">
-                  <span class="field-label">Low balance threshold</span>
-                  <input bind:value={createStoreForm.low_balance_threshold} class="field-input" inputmode="decimal" placeholder="150000" />
-                </label>
-              </div>
-
-              <div class="mt-5">
-                <Button variant="brand" size="lg" onclick={submitCreateStore} disabled={busy}>
-                  Buat Toko
-                </Button>
-              </div>
-            </section>
-
-            <section class="glass-panel rounded-[2.2rem] p-6">
-              <p class="section-kicker !text-brand-700">Provision staff</p>
-              <h2 class="mt-3 font-display text-3xl font-bold tracking-tight text-ink-900">
-                Buat akun karyawan
-              </h2>
-              <p class="mt-3 text-sm leading-7 text-ink-700">
-                Owner membuat akun karyawan dulu, baru melakukan assignment ke store yang relevan.
+            </div>
+            <div class="rounded-[1.5rem] bg-canvas-50 px-4 py-4">
+              <p class="text-sm font-semibold text-ink-900">2. Owner creates store</p>
+              <p class="mt-2 text-sm leading-6 text-ink-700">
+                Owner membuka dashboard dan membuat tenant pertama dari sesi owner.
               </p>
-
-              <div class="mt-5 space-y-4">
-                <label class="field-stack">
-                  <span class="field-label">Email</span>
-                  <input bind:value={createEmployeeForm.email} class="field-input" placeholder="staff@example.com" />
-                </label>
-
-                <label class="field-stack">
-                  <span class="field-label">Username</span>
-                  <input bind:value={createEmployeeForm.username} class="field-input" placeholder="staff-alpha" />
-                </label>
-
-                <label class="field-stack">
-                  <span class="field-label">Password awal</span>
-                  <input bind:value={createEmployeeForm.password} class="field-input" type="password" placeholder="StaffDemo123!" />
-                </label>
-              </div>
-
-              <div class="mt-5">
-                <Button variant="outline" size="lg" class="w-full" onclick={submitCreateEmployee} disabled={busy}>
-                  Buat Akun Karyawan
-                </Button>
-              </div>
-            </section>
+            </div>
+            <div class="rounded-[1.5rem] bg-canvas-50 px-4 py-4">
+              <p class="text-sm font-semibold text-ink-900">3. Continue integration</p>
+              <p class="mt-2 text-sm leading-6 text-ink-700">
+                Setelah tenant siap, callback URL, token, dan website integration berjalan.
+              </p>
+            </div>
           </div>
+
+          <div class="mt-5 flex flex-wrap gap-3">
+            <a class="surface-chip" href="/app/onboarding">Open onboarding</a>
+            <a class="surface-chip" href="/app/users">Open Users</a>
+            <a class="surface-chip" href="/app/api-docs">Open API Docs</a>
+          </div>
+        </section>
+      {:else}
+        <section class="glass-panel rounded-[2.2rem] p-6">
+          <p class="section-kicker !text-brand-700">Store scope</p>
+          <h2 class="mt-3 font-display text-3xl font-bold tracking-tight text-ink-900">
+            Karyawan hanya membaca store yang sudah di-scope
+          </h2>
+          <p class="mt-3 text-sm leading-7 text-ink-700">
+            Provision owner, create store, dan create staff tetap dilakukan oleh owner atau role
+            platform sesuai boundary blueprint. Karyawan fokus ke roster store yang memang sudah
+            diassign.
+          </p>
+        </section>
+      {/if}
+    {:else if activeWorkspaceTab === 'staff'}
+      {#if canManageEmployees()}
+        <div class="grid gap-6 xl:grid-cols-[0.94fr_1.06fr]">
+          <section class="glass-panel rounded-[2.2rem] p-6">
+            <p class="section-kicker !text-brand-700">Provision staff</p>
+            <h2 class="mt-3 font-display text-3xl font-bold tracking-tight text-ink-900">
+              Buat akun karyawan
+            </h2>
+            <p class="mt-3 text-sm leading-7 text-ink-700">
+              Owner membuat akun karyawan dulu, lalu assignment ke store dilakukan dari preview
+              directory tenant.
+            </p>
+
+            <div class="mt-5 space-y-4">
+              <label class="field-stack">
+                <span class="field-label">Email</span>
+                <input bind:value={createEmployeeForm.email} class="field-input" placeholder="staff@example.com" />
+              </label>
+
+              <label class="field-stack">
+                <span class="field-label">Username</span>
+                <input bind:value={createEmployeeForm.username} class="field-input" placeholder="staff-alpha" />
+              </label>
+
+              <label class="field-stack">
+                <span class="field-label">Password awal</span>
+                <input bind:value={createEmployeeForm.password} class="field-input" type="password" placeholder="StaffDemo123!" />
+              </label>
+            </div>
+
+            <div class="mt-5">
+              <Button variant="brand" size="lg" class="w-full" onclick={submitCreateEmployee} disabled={busy}>
+                Buat Akun Karyawan
+              </Button>
+            </div>
+          </section>
 
           <section class="glass-panel rounded-[2.2rem] p-6">
             <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -864,8 +1010,7 @@
                   Owner staff roster
                 </h2>
                 <p class="mt-3 text-sm leading-7 text-ink-700">
-                  Search, date filter, export, dan pagination untuk akun karyawan milik owner saat
-                  ini.
+                  Search, date filter, export, dan pagination untuk akun karyawan milik owner.
                 </p>
               </div>
 
@@ -933,55 +1078,9 @@
               {/if}
             </div>
           </section>
-        {:else if currentRole() === 'dev' || currentRole() === 'superadmin'}
-          <section class="glass-panel rounded-[2.2rem] p-6">
-            <p class="section-kicker !text-brand-700">Owner onboarding</p>
-            <h2 class="mt-3 font-display text-3xl font-bold tracking-tight text-ink-900">
-              Owner dibuat dari Users, lalu owner membuat store di sini
-            </h2>
-            <p class="mt-3 text-sm leading-7 text-ink-700">
-              Halaman Stores tetap menjadi tempat owner membuat tenant pertamanya. Dev atau
-              superadmin sekarang mendaftarkan owner dulu dari halaman Users, lalu owner login dan
-              menerbitkan token awal saat create store.
-            </p>
-
-            <div class="mt-5 grid gap-3 sm:grid-cols-2">
-              <div class="rounded-[1.5rem] bg-canvas-50 px-4 py-4">
-                <p class="text-sm font-semibold text-ink-900">1. Provision owner</p>
-                <p class="mt-2 text-sm leading-6 text-ink-700">
-                  Gunakan halaman Users untuk membuat owner, mengaktifkan ulang akun, dan menjaga
-                  onboarding tetap tercatat di audit.
-                </p>
-              </div>
-              <div class="rounded-[1.5rem] bg-canvas-50 px-4 py-4">
-                <p class="text-sm font-semibold text-ink-900">2. Owner builds tenant</p>
-                <p class="mt-2 text-sm leading-6 text-ink-700">
-                  Setelah login, owner membuat store di surface ini, lalu lanjut ke API Docs untuk
-                  integrasi website.
-                </p>
-              </div>
-            </div>
-
-            <div class="mt-5 flex flex-wrap gap-3">
-              <a class="surface-chip" href="/app/users">Open Users</a>
-              <a class="surface-chip" href="/app/api-docs">Open API Docs</a>
-            </div>
-          </section>
-        {:else}
-          <section class="glass-panel rounded-[2.2rem] p-6">
-            <p class="section-kicker !text-brand-700">Store scope</p>
-            <h2 class="mt-3 font-display text-3xl font-bold tracking-tight text-ink-900">
-              Karyawan hanya membaca store yang sudah di-scope
-            </h2>
-            <p class="mt-3 text-sm leading-7 text-ink-700">
-              Surface ini untuk karyawan fokus ke store yang memang sudah diassign. Provision owner,
-              create store, dan create staff tetap dilakukan oleh owner atau role platform sesuai
-              boundary blueprint.
-            </p>
-          </section>
-        {/if}
-      </section>
-
+        </div>
+      {/if}
+    {:else}
       <section class="glass-panel rounded-[2.2rem] p-6">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -1219,6 +1318,6 @@
           {/if}
         </div>
       </section>
-    </div>
+    {/if}
   </div>
 {/if}

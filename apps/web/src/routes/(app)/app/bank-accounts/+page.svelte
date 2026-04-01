@@ -380,8 +380,8 @@
         eyebrow="Bank Accounts"
         title="Belum ada toko untuk dihubungkan"
         body="Tambahkan toko lebih dulu sebelum menyimpan rekening tujuan withdraw."
-        actionHref="/app/stores"
-        actionLabel="Buka Stores"
+        actionHref={$authSession?.user.role === 'karyawan' ? '/app/stores' : '/app/onboarding'}
+        actionLabel={$authSession?.user.role === 'karyawan' ? 'Buka Stores' : 'Buka Onboarding'}
       />
     {:else}
       <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

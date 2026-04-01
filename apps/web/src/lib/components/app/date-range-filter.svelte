@@ -23,7 +23,7 @@
 </script>
 
 <div class="date-filter-shell">
-  <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+  <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
     <div class="space-y-1">
       <p class="section-kicker !text-brand-700">Time Filter</p>
       <p class="text-sm font-semibold text-ink-900">{label}</p>
@@ -49,15 +49,13 @@
   </div>
 
   <div class="date-filter-grid mt-4">
-    <label class="field-stack date-filter-field">
-      <span class="field-label">{label} · Dari</span>
-      <span class="date-filter-stamp">start</span>
+    <label class="field-stack">
+      <span class="field-label">Mulai</span>
       <input bind:value={start} class="field-input" type="datetime-local" />
     </label>
 
-    <label class="field-stack date-filter-field">
-      <span class="field-label">{label} · Sampai</span>
-      <span class="date-filter-stamp">end</span>
+    <label class="field-stack">
+      <span class="field-label">Sampai</span>
       <input bind:value={end} class="field-input" type="datetime-local" />
     </label>
   </div>

@@ -440,6 +440,7 @@
           <Button variant="brand" size="lg" onclick={submitCreateUser} disabled={busy}>
             Provision User
           </Button>
+          <a class="surface-chip" href="/app/onboarding">Owner runway di Onboarding</a>
           <a class="surface-chip" href="/app/stores">Owner membuat store di Stores</a>
           <a class="surface-chip" href="/app/api-docs">Owner integrasi di API Docs</a>
         </div>

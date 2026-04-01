@@ -491,10 +491,10 @@
           </div>
 
           <div class="grid gap-3 sm:grid-cols-2">
-            <a class="glass-panel rounded-[1.6rem] px-4 py-4 text-sm text-ink-700" href="/app/stores">
-              <p class="font-semibold text-ink-900">1. Create store</p>
+            <a class="glass-panel rounded-[1.6rem] px-4 py-4 text-sm text-ink-700" href="/app/onboarding">
+              <p class="font-semibold text-ink-900">1. Open onboarding</p>
               <p class="mt-2 leading-6">
-                Buat tenant pertama, threshold low balance, dan dapatkan one-time API token.
+                Gunakan runway owner untuk membuat tenant pertama dan dapatkan one-time API token.
               </p>
             </a>
             <a class="glass-panel rounded-[1.6rem] px-4 py-4 text-sm text-ink-700" href="/app/api-docs">
@@ -774,16 +774,16 @@
           </div>
 
           <div class="grid gap-3 sm:grid-cols-2">
+            <a class="glass-panel rounded-[1.6rem] px-4 py-4 text-sm text-ink-700" href="/app/onboarding">
+              <p class="font-semibold text-ink-900">Open Onboarding</p>
+              <p class="mt-2 leading-6">
+                Provision owner dan kelola tenant runway dari surface yang paling ringkas.
+              </p>
+            </a>
             <a class="glass-panel rounded-[1.6rem] px-4 py-4 text-sm text-ink-700" href="/app/users">
               <p class="font-semibold text-ink-900">Open Users</p>
               <p class="mt-2 leading-6">
-                Provision owner dan kelola status akun onboarding dari surface platform.
-              </p>
-            </a>
-            <a class="glass-panel rounded-[1.6rem] px-4 py-4 text-sm text-ink-700" href="/app/stores">
-              <p class="font-semibold text-ink-900">Open Stores</p>
-              <p class="mt-2 leading-6">
-                Monitor tenant yang sudah dibuat owner dan lanjutkan konfigurasi callback/token.
+                Buka control plane user jika perlu reaktivasi owner atau provision role platform.
               </p>
             </a>
           </div>

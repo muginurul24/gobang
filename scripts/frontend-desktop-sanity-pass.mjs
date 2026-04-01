@@ -11,7 +11,7 @@ const chromiumPath = process.env.CHROMIUM_PATH || '/usr/bin/chromium-browser';
 const theme = (process.env.THEME || 'dark').trim();
 const routes = (
   process.env.ROUTES ||
-  '/app,/app/users,/app/stores,/app/notifications,/app/ops,/app/security'
+  '/app,/app/onboarding,/app/users,/app/stores,/app/notifications,/app/ops,/app/security'
 )
   .split(',')
   .map((route) => route.trim())

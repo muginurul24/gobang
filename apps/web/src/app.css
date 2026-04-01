@@ -290,7 +290,7 @@
 
 @layer utilities {
   .shell-width {
-    width: min(1480px, calc(100% - 1.25rem));
+    width: min(1580px, calc(100% - 1.25rem));
   }
 
   .glass-panel {
@@ -413,11 +413,20 @@
   }
 
   .shell-sidebar__panel {
-    display: grid;
+    display: flex;
+    flex-direction: column;
     gap: 1rem;
     max-height: calc(100vh - 2rem);
     overflow-y: auto;
     padding-right: 0.25rem;
+  }
+
+  .shell-sidebar-shell {
+    display: flex;
+    min-height: calc(100vh - 2rem);
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 1rem;
   }
 
   .shell-sidebar-user {
@@ -462,6 +471,37 @@
     box-shadow: 0 14px 36px rgba(7, 16, 12, 0.14);
   }
 
+  .shell-context-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  }
+
+  .shell-context-card {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .shell-context-card .field-input,
+  .shell-context-card .field-select {
+    padding: 0.78rem 0.9rem;
+  }
+
+  .shell-context-card__toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.85rem;
+  }
+
+  .shell-context-card__pager {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.55rem;
+  }
+
   .shell-utility-bar__group {
     display: flex;
     min-width: 0;
@@ -498,8 +538,8 @@
 
   .shell-header__rail {
     display: grid;
-    gap: 0.85rem;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+    gap: 0.75rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
   }
 
   .shell-header__metric {
@@ -514,7 +554,7 @@
         rgba(255, 255, 255, 0.02)
       ),
       color-mix(in srgb, var(--panel-surface-background) 92%, transparent);
-    padding: 1rem 1rem 1.05rem;
+    padding: 0.9rem 0.95rem 0.95rem;
     box-shadow: var(--panel-surface-shadow);
   }
 
@@ -543,7 +583,7 @@
     display: block;
     margin-top: 0.45rem;
     font-family: var(--font-display);
-    font-size: clamp(1.05rem, 0.9rem + 0.5vw, 1.45rem);
+    font-size: clamp(1rem, 0.88rem + 0.42vw, 1.3rem);
     font-weight: 700;
     line-height: 1.15;
     color: var(--panel-surface-text);
@@ -552,8 +592,8 @@
   .shell-header__metric-meta {
     display: block;
     margin-top: 0.35rem;
-    font-size: 0.82rem;
-    line-height: 1.55;
+    font-size: 0.76rem;
+    line-height: 1.5;
     color: var(--panel-surface-text-secondary);
   }
 
@@ -877,7 +917,7 @@
   }
 
   .app-nav-link {
-    @apply relative flex items-center gap-3 rounded-[1.65rem] px-4 py-4 text-sm font-medium transition;
+    @apply relative flex items-center gap-3 rounded-[1.45rem] px-3.5 py-3.5 text-sm font-medium transition;
     border: 1px solid var(--nav-link-border);
     background: var(--nav-link-background);
     color: var(--nav-link-text);
@@ -1398,26 +1438,7 @@
   .date-filter-grid {
     display: grid;
     gap: 0.9rem;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
-  }
-
-  .date-filter-field {
-    position: relative;
-  }
-
-  .date-filter-stamp {
-    position: absolute;
-    inset-inline-end: 0.85rem;
-    inset-block-start: 2.35rem;
-    border-radius: 999px;
-    background: var(--status-chip-background);
-    padding: 0.22rem 0.48rem;
-    font-size: 0.58rem;
-    font-weight: 800;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--panel-surface-text-muted);
-    pointer-events: none;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
   }
 
   .date-filter-presets {
@@ -1472,6 +1493,90 @@
     display: flex;
     flex-wrap: wrap;
     gap: 0.75rem;
+  }
+
+  .page-tabs {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  }
+
+  .page-tabs__item {
+    display: grid;
+    gap: 0.45rem;
+    border-radius: 1.45rem;
+    border: 1px solid var(--panel-surface-border);
+    background: color-mix(
+      in srgb,
+      var(--panel-surface-background) 95%,
+      transparent
+    );
+    padding: 1rem 1.05rem;
+    text-align: left;
+    color: var(--panel-surface-text-secondary);
+    transition:
+      transform 160ms ease,
+      border-color 160ms ease,
+      box-shadow 160ms ease,
+      background 160ms ease,
+      color 160ms ease;
+    box-shadow: var(--panel-surface-shadow);
+  }
+
+  .page-tabs__item:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(
+      in srgb,
+      var(--panel-surface-border) 55%,
+      #efc86d 45%
+    );
+  }
+
+  .page-tabs__item[data-active='true'] {
+    border-color: rgba(239, 200, 109, 0.28);
+    background:
+      linear-gradient(
+        120deg,
+        rgba(239, 200, 109, 0.12),
+        rgba(34, 201, 119, 0.1)
+      ),
+      color-mix(in srgb, var(--panel-surface-background) 96%, transparent);
+    color: var(--panel-surface-text);
+    box-shadow:
+      0 20px 40px rgba(7, 16, 12, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  }
+
+  .page-tabs__label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .page-tabs__label {
+    font-size: 0.95rem;
+    font-weight: 800;
+    line-height: 1.25;
+    color: inherit;
+  }
+
+  .page-tabs__description {
+    font-size: 0.78rem;
+    line-height: 1.6;
+    color: inherit;
+    opacity: 0.74;
+  }
+
+  .page-tabs__badge {
+    border-radius: 999px;
+    background: var(--status-chip-background);
+    color: var(--status-chip-text);
+    padding: 0.24rem 0.52rem;
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
   }
 }
 
@@ -1768,7 +1873,7 @@
 
 @media (min-width: 1280px) {
   .shell-frame[data-sidebar='true'] {
-    grid-template-columns: minmax(19rem, 20.5rem) minmax(0, 1fr);
+    grid-template-columns: minmax(16.75rem, 17.75rem) minmax(0, 1fr);
   }
 
   .shell-frame[data-sidebar='false'] {
@@ -1793,11 +1898,19 @@
 
   .shell-sidebar__panel {
     max-height: calc(100vh - 1.5rem);
-    padding-right: 0.35rem;
+    padding-right: 0.15rem;
   }
 
   .shell-header__main {
     grid-template-columns: minmax(0, 1.3fr) minmax(18rem, 24rem);
+  }
+
+  .shell-context-grid {
+    grid-template-columns:
+      minmax(0, 1.2fr)
+      minmax(17rem, 0.9fr)
+      minmax(17rem, 0.9fr);
+    align-items: start;
   }
 }
 

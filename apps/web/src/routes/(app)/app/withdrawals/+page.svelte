@@ -479,8 +479,8 @@
         eyebrow="Store Withdrawal"
         title="Belum ada toko untuk withdraw"
         body="Tambahkan toko lebih dulu atau pastikan toko yang relevan memang ada di scope sesi dashboard ini."
-        actionHref="/app/stores"
-        actionLabel="Buka Stores"
+        actionHref={$authSession?.user.role === 'karyawan' ? '/app/stores' : '/app/onboarding'}
+        actionLabel={$authSession?.user.role === 'karyawan' ? 'Buka Stores' : 'Buka Onboarding'}
       />
     {:else}
       <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

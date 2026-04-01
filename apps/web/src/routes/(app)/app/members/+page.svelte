@@ -306,8 +306,8 @@
         eyebrow="Store Scope"
         title="Belum ada toko di sesi ini"
         body="Member mapping baru bisa dibuat setelah ada toko yang masuk scope owner, dev, superadmin, atau assignment karyawan."
-        actionHref="/app/stores"
-        actionLabel="Buka Stores"
+        actionHref={currentRole() === 'karyawan' ? '/app/stores' : '/app/onboarding'}
+        actionLabel={currentRole() === 'karyawan' ? 'Buka Stores' : 'Buka Onboarding'}
       />
     {:else}
       <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

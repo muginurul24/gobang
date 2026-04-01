@@ -7,6 +7,7 @@ const chromiumPath = process.env.CHROMIUM_PATH || '/usr/bin/chromium-browser';
 
 const routes = [
   '/app',
+  '/app/onboarding',
   '/app/users',
   '/app/ops',
   '/app/stores',
@@ -99,7 +100,7 @@ try {
   const results = [loginSnapshot];
 
   for (const route of routes) {
-    await page.goto(resolveURL(route), { waitUntil: 'domcontentloaded' });
+    await navigateWithRetry(page, route);
     await page.waitForTimeout(1500);
     const snapshot = await collectSnapshot(page, context, route);
     snapshot.network = networkLog.splice(0);
@@ -190,6 +191,23 @@ async function collectSnapshot(page, context, label) {
     theme: authStorage.theme,
     layout: layoutState,
   };
+}
+
+async function navigateWithRetry(page, route) {
+  const destination = resolveURL(route);
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await page.goto(destination, { waitUntil: 'domcontentloaded' });
+      return;
+    } catch (error) {
+      if (!String(error).includes('ERR_ABORTED') || attempt === 2) {
+        throw error;
+      }
+
+      await page.waitForTimeout(900);
+    }
+  }
 }
 
 function resolveURL(path) {
