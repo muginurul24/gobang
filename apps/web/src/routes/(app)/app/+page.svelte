@@ -127,6 +127,10 @@
     '#efc86d',
     'rgba(239, 200, 109, 0.16)',
   );
+  $: showOwnerOnboarding = role === 'owner' && (storeMetrics?.accessible_store_count ?? 0) === 0;
+  $: showPlatformOnboarding =
+    (role === 'dev' || role === 'superadmin') &&
+    (platformMetrics?.total_store_count ?? 0) === 0;
 
   onMount(() => {
     let active = true;
@@ -471,6 +475,39 @@
       {/each}
     </div>
   {:else if storeMetrics}
+    {#if showOwnerOnboarding}
+      <section class="glass-panel rounded-[2.2rem] p-5 sm:p-6">
+        <div class="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+          <div class="space-y-3">
+            <p class="section-kicker !text-brand-700">Owner launch path</p>
+            <h2 class="font-display text-3xl font-bold tracking-tight text-ink-900">
+              Belum ada store. Langkah berikutnya adalah membuat tenant pertama.
+            </h2>
+            <p class="text-sm leading-7 text-ink-700">
+              Karena Anda sudah login sebagai owner, tahap berikutnya adalah membuka halaman Stores
+              untuk membuat store pertama. Saat store dibuat, token awal akan diterbitkan satu kali,
+              lalu Anda bisa lanjut ke API Docs untuk integrasi website.
+            </p>
+          </div>
+
+          <div class="grid gap-3 sm:grid-cols-2">
+            <a class="glass-panel rounded-[1.6rem] px-4 py-4 text-sm text-ink-700" href="/app/stores">
+              <p class="font-semibold text-ink-900">1. Create store</p>
+              <p class="mt-2 leading-6">
+                Buat tenant pertama, threshold low balance, dan dapatkan one-time API token.
+              </p>
+            </a>
+            <a class="glass-panel rounded-[1.6rem] px-4 py-4 text-sm text-ink-700" href="/app/api-docs">
+              <p class="font-semibold text-ink-900">2. Integrate website</p>
+              <p class="mt-2 leading-6">
+                Lanjut ke callback, store API, dan contoh request/response untuk owner.
+              </p>
+            </a>
+          </div>
+        </div>
+      </section>
+    {/if}
+
     <section class="dashboard-chart-card dashboard-chart-card--dark surface-grid">
       <div class="grid gap-6 2xl:grid-cols-[minmax(0,1.12fr)_minmax(18rem,22rem)]">
         <div class="space-y-5">
@@ -722,6 +759,38 @@
       </section>
     </div>
   {:else if platformMetrics}
+    {#if showPlatformOnboarding}
+      <section class="glass-panel rounded-[2.2rem] p-5 sm:p-6">
+        <div class="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+          <div class="space-y-3">
+            <p class="section-kicker !text-brand-700">Platform onboarding</p>
+            <h2 class="font-display text-3xl font-bold tracking-tight text-ink-900">
+              Belum ada tenant aktif. Provision owner dulu.
+            </h2>
+            <p class="text-sm leading-7 text-ink-700">
+              Flow yang benar sekarang sudah tersedia: buat akun owner dari halaman Users, owner
+              login, lalu owner membuat store dan melanjutkan integrasi dari API Docs.
+            </p>
+          </div>
+
+          <div class="grid gap-3 sm:grid-cols-2">
+            <a class="glass-panel rounded-[1.6rem] px-4 py-4 text-sm text-ink-700" href="/app/users">
+              <p class="font-semibold text-ink-900">Open Users</p>
+              <p class="mt-2 leading-6">
+                Provision owner dan kelola status akun onboarding dari surface platform.
+              </p>
+            </a>
+            <a class="glass-panel rounded-[1.6rem] px-4 py-4 text-sm text-ink-700" href="/app/stores">
+              <p class="font-semibold text-ink-900">Open Stores</p>
+              <p class="mt-2 leading-6">
+                Monitor tenant yang sudah dibuat owner dan lanjutkan konfigurasi callback/token.
+              </p>
+            </a>
+          </div>
+        </div>
+      </section>
+    {/if}
+
     <section class="dashboard-chart-card dashboard-chart-card--dark surface-grid">
       <div class="grid gap-6 2xl:grid-cols-[minmax(0,1.12fr)_minmax(18rem,22rem)]">
         <div class="space-y-5">

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { browser } from '$app/environment';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
@@ -43,6 +44,12 @@
   let lastNotificationScopeKey = '';
   let lastStoreDirectoryKey = '';
   let viewActive = false;
+  let navOpen = false;
+  let navPinned = false;
+  let isWideViewport = false;
+  let sidebarVisible = false;
+
+  const navPreferenceKey = 'onixggr.shell.nav-pinned';
 
   $: role = $authSession?.user.role ?? '';
   $: currentStore =
@@ -62,7 +69,10 @@
     { href: '/app/notifications', label: 'Notifications', description: 'event stream', badge: notificationBadge },
     ...(
       role === 'dev' || role === 'superadmin'
-        ? [{ href: '/app/ops', label: 'Ops', description: 'health + callbacks' }]
+        ? [
+            { href: '/app/users', label: 'Users', description: 'owner onboarding' },
+            { href: '/app/ops', label: 'Ops', description: 'health + callbacks' }
+          ]
         : []
     ),
     { href: '/app/stores', label: 'Stores', description: 'token + callback' },
@@ -81,7 +91,6 @@
     ),
     { href: '/app/security', label: 'Security', description: '2fa + allowlist' },
     { href: '/app/chat', label: 'Global Chat', description: 'ops room' },
-    { href: '/', label: 'Public', description: 'marketing shell' },
   ].map((item) => ({
     ...item,
     active: isActivePath(currentPath, item.href)
@@ -89,6 +98,7 @@
   $: currentNavItem = nav.find((item) => item.active) ?? nav[0];
   $: currentPageTitle = currentNavItem?.label ?? 'Dashboard';
   $: currentPageDescription = currentNavItem?.description ?? 'realtime cards';
+  $: sidebarVisible = isWideViewport ? navPinned : navOpen;
 
   async function loadAccessibleStores() {
     storeDirectoryLoading = true;
@@ -138,6 +148,25 @@
   onMount(() => {
     viewActive = true;
     hydratePreferredStoreID();
+    const mediaQuery = window.matchMedia('(min-width: 1280px)');
+
+    function syncViewportState(matches: boolean) {
+      isWideViewport = matches;
+      if (matches) {
+        const storedPreference = browser ? window.localStorage.getItem(navPreferenceKey) : null;
+        navPinned = storedPreference === null ? true : storedPreference === 'true';
+        navOpen = false;
+        return;
+      }
+
+      navOpen = false;
+    }
+
+    syncViewportState(mediaQuery.matches);
+    const handleViewportChange = (event: MediaQueryListEvent) => {
+      syncViewportState(event.matches);
+    };
+    mediaQuery.addEventListener('change', handleViewportChange);
 
     const unsubscribeStorePreference = preferredStoreID.subscribe((storeID) => {
       if (!viewActive) {
@@ -235,6 +264,7 @@
 
     return () => {
       viewActive = false;
+      mediaQuery.removeEventListener('change', handleViewportChange);
       unsubscribeStorePreference();
       unsubscribeRealtime();
       unsubscribeNotificationsChanged();
@@ -277,10 +307,29 @@
     await goto('/login');
   }
 
+  function toggleSidebar() {
+    if (isWideViewport) {
+      navPinned = !navPinned;
+      if (browser) {
+        window.localStorage.setItem(navPreferenceKey, navPinned ? 'true' : 'false');
+      }
+      return;
+    }
+
+    navOpen = !navOpen;
+  }
+
+  function closeSidebar() {
+    if (!isWideViewport) {
+      navOpen = false;
+    }
+  }
+
   function switchStore(storeID: string) {
     selectedStoreID = storeID;
     setPreferredStoreID(storeID);
     void syncSelectedStoreSummary(storeID);
+    closeSidebar();
   }
 
   async function syncSelectedStoreSummary(storeID: string) {
@@ -363,92 +412,18 @@
 
 {#if ready}
   <div class="matrix-page" data-app-shell="ready">
-    <div class="shell-width mx-auto flex min-h-screen flex-col gap-6 pb-10 pt-4 sm:pt-6">
-      <section class="shell-command-bar surface-dark surface-grid overflow-hidden rounded-[2.8rem] px-5 py-5 text-white sm:px-7 sm:py-6">
-        <div class="grid gap-6 2xl:grid-cols-[minmax(0,1.2fr)_minmax(18rem,24rem)]">
-          <div class="space-y-5">
-            <div class="flex flex-wrap items-center gap-3">
-              <span class="status-chip">role {role || 'guest'}</span>
-              <span class="status-chip">realtime {realtimeLabel()}</span>
-              <span class="status-chip">view {currentPageTitle}</span>
-              {#if notificationBadge !== ''}
-                <span class="status-chip">{notificationBadge} unread</span>
-              {/if}
-            </div>
+    {#if !isWideViewport && sidebarVisible}
+      <button
+        aria-label="Close navigation"
+        class="shell-sidebar-scrim"
+        onclick={closeSidebar}
+      ></button>
+    {/if}
 
-            <div class="space-y-3">
-              <p class="section-kicker">Onixggr Matrix</p>
-              <div class="space-y-2">
-                <p class="font-mono text-[0.72rem] uppercase tracking-[0.32em] text-white/42">
-                  Current lane / {currentPageDescription}
-                </p>
-                <h1 class="font-display text-4xl font-bold tracking-tight text-white sm:text-5xl">
-                  Enterprise control plane untuk transaksi, store ops, dan integrasi API.
-                </h1>
-              </div>
-              <p class="max-w-3xl text-sm leading-7 text-white/72 sm:text-base">
-                {pageSummary()}
-              </p>
-            </div>
-
-            <div class="metric-strip">
-              <article class="metric-strip__item">
-                <span class="metric-strip__label">Session</span>
-                <strong class="metric-strip__value">{$authSession?.user.username ?? '-'}</strong>
-                <span class="metric-strip__meta">{$authSession?.user.role ?? '-'}</span>
-              </article>
-              <article class="metric-strip__item">
-                <span class="metric-strip__label">Realtime</span>
-                <strong class="metric-strip__value">{$realtimeState.channels.length}</strong>
-                <span class="metric-strip__meta">channel aktif</span>
-              </article>
-              <article class="metric-strip__item">
-                <span class="metric-strip__label">Store Focus</span>
-                <strong class="metric-strip__value">{currentStore?.name ?? 'No store'}</strong>
-                <span class="metric-strip__meta">
-                  {currentStore ? formatCurrency(currentStore.current_balance) : 'waiting directory'}
-                </span>
-              </article>
-            </div>
-          </div>
-
-          <div class="shell-command-bar__stats">
-            <article class="shell-command-card">
-              <div class="shell-command-card__header">
-                <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-white/45">
-                  Current View
-                </p>
-                <span class="status-chip">{currentPath}</span>
-              </div>
-              <h2 class="mt-4 font-display text-3xl font-semibold tracking-tight text-white">
-                {currentPageTitle}
-              </h2>
-              <p class="mt-2 text-sm leading-6 text-white/68">
-                {currentPageDescription}. Active page identity sekarang selalu terlihat jelas di shell.
-              </p>
-            </article>
-
-            <article class="shell-command-card">
-              <div class="flex items-start justify-between gap-4">
-                <div>
-                  <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-white/45">
-                    Display
-                  </p>
-                  <p class="mt-3 text-lg font-semibold text-white">Theme runtime</p>
-                </div>
-                <span class="surface-chip !bg-white/10 !text-white/90">desktop + mobile</span>
-              </div>
-              <div class="mt-4">
-                <ThemeToggle />
-              </div>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <div class="dashboard-shell">
-        <aside class="dashboard-sidebar space-y-6">
-          <section class="glass-panel rounded-[2rem] p-5 dashboard-sidebar__sticky">
+    <div class="shell-width shell-frame mx-auto min-h-screen gap-6 pb-10 pt-4 sm:pt-6" data-sidebar={sidebarVisible}>
+      <aside class="shell-sidebar" data-open={sidebarVisible}>
+        <div class="shell-sidebar__panel soft-scroll">
+          <section class="glass-panel rounded-[2rem] p-5">
             <div class="flex items-start justify-between gap-4">
               <div>
                 <p class="section-kicker !text-brand-700">Navigation</p>
@@ -457,7 +432,12 @@
                 </h2>
               </div>
 
-              <span class="surface-chip">{$authSession?.user.role ?? '-'}</span>
+              <div class="flex flex-wrap justify-end gap-2">
+                <span class="surface-chip">{$authSession?.user.role ?? '-'}</span>
+                {#if !isWideViewport}
+                  <Button variant="outline" size="sm" onclick={closeSidebar}>Close</Button>
+                {/if}
+              </div>
             </div>
 
             <nav class="nav-cluster mt-5">
@@ -467,6 +447,7 @@
                   class="app-nav-link"
                   data-active={item.active}
                   href={item.href}
+                  onclick={closeSidebar}
                 >
                   <span class="app-nav-link__marker" aria-hidden="true"></span>
                   <span class="app-nav-link__content">
@@ -483,7 +464,8 @@
               {/each}
             </nav>
 
-            <div class="mt-5">
+            <div class="mt-5 grid gap-3">
+              <a class="surface-chip w-fit" href="/" onclick={closeSidebar}>Open public site</a>
               <Button variant="outline" size="lg" class="w-full" onclick={signOut}>
                 Logout
               </Button>
@@ -512,7 +494,6 @@
                 </span>
               </div>
             </div>
-
           </section>
 
           <section class="glass-panel rounded-[2rem] p-5">
@@ -542,13 +523,13 @@
               </div>
             {:else}
               <div class="mt-5 space-y-4">
-                <label class="block space-y-2">
-                  <span class="text-sm font-medium text-ink-700">Cari store untuk switch context</span>
+                <label class="field-stack">
+                  <span class="field-label">Cari store untuk switch context</span>
                   <input
                     bind:value={storeQuery}
                     type="search"
                     placeholder="Cari nama, slug, atau callback URL..."
-                    class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300"
+                    class="field-input"
                   />
                 </label>
 
@@ -563,11 +544,11 @@
                   <span class="surface-chip">{formatNumber(storeDirectorySummary.low_balance_count)} low balance</span>
                 </div>
 
-                <label class="block space-y-2">
-                  <span class="text-sm font-medium text-ink-700">Store aktif untuk command flow</span>
+                <label class="field-stack">
+                  <span class="field-label">Store aktif untuk command flow</span>
                   <select
                     bind:value={selectedStoreID}
-                    class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300"
+                    class="field-select"
                     onchange={(event) => switchStore((event.currentTarget as HTMLSelectElement).value)}
                   >
                     {#each accessibleStores as store}
@@ -645,7 +626,108 @@
               {/if}
             </section>
           {/if}
-        </aside>
+        </div>
+      </aside>
+
+      <div class="shell-main min-w-0 space-y-6">
+        <section class="shell-utility-bar">
+          <div class="shell-utility-bar__group">
+            <Button variant="outline" size="sm" onclick={toggleSidebar}>
+              {isWideViewport ? (sidebarVisible ? 'Hide Nav' : 'Show Nav') : (sidebarVisible ? 'Close Menu' : 'Open Menu')}
+            </Button>
+            <span class="surface-chip">view {currentPageTitle}</span>
+            <span class="surface-chip">realtime {realtimeLabel()}</span>
+          </div>
+
+          <div class="shell-utility-bar__group">
+            {#if notificationBadge !== ''}
+              <span class="surface-chip">{notificationBadge} unread</span>
+            {/if}
+            <span class="surface-chip">role {role || 'guest'}</span>
+          </div>
+        </section>
+
+        <section class="shell-command-bar surface-dark surface-grid overflow-hidden rounded-[2.8rem] px-5 py-5 text-white sm:px-7 sm:py-6">
+          <div class="grid gap-6 2xl:grid-cols-[minmax(0,1.2fr)_minmax(18rem,24rem)]">
+            <div class="space-y-5">
+              <div class="flex flex-wrap items-center gap-3">
+                <span class="status-chip">role {role || 'guest'}</span>
+                <span class="status-chip">realtime {realtimeLabel()}</span>
+                <span class="status-chip">view {currentPageTitle}</span>
+                {#if notificationBadge !== ''}
+                  <span class="status-chip">{notificationBadge} unread</span>
+                {/if}
+              </div>
+
+              <div class="space-y-3">
+                <p class="section-kicker">Onixggr Matrix</p>
+                <div class="space-y-2">
+                  <p class="font-mono text-[0.72rem] uppercase tracking-[0.32em] text-white/42">
+                    Current lane / {currentPageDescription}
+                  </p>
+                  <h1 class="font-display text-4xl font-bold tracking-tight text-white sm:text-5xl">
+                    Enterprise control plane untuk transaksi, store ops, dan integrasi API.
+                  </h1>
+                </div>
+                <p class="max-w-3xl text-sm leading-7 text-white/72 sm:text-base">
+                  {pageSummary()}
+                </p>
+              </div>
+
+              <div class="metric-strip">
+                <article class="metric-strip__item">
+                  <span class="metric-strip__label">Session</span>
+                  <strong class="metric-strip__value">{$authSession?.user.username ?? '-'}</strong>
+                  <span class="metric-strip__meta">{$authSession?.user.role ?? '-'}</span>
+                </article>
+                <article class="metric-strip__item">
+                  <span class="metric-strip__label">Realtime</span>
+                  <strong class="metric-strip__value">{$realtimeState.channels.length}</strong>
+                  <span class="metric-strip__meta">channel aktif</span>
+                </article>
+                <article class="metric-strip__item">
+                  <span class="metric-strip__label">Store Focus</span>
+                  <strong class="metric-strip__value">{currentStore?.name ?? 'No store'}</strong>
+                  <span class="metric-strip__meta">
+                    {currentStore ? formatCurrency(currentStore.current_balance) : 'waiting directory'}
+                  </span>
+                </article>
+              </div>
+            </div>
+
+            <div class="shell-command-bar__stats">
+              <article class="shell-command-card">
+                <div class="shell-command-card__header">
+                  <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-white/45">
+                    Current View
+                  </p>
+                  <span class="status-chip">{currentPath}</span>
+                </div>
+                <h2 class="mt-4 font-display text-3xl font-semibold tracking-tight text-white">
+                  {currentPageTitle}
+                </h2>
+                <p class="mt-2 text-sm leading-6 text-white/68">
+                  {currentPageDescription}. Navigation sekarang tinggal dibuka dari sidebar toggle dan tidak lagi terkubur di bawah hero.
+                </p>
+              </article>
+
+              <article class="shell-command-card">
+                <div class="flex items-start justify-between gap-4">
+                  <div>
+                    <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-white/45">
+                      Display
+                    </p>
+                    <p class="mt-3 text-lg font-semibold text-white">Theme runtime</p>
+                  </div>
+                  <span class="surface-chip !bg-white/10 !text-white/90">desktop + mobile</span>
+                </div>
+                <div class="mt-4">
+                  <ThemeToggle />
+                </div>
+              </article>
+            </div>
+          </div>
+        </section>
 
         <main class="min-w-0 space-y-6" id="app-main" tabindex="-1">
           {#if sessionBootstrapWarning !== ''}

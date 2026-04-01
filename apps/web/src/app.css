@@ -376,6 +376,71 @@
     gap: 1.5rem;
   }
 
+  .shell-frame {
+    display: grid;
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  .shell-main {
+    min-width: 0;
+  }
+
+  .shell-sidebar {
+    position: fixed;
+    inset: 1rem auto 1rem 1rem;
+    z-index: 45;
+    width: min(22rem, calc(100vw - 2rem));
+    max-width: calc(100vw - 2rem);
+    transform: translateX(calc(-100% - 2rem));
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      transform 180ms ease,
+      opacity 180ms ease;
+  }
+
+  .shell-sidebar[data-open='true'] {
+    transform: translateX(0);
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .shell-sidebar__panel {
+    display: grid;
+    gap: 1.5rem;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+    padding-right: 0.25rem;
+  }
+
+  .shell-sidebar-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    border: 0;
+    background:
+      linear-gradient(180deg, rgba(4, 11, 8, 0.72), rgba(4, 11, 8, 0.46)),
+      rgba(4, 11, 8, 0.42);
+    backdrop-filter: blur(6px);
+  }
+
+  .shell-utility-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.9rem;
+  }
+
+  .shell-utility-bar__group {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.65rem;
+  }
+
   .matrix-page
     :where(main, section, article, aside, header, footer, nav, form) {
     min-width: 0;
@@ -1546,6 +1611,37 @@
   .dashboard-shell {
     grid-template-columns: 330px minmax(0, 1fr);
     align-items: start;
+  }
+}
+
+@media (min-width: 1280px) {
+  .shell-frame[data-sidebar='true'] {
+    grid-template-columns: minmax(19rem, 21rem) minmax(0, 1fr);
+  }
+
+  .shell-frame[data-sidebar='false'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .shell-sidebar {
+    position: sticky;
+    inset: auto;
+    top: 1.25rem;
+    width: auto;
+    max-width: none;
+    transform: none;
+    opacity: 1;
+    pointer-events: auto;
+    transition: none;
+  }
+
+  .shell-sidebar[data-open='false'] {
+    display: none;
+  }
+
+  .shell-sidebar__panel {
+    max-height: calc(100vh - 1.5rem);
+    padding-right: 0.35rem;
   }
 }
 

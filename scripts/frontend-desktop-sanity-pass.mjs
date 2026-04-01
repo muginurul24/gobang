@@ -9,8 +9,10 @@ const loginPassword = requiredEnv('LOGIN_PASSWORD');
 const outputDir = process.env.OUT_DIR || '.tmp/frontend-desktop-sanity';
 const chromiumPath = process.env.CHROMIUM_PATH || '/usr/bin/chromium-browser';
 const theme = (process.env.THEME || 'dark').trim();
-const routes = (process.env.ROUTES ||
-  '/app,/app/stores,/app/notifications,/app/ops')
+const routes = (
+  process.env.ROUTES ||
+  '/app,/app/users,/app/stores,/app/notifications,/app/ops,/app/security'
+)
   .split(',')
   .map((route) => route.trim())
   .filter(Boolean);
@@ -103,7 +105,10 @@ async function waitForAppReady(page, route, session) {
     }
 
     const readyShell = page.locator('[data-app-shell="ready"]');
-    const readyVisible = await readyShell.first().isVisible().catch(() => false);
+    const readyVisible = await readyShell
+      .first()
+      .isVisible()
+      .catch(() => false);
     if (readyVisible) {
       await page.waitForTimeout(900);
       return;

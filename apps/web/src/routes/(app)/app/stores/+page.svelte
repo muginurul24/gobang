@@ -799,19 +799,19 @@
               </p>
 
               <div class="mt-5 grid gap-4 md:grid-cols-2">
-                <label class="space-y-2">
-                  <span class="text-sm font-medium text-ink-700">Nama toko</span>
-                  <input bind:value={createStoreForm.name} class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300" placeholder="Alpha Store" />
+                <label class="field-stack">
+                  <span class="field-label">Nama toko</span>
+                  <input bind:value={createStoreForm.name} class="field-input" placeholder="Alpha Store" />
                 </label>
 
-                <label class="space-y-2">
-                  <span class="text-sm font-medium text-ink-700">Slug</span>
-                  <input bind:value={createStoreForm.slug} class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300" placeholder="alpha-store" />
+                <label class="field-stack">
+                  <span class="field-label">Slug</span>
+                  <input bind:value={createStoreForm.slug} class="field-input" placeholder="alpha-store" />
                 </label>
 
-                <label class="space-y-2 md:col-span-2">
-                  <span class="text-sm font-medium text-ink-700">Low balance threshold</span>
-                  <input bind:value={createStoreForm.low_balance_threshold} class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300" inputmode="decimal" placeholder="150000" />
+                <label class="field-stack md:col-span-2">
+                  <span class="field-label">Low balance threshold</span>
+                  <input bind:value={createStoreForm.low_balance_threshold} class="field-input" inputmode="decimal" placeholder="150000" />
                 </label>
               </div>
 
@@ -832,19 +832,19 @@
               </p>
 
               <div class="mt-5 space-y-4">
-                <label class="space-y-2">
-                  <span class="text-sm font-medium text-ink-700">Email</span>
-                  <input bind:value={createEmployeeForm.email} class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300" placeholder="staff@example.com" />
+                <label class="field-stack">
+                  <span class="field-label">Email</span>
+                  <input bind:value={createEmployeeForm.email} class="field-input" placeholder="staff@example.com" />
                 </label>
 
-                <label class="space-y-2">
-                  <span class="text-sm font-medium text-ink-700">Username</span>
-                  <input bind:value={createEmployeeForm.username} class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300" placeholder="staff-alpha" />
+                <label class="field-stack">
+                  <span class="field-label">Username</span>
+                  <input bind:value={createEmployeeForm.username} class="field-input" placeholder="staff-alpha" />
                 </label>
 
-                <label class="space-y-2">
-                  <span class="text-sm font-medium text-ink-700">Password awal</span>
-                  <input bind:value={createEmployeeForm.password} class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300" type="password" placeholder="StaffDemo123!" />
+                <label class="field-stack">
+                  <span class="field-label">Password awal</span>
+                  <input bind:value={createEmployeeForm.password} class="field-input" type="password" placeholder="StaffDemo123!" />
                 </label>
               </div>
 
@@ -879,9 +879,9 @@
             </div>
 
             <div class="mt-5 grid gap-4 2xl:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]">
-              <label class="space-y-2">
-                <span class="text-sm font-medium text-ink-700">Cari karyawan</span>
-                <input bind:value={employeeSearchTerm} class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300" placeholder="Cari username atau email" />
+              <label class="field-stack">
+                <span class="field-label">Cari karyawan</span>
+                <input bind:value={employeeSearchTerm} class="field-input" placeholder="Cari username atau email" />
               </label>
 
               <DateRangeFilter bind:start={employeeCreatedFrom} bind:end={employeeCreatedTo} label="Employee created" />
@@ -933,6 +933,52 @@
               {/if}
             </div>
           </section>
+        {:else if currentRole() === 'dev' || currentRole() === 'superadmin'}
+          <section class="glass-panel rounded-[2.2rem] p-6">
+            <p class="section-kicker !text-brand-700">Owner onboarding</p>
+            <h2 class="mt-3 font-display text-3xl font-bold tracking-tight text-ink-900">
+              Owner dibuat dari Users, lalu owner membuat store di sini
+            </h2>
+            <p class="mt-3 text-sm leading-7 text-ink-700">
+              Halaman Stores tetap menjadi tempat owner membuat tenant pertamanya. Dev atau
+              superadmin sekarang mendaftarkan owner dulu dari halaman Users, lalu owner login dan
+              menerbitkan token awal saat create store.
+            </p>
+
+            <div class="mt-5 grid gap-3 sm:grid-cols-2">
+              <div class="rounded-[1.5rem] bg-canvas-50 px-4 py-4">
+                <p class="text-sm font-semibold text-ink-900">1. Provision owner</p>
+                <p class="mt-2 text-sm leading-6 text-ink-700">
+                  Gunakan halaman Users untuk membuat owner, mengaktifkan ulang akun, dan menjaga
+                  onboarding tetap tercatat di audit.
+                </p>
+              </div>
+              <div class="rounded-[1.5rem] bg-canvas-50 px-4 py-4">
+                <p class="text-sm font-semibold text-ink-900">2. Owner builds tenant</p>
+                <p class="mt-2 text-sm leading-6 text-ink-700">
+                  Setelah login, owner membuat store di surface ini, lalu lanjut ke API Docs untuk
+                  integrasi website.
+                </p>
+              </div>
+            </div>
+
+            <div class="mt-5 flex flex-wrap gap-3">
+              <a class="surface-chip" href="/app/users">Open Users</a>
+              <a class="surface-chip" href="/app/api-docs">Open API Docs</a>
+            </div>
+          </section>
+        {:else}
+          <section class="glass-panel rounded-[2.2rem] p-6">
+            <p class="section-kicker !text-brand-700">Store scope</p>
+            <h2 class="mt-3 font-display text-3xl font-bold tracking-tight text-ink-900">
+              Karyawan hanya membaca store yang sudah di-scope
+            </h2>
+            <p class="mt-3 text-sm leading-7 text-ink-700">
+              Surface ini untuk karyawan fokus ke store yang memang sudah diassign. Provision owner,
+              create store, dan create staff tetap dilakukan oleh owner atau role platform sesuai
+              boundary blueprint.
+            </p>
+          </section>
         {/if}
       </section>
 
@@ -959,9 +1005,9 @@
         </div>
 
         <div class="mt-5 grid gap-4 2xl:grid-cols-[12rem_12rem_minmax(0,1fr)]">
-          <label class="space-y-2">
-            <span class="text-sm font-medium text-ink-700">Status</span>
-            <select bind:value={storeStatusFilter} class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300">
+          <label class="field-stack">
+            <span class="field-label">Status</span>
+            <select bind:value={storeStatusFilter} class="field-select">
               <option value="all">Semua status</option>
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
@@ -971,27 +1017,27 @@
             </select>
           </label>
 
-          <label class="space-y-2">
-            <span class="text-sm font-medium text-ink-700">Saldo risk</span>
-            <select bind:value={lowBalanceFilter} class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300">
+          <label class="field-stack">
+            <span class="field-label">Saldo risk</span>
+            <select bind:value={lowBalanceFilter} class="field-select">
               <option value="all">Semua kondisi</option>
               <option value="low_balance">Low balance</option>
               <option value="healthy">Healthy</option>
             </select>
           </label>
 
-          <label class="space-y-2">
-            <span class="text-sm font-medium text-ink-700">Cari store</span>
-            <input bind:value={storeSearchTerm} class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300" placeholder="Cari nama, slug, atau callback URL" />
+          <label class="field-stack">
+            <span class="field-label">Cari store</span>
+            <input bind:value={storeSearchTerm} class="field-input" placeholder="Cari nama, slug, atau callback URL" />
           </label>
         </div>
 
         <div class="mt-4 grid gap-4 2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <DateRangeFilter bind:start={storeCreatedFrom} bind:end={storeCreatedTo} label="Store created" />
           <div class="grid gap-4">
-            <label class="space-y-2">
-              <span class="text-sm font-medium text-ink-700">Cari staff preview</span>
-              <input bind:value={staffSearchTerm} class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300" placeholder="Cari username atau email staff" />
+            <label class="field-stack">
+              <span class="field-label">Cari staff preview</span>
+              <input bind:value={staffSearchTerm} class="field-input" placeholder="Cari username atau email staff" />
             </label>
             <DateRangeFilter bind:start={staffAssignedFrom} bind:end={staffAssignedTo} label="Staff assigned" />
           </div>
@@ -1064,28 +1110,28 @@
 
                 {#if canManageStores() && storeForms[store.id]}
                   <div class="mt-5 grid gap-4 md:grid-cols-2">
-                    <label class="space-y-2">
-                      <span class="text-sm font-medium text-ink-700">Nama toko</span>
-                      <input bind:value={storeForms[store.id].name} class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300" />
+                    <label class="field-stack">
+                      <span class="field-label">Nama toko</span>
+                      <input bind:value={storeForms[store.id].name} class="field-input" />
                     </label>
 
-                    <label class="space-y-2">
-                      <span class="text-sm font-medium text-ink-700">Status</span>
-                      <select bind:value={storeForms[store.id].status} class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300">
+                    <label class="field-stack">
+                      <span class="field-label">Status</span>
+                      <select bind:value={storeForms[store.id].status} class="field-select">
                         {#each statusOptions() as status}
                           <option value={status}>{status}</option>
                         {/each}
                       </select>
                     </label>
 
-                    <label class="space-y-2 md:col-span-2">
-                      <span class="text-sm font-medium text-ink-700">Low balance threshold</span>
-                      <input bind:value={storeForms[store.id].low_balance_threshold} class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300" inputmode="decimal" placeholder="150000" />
+                    <label class="field-stack md:col-span-2">
+                      <span class="field-label">Low balance threshold</span>
+                      <input bind:value={storeForms[store.id].low_balance_threshold} class="field-input" inputmode="decimal" placeholder="150000" />
                     </label>
 
-                    <label class="space-y-2 md:col-span-2">
-                      <span class="text-sm font-medium text-ink-700">Callback URL</span>
-                      <input bind:value={storeForms[store.id].callback_url} class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300" placeholder="https://merchant.example.com/callback" />
+                    <label class="field-stack md:col-span-2">
+                      <span class="field-label">Callback URL</span>
+                      <input bind:value={storeForms[store.id].callback_url} class="field-input" placeholder="https://merchant.example.com/callback" />
                     </label>
                   </div>
 
@@ -1124,7 +1170,7 @@
 
                       {#if canManageEmployees() && visibleEmployeeOptions.length > 0 && storeForms[store.id]}
                         <div class="flex w-full flex-col gap-3 xl:max-w-[24rem] xl:flex-row">
-                          <select bind:value={storeForms[store.id].assign_user_id} class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300">
+                          <select bind:value={storeForms[store.id].assign_user_id} class="field-select">
                             <option value="">Pilih karyawan di current employee page</option>
                             {#each visibleEmployeeOptions as employee}
                               <option value={employee.id}>{employee.username} · {employee.email}</option>

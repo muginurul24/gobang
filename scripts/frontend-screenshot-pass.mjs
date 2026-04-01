@@ -11,12 +11,15 @@ const chromiumPath = process.env.CHROMIUM_PATH || '/usr/bin/chromium-browser';
 const themes = (process.env.THEMES || 'dark,light')
   .split(',')
   .map((value) => value.trim())
-  .filter((value) => value === 'dark' || value === 'light' || value === 'system');
+  .filter(
+    (value) => value === 'dark' || value === 'light' || value === 'system',
+  );
 
 const publicRoutes = ['/', '/login'];
 
 const desktopAppRoutes = [
   '/app',
+  '/app/users',
   '/app/ops',
   '/app/stores',
   '/app/api-docs',
@@ -33,6 +36,7 @@ const desktopAppRoutes = [
 
 const mobileRoutes = [
   '/app',
+  '/app/users',
   '/app/ops',
   '/app/stores',
   '/app/topups',
@@ -59,7 +63,10 @@ try {
     await applyThemePreference(publicPage, theme);
 
     for (const route of publicRoutes) {
-      const file = path.join(outputDir, `desktop-${theme}${routeToFilename(route)}.png`);
+      const file = path.join(
+        outputDir,
+        `desktop-${theme}${routeToFilename(route)}.png`,
+      );
       await captureRoute(publicPage, route, file);
       captures.push({ route, viewport: 'desktop', theme, file });
     }
@@ -76,7 +83,10 @@ try {
     const session = await loginThroughUI(desktopPage);
 
     for (const route of desktopAppRoutes) {
-      const file = path.join(outputDir, `desktop-${theme}${routeToFilename(route)}.png`);
+      const file = path.join(
+        outputDir,
+        `desktop-${theme}${routeToFilename(route)}.png`,
+      );
       await captureRoute(desktopPage, route, file, session);
       captures.push({ route, viewport: 'desktop', theme, file });
     }
@@ -91,11 +101,27 @@ try {
     const mobilePage = await mobileContext.newPage();
     await applyThemePreference(mobilePage, theme);
     const mobileSession = await loginThroughUI(mobilePage);
-    await captureRoute(mobilePage, '/app', path.join(outputDir, `mobile-${theme}${routeToFilename('/app')}.png`), mobileSession);
-    captures.push({ route: '/app', viewport: 'mobile', theme, file: path.join(outputDir, `mobile-${theme}${routeToFilename('/app')}.png`) });
+    await captureRoute(
+      mobilePage,
+      '/app',
+      path.join(outputDir, `mobile-${theme}${routeToFilename('/app')}.png`),
+      mobileSession,
+    );
+    captures.push({
+      route: '/app',
+      viewport: 'mobile',
+      theme,
+      file: path.join(
+        outputDir,
+        `mobile-${theme}${routeToFilename('/app')}.png`,
+      ),
+    });
 
     for (const route of mobileRoutes.slice(1)) {
-      const file = path.join(outputDir, `mobile-${theme}${routeToFilename(route)}.png`);
+      const file = path.join(
+        outputDir,
+        `mobile-${theme}${routeToFilename(route)}.png`,
+      );
       await captureRoute(mobilePage, route, file, mobileSession);
       captures.push({ route, viewport: 'mobile', theme, file });
     }
@@ -170,7 +196,10 @@ async function loginThroughUI(page) {
   }
 
   await page.evaluate((session) => {
-    window.sessionStorage.setItem('onixggr.dashboard.auth', JSON.stringify(session));
+    window.sessionStorage.setItem(
+      'onixggr.dashboard.auth',
+      JSON.stringify(session),
+    );
   }, response.body.data);
 
   await page.goto(resolveURL('/app'), { waitUntil: 'domcontentloaded' });
@@ -213,14 +242,20 @@ async function waitForAppReady(page, route, session) {
       }
 
       await page.evaluate((authSession) => {
-        window.sessionStorage.setItem('onixggr.dashboard.auth', JSON.stringify(authSession));
+        window.sessionStorage.setItem(
+          'onixggr.dashboard.auth',
+          JSON.stringify(authSession),
+        );
       }, session);
       await page.goto(resolveURL(route), { waitUntil: 'domcontentloaded' });
       continue;
     }
 
     const readyShell = page.locator('[data-app-shell="ready"]');
-    const readyVisible = await readyShell.first().isVisible().catch(() => false);
+    const readyVisible = await readyShell
+      .first()
+      .isVisible()
+      .catch(() => false);
     if (readyVisible) {
       await page.waitForTimeout(900);
       return;
@@ -233,8 +268,14 @@ async function waitForAppReady(page, route, session) {
       return;
     }
 
-    await readyShell.first().waitFor({ state: 'visible', timeout: 6000 }).catch(() => null);
-    const readyAfterWait = await readyShell.first().isVisible().catch(() => false);
+    await readyShell
+      .first()
+      .waitFor({ state: 'visible', timeout: 6000 })
+      .catch(() => null);
+    const readyAfterWait = await readyShell
+      .first()
+      .isVisible()
+      .catch(() => false);
     if (readyAfterWait) {
       await page.waitForTimeout(900);
       return;

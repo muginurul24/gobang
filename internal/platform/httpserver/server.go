@@ -21,6 +21,7 @@ import (
 	modulerealtime "github.com/mugiew/onixggr/internal/modules/realtime"
 	"github.com/mugiew/onixggr/internal/modules/storemembers"
 	"github.com/mugiew/onixggr/internal/modules/stores"
+	"github.com/mugiew/onixggr/internal/modules/users"
 	"github.com/mugiew/onixggr/internal/modules/withdrawals"
 	"github.com/mugiew/onixggr/internal/platform/bankdirectory"
 	"github.com/mugiew/onixggr/internal/platform/config"
@@ -157,6 +158,14 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 				passwordHasher,
 				nil,
 				cfg.Business.StoreLowBalanceThreshold,
+			),
+			authService,
+		).Register(mux)
+		users.NewHandler(
+			users.NewService(
+				users.NewRepository(deps.DB),
+				passwordHasher,
+				nil,
 			),
 			authService,
 		).Register(mux)

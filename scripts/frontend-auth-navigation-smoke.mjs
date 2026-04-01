@@ -5,7 +5,16 @@ const loginValue = requiredEnv('LOGIN_EMAIL');
 const loginPassword = requiredEnv('LOGIN_PASSWORD');
 const chromiumPath = process.env.CHROMIUM_PATH || '/usr/bin/chromium-browser';
 
-const routes = ['/app', '/app/stores', '/app/catalog', '/app/members', '/app/topups'];
+const routes = [
+  '/app',
+  '/app/users',
+  '/app/stores',
+  '/app/catalog',
+  '/app/members',
+  '/app/topups',
+  '/app/notifications',
+  '/app/security',
+];
 
 const browser = await chromium.launch({
   executablePath: chromiumPath,
@@ -124,7 +133,6 @@ async function collectSnapshot(page, context, label) {
     theme: authStorage.theme,
   };
 }
-
 
 function resolveURL(path) {
   return new URL(path, baseURL).toString();
