@@ -16,7 +16,7 @@ type HubContract interface {
 
 type Service interface {
 	Create(ctx context.Context, params CreateParams) (Notification, error)
-	ListByScope(ctx context.Context, params ListParams) ([]Notification, error)
+	ListByScope(ctx context.Context, params ListParams) (ListResult, error)
 	MarkRead(ctx context.Context, params MarkReadParams) error
 	CountUnread(ctx context.Context, scopeType ScopeType, scopeID string) (int, error)
 }
@@ -67,7 +67,7 @@ func (s *service) Create(ctx context.Context, params CreateParams) (Notification
 	return notification, nil
 }
 
-func (s *service) ListByScope(ctx context.Context, params ListParams) ([]Notification, error) {
+func (s *service) ListByScope(ctx context.Context, params ListParams) (ListResult, error) {
 	return s.repository.ListByScope(ctx, params)
 }
 

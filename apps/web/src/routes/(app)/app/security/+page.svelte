@@ -4,6 +4,8 @@
   import QRCode from 'qrcode';
 
   import Button from '$lib/components/ui/button/button.svelte';
+  import MetricCard from '$lib/components/app/metric-card.svelte';
+  import Notice from '$lib/components/app/notice.svelte';
   import {
     authSession,
     beginTOTPEnrollment,
@@ -11,6 +13,7 @@
     enableTOTP,
     fetchSecuritySettings,
     initializeAuthSession,
+    logoutAllSessions,
     type SecuritySettings,
     type TOTPEnrollment,
     updateIPAllowlist
@@ -28,6 +31,7 @@
   let disableRecoveryCode = '';
   let ipAllowlist = '';
   let recoveryCodes: string[] = [];
+  let sessionActionBusy = false;
 
   onMount(async () => {
     await initializeAuthSession();
@@ -150,6 +154,22 @@
     successMessage = trimmed === '' ? 'IP allowlist dibersihkan.' : 'IP allowlist tersimpan.';
   }
 
+  async function revokeAllSessions() {
+    sessionActionBusy = true;
+    errorMessage = '';
+    successMessage = '';
+
+    const response = await logoutAllSessions();
+    sessionActionBusy = false;
+
+    if (!response.status || response.message !== 'SUCCESS') {
+      errorMessage = toMessage(response.message);
+      return;
+    }
+
+    await goto('/login');
+  }
+
   function toMessage(message: string) {
     switch (message) {
       case 'UNAUTHORIZED':
@@ -180,39 +200,64 @@
   </div>
 {:else if security}
   <div class="space-y-6">
-    <section class="glass-panel rounded-4xl p-6">
-      <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+    <section class="surface-dark surface-grid overflow-hidden rounded-[2.4rem] px-6 py-6 text-white sm:px-7 sm:py-7">
+      <div class="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
         <div class="space-y-2">
-          <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
+          <p class="section-kicker">
             Security Center
           </p>
-          <h1 class="font-display text-3xl font-bold tracking-tight text-ink-900">
-            TOTP, recovery code, dan IP allowlist
+          <h1 class="font-display text-4xl font-bold tracking-tight sm:text-5xl">
+            Browser security desk untuk 2FA, recovery code, dan IP allowlist.
           </h1>
-          <p class="max-w-2xl text-sm leading-6 text-ink-700">
+          <p class="max-w-2xl text-sm leading-7 text-white/72 sm:text-base">
             Blueprint meminta 2FA TOTP opsional tapi strongly recommended, recovery code sekali
             pakai, dan IP allowlist single IP untuk login dashboard.
           </p>
         </div>
 
-        <div class="rounded-3xl bg-canvas-100 px-4 py-3 text-sm text-ink-700">
-          <p class="font-semibold text-ink-900">Status</p>
-          <p>{security.totp_enabled ? '2FA aktif' : '2FA belum aktif'}</p>
+        <div class="rounded-[1.8rem] border border-white/12 bg-white/7 px-4 py-4 text-sm text-white/72 backdrop-blur">
+          <p class="font-semibold text-white">Status</p>
+          <p class="mt-2">{security.totp_enabled ? '2FA aktif' : '2FA belum aktif'}</p>
           <p>{security.ip_allowlist ? `Allowlist: ${security.ip_allowlist}` : 'Allowlist kosong'}</p>
         </div>
       </div>
     </section>
 
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <MetricCard
+        eyebrow="2FA"
+        title="TOTP status"
+        value={security.totp_enabled ? 'Active' : 'Inactive'}
+        detail="TOTP sangat disarankan untuk akun owner dan role platform."
+        tone={security.totp_enabled ? 'brand' : 'accent'}
+      />
+      <MetricCard
+        eyebrow="Network"
+        title="Allowlist"
+        value={security.ip_allowlist ? 'Locked' : 'Open'}
+        detail="Login dashboard bisa dibatasi ke satu IP jika dibutuhkan."
+      />
+      <MetricCard
+        eyebrow="Recovery"
+        title="Pending enrollment"
+        value={enrollment ? 'Open' : 'Closed'}
+        detail="Enrollment TOTP punya TTL dan akan menghasilkan recovery code sekali pakai."
+      />
+      <MetricCard
+        eyebrow="Session"
+        title="Current role"
+        value={$authSession?.user.role ?? '-'}
+        detail="Policy browser auth dan security flow mengikuti role user yang aktif."
+        tone="accent"
+      />
+    </div>
+
     {#if errorMessage}
-      <div class="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-        {errorMessage}
-      </div>
+      <Notice tone="error" title="Security update gagal" message={errorMessage} />
     {/if}
 
     {#if successMessage}
-      <div class="rounded-3xl border border-brand-200 bg-brand-100/60 px-4 py-3 text-sm text-brand-700">
-        {successMessage}
-      </div>
+      <Notice tone="success" title="Security update tersimpan" message={successMessage} />
     {/if}
 
     {#if !security.totp_enabled}
@@ -351,6 +396,34 @@
             Simpan Allowlist
           </Button>
         </div>
+      </div>
+    </section>
+
+    <section class="glass-panel rounded-4xl p-6">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div class="space-y-2">
+          <h2 class="font-display text-2xl font-bold text-ink-900">Session hygiene</h2>
+          <p class="max-w-2xl text-sm leading-6 text-ink-700">
+            Backend sudah menyediakan `logout-all` untuk menutup seluruh browser session aktif.
+            Pakai ini setelah mengganti password, sesudah incident, atau saat perangkat lama sudah
+            tidak dipercaya.
+          </p>
+        </div>
+
+        <div class="rounded-[1.6rem] bg-canvas-50 px-4 py-4 text-sm text-ink-700 lg:w-[320px]">
+          <p class="font-semibold text-ink-900">Aksi ini akan</p>
+          <ul class="mt-2 space-y-1">
+            <li>merevoke semua session browser aktif</li>
+            <li>mengeluarkan sesi saat ini dari dashboard</li>
+            <li>memaksa login ulang dari semua perangkat</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="mt-5 flex justify-end">
+        <Button variant="outline" size="lg" onclick={revokeAllSessions} disabled={sessionActionBusy}>
+          Logout All Sessions
+        </Button>
       </div>
     </section>
   </div>

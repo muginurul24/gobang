@@ -116,16 +116,16 @@ func TestListStoreMembersAllowsAssignedStaff(t *testing.T) {
 	}
 	service := NewService(repository, fixedClock{now: repository.now})
 
-	members, err := service.ListStoreMembers(context.Background(), auth.Subject{
+	page, err := service.ListStoreMembers(context.Background(), auth.Subject{
 		UserID: "staff-1",
 		Role:   auth.RoleKaryawan,
-	}, "store-1")
+	}, ListStoreMembersFilter{StoreID: "store-1"})
 	if err != nil {
 		t.Fatalf("ListStoreMembers returned error: %v", err)
 	}
 
-	if len(members) != 1 {
-		t.Fatalf("len(members) = %d, want 1", len(members))
+	if len(page.Items) != 1 {
+		t.Fatalf("len(page.Items) = %d, want 1", len(page.Items))
 	}
 }
 
@@ -176,19 +176,35 @@ func (r *fakeRepository) IsStoreStaff(_ context.Context, storeID string, userID 
 	return r.staff[userID], nil
 }
 
-func (r *fakeRepository) ListStoreMembers(_ context.Context, storeID string) ([]StoreMember, error) {
-	if storeID != r.store.ID {
-		return nil, ErrNotFound
+func (r *fakeRepository) ListStoreMembers(_ context.Context, filter ListStoreMembersFilter) (StoreMemberPage, error) {
+	if filter.StoreID != r.store.ID {
+		return StoreMemberPage{}, ErrNotFound
 	}
 
 	var members []StoreMember
 	for _, member := range r.members {
-		if member.StoreID == storeID {
+		if member.StoreID == filter.StoreID {
 			members = append(members, member)
 		}
 	}
 
-	return members, nil
+	activeCount := 0
+	for _, member := range members {
+		if member.Status == StatusActive {
+			activeCount++
+		}
+	}
+
+	return StoreMemberPage{
+		Items: members,
+		Summary: StoreMemberSummary{
+			TotalCount:    len(members),
+			ActiveCount:   activeCount,
+			InactiveCount: len(members) - activeCount,
+		},
+		Limit:  filter.Limit,
+		Offset: filter.Offset,
+	}, nil
 }
 
 func (r *fakeRepository) CreateStoreMember(_ context.Context, params CreateStoreMemberParams) (StoreMember, error) {

@@ -25,14 +25,14 @@ func (r *Repository) GetStoreMetricsForUser(ctx context.Context, userID string, 
 	var metrics StoreMetrics
 	err := r.pool.QueryRow(ctx, `
 		WITH accessible_stores AS (
-			SELECT s.id, s.current_balance
+			SELECT s.id, s.status, s.current_balance, s.low_balance_threshold
 			FROM stores s
 			WHERE s.owner_user_id = $1
 				AND s.deleted_at IS NULL
 
 			UNION
 
-			SELECT s.id, s.current_balance
+			SELECT s.id, s.status, s.current_balance, s.low_balance_threshold
 			FROM store_staff ss
 			INNER JOIN stores s ON s.id = ss.store_id
 			WHERE ss.user_id = $1
@@ -40,6 +40,17 @@ func (r *Repository) GetStoreMetricsForUser(ctx context.Context, userID string, 
 		)
 		SELECT
 			(SELECT COUNT(*)::int FROM accessible_stores) AS accessible_store_count,
+			(
+				SELECT COUNT(*)::int
+				FROM accessible_stores
+				WHERE status = 'active'
+			) AS active_store_count,
+			(
+				SELECT COUNT(*)::int
+				FROM accessible_stores
+				WHERE low_balance_threshold IS NOT NULL
+					AND current_balance <= low_balance_threshold
+			) AS low_balance_store_count,
 			COALESCE((SELECT SUM(current_balance) FROM accessible_stores), 0)::text AS balance_total,
 			(
 				SELECT COUNT(*)::int
@@ -74,6 +85,8 @@ func (r *Repository) GetStoreMetricsForUser(ctx context.Context, userID string, 
 			), 0)::text AS monthly_store_income
 	`, userID, dayStart, dayEnd, monthStart, monthEnd).Scan(
 		&metrics.AccessibleStoreCount,
+		&metrics.ActiveStoreCount,
+		&metrics.LowBalanceStoreCount,
 		&metrics.BalanceTotal,
 		&metrics.PendingQRISCount,
 		&metrics.SuccessTodayCount,
@@ -139,6 +152,14 @@ func (r *Repository) GetPlatformMetrics(ctx context.Context, dayStart time.Time,
 				), 0)
 			)::text AS platform_income_month,
 			(SELECT COUNT(*)::int FROM stores WHERE deleted_at IS NULL) AS total_store_count,
+			(SELECT COUNT(*)::int FROM stores WHERE deleted_at IS NULL AND status = 'active') AS active_store_count,
+			(
+				SELECT COUNT(*)::int
+				FROM stores
+				WHERE deleted_at IS NULL
+					AND low_balance_threshold IS NOT NULL
+					AND current_balance <= low_balance_threshold
+			) AS low_balance_store_count,
 			(SELECT COUNT(*)::int FROM store_withdrawals WHERE status = 'pending') AS pending_withdraw_count,
 			COALESCE((
 				SELECT ROUND(
@@ -159,6 +180,8 @@ func (r *Repository) GetPlatformMetrics(ctx context.Context, dayStart time.Time,
 		&metrics.PlatformIncomeToday,
 		&metrics.PlatformIncomeMonth,
 		&metrics.TotalStoreCount,
+		&metrics.ActiveStoreCount,
+		&metrics.LowBalanceStoreCount,
 		&metrics.PendingWithdrawCount,
 		&metrics.UpstreamErrorRate24h,
 		&metrics.CallbackFailureRate24h,

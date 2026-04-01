@@ -31,6 +31,29 @@ type CreateStoreMemberInput struct {
 	RealUsername string `json:"real_username"`
 }
 
+type ListStoreMembersFilter struct {
+	StoreID     string
+	Query       string
+	Status      *MemberStatus
+	Limit       int
+	Offset      int
+	CreatedFrom *time.Time
+	CreatedTo   *time.Time
+}
+
+type StoreMemberSummary struct {
+	TotalCount    int `json:"total_count"`
+	ActiveCount   int `json:"active_count"`
+	InactiveCount int `json:"inactive_count"`
+}
+
+type StoreMemberPage struct {
+	Items   []StoreMember      `json:"items"`
+	Summary StoreMemberSummary `json:"summary"`
+	Limit   int                `json:"limit"`
+	Offset  int                `json:"offset"`
+}
+
 type CreateStoreMemberParams struct {
 	StoreID          string
 	RealUsername     string

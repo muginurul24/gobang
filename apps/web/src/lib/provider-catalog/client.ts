@@ -16,11 +16,26 @@ export type CatalogGame = {
   synced_at: string;
 };
 
+export type CatalogProviderPage = {
+  items: CatalogProvider[];
+  total_count: number;
+  limit: number;
+  offset: number;
+};
+
+export type CatalogGamePage = {
+  items: CatalogGame[];
+  total_count: number;
+  limit: number;
+  offset: number;
+};
+
 export async function fetchCatalogProviders(
   params: {
     query?: string;
     status?: string;
     limit?: number;
+    offset?: number;
   } = {},
 ) {
   const search = new URLSearchParams();
@@ -31,8 +46,9 @@ export async function fetchCatalogProviders(
     search.set('status', params.status.trim());
   }
   search.set('limit', String(params.limit ?? 25));
+  search.set('offset', String(params.offset ?? 0));
 
-  return apiRequest<CatalogProvider[]>(
+  return apiRequest<CatalogProviderPage>(
     `/v1/catalog/providers?${search.toString()}`,
   );
 }
@@ -43,6 +59,7 @@ export async function fetchCatalogGames(
     query?: string;
     status?: string;
     limit?: number;
+    offset?: number;
   } = {},
 ) {
   const search = new URLSearchParams();
@@ -56,6 +73,7 @@ export async function fetchCatalogGames(
     search.set('status', params.status.trim());
   }
   search.set('limit', String(params.limit ?? 100));
+  search.set('offset', String(params.offset ?? 0));
 
-  return apiRequest<CatalogGame[]>(`/v1/catalog/games?${search.toString()}`);
+  return apiRequest<CatalogGamePage>(`/v1/catalog/games?${search.toString()}`);
 }

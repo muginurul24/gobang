@@ -18,7 +18,7 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool}
 }
 
-func (r *Repository) ListGlobal(ctx context.Context, filter Filter) ([]LogEntry, error) {
+func (r *Repository) ListGlobal(ctx context.Context, filter Filter) (ListResult, error) {
 	query := `
 		SELECT id, actor_user_id, actor_role, store_id, action, target_type, target_id, payload_masked, host(ip_address), user_agent, created_at
 		FROM audit_logs
@@ -29,18 +29,33 @@ func (r *Repository) ListGlobal(ctx context.Context, filter Filter) ([]LogEntry,
 		query += " WHERE " + strings.Join(clauses, " AND ")
 	}
 
-	query += fmt.Sprintf(" ORDER BY created_at DESC LIMIT %d", sanitizeLimit(filter.Limit))
+	totalCount, err := r.countLogs(ctx, `
+		SELECT count(*) FROM audit_logs
+	`, clauses, args)
+	if err != nil {
+		return ListResult{}, err
+	}
+
+	query += fmt.Sprintf(" ORDER BY created_at DESC LIMIT %d OFFSET %d", sanitizeLimit(filter.Limit), sanitizeOffset(filter.Offset))
 
 	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("list global audit logs: %w", err)
+		return ListResult{}, fmt.Errorf("list global audit logs: %w", err)
 	}
 	defer rows.Close()
 
-	return collectLogs(rows)
+	items, err := collectLogs(rows)
+	if err != nil {
+		return ListResult{}, err
+	}
+
+	return ListResult{
+		Items:      items,
+		TotalCount: totalCount,
+	}, nil
 }
 
-func (r *Repository) ListOwnerScoped(ctx context.Context, ownerUserID string, filter Filter) ([]LogEntry, error) {
+func (r *Repository) ListOwnerScoped(ctx context.Context, ownerUserID string, filter Filter) (ListResult, error) {
 	query := `
 		SELECT
 			al.id,
@@ -73,15 +88,42 @@ func (r *Repository) ListOwnerScoped(ctx context.Context, ownerUserID string, fi
 		query += " AND " + strings.Join(clauses, " AND ")
 	}
 
-	query += fmt.Sprintf(" ORDER BY al.created_at DESC LIMIT %d", sanitizeLimit(filter.Limit))
+	totalCount, err := r.countLogs(ctx, `
+		SELECT count(*)
+		FROM audit_logs al
+		LEFT JOIN stores s ON s.id = al.store_id
+		LEFT JOIN users actor ON actor.id = al.actor_user_id
+		LEFT JOIN users target_user
+			ON al.target_type = 'user'
+			AND target_user.id = al.target_id
+		WHERE (
+			al.actor_user_id = $1 OR
+			s.owner_user_id = $1 OR
+			actor.created_by_user_id = $1 OR
+			target_user.created_by_user_id = $1
+		)
+	`, clauses, args)
+	if err != nil {
+		return ListResult{}, err
+	}
+
+	query += fmt.Sprintf(" ORDER BY al.created_at DESC LIMIT %d OFFSET %d", sanitizeLimit(filter.Limit), sanitizeOffset(filter.Offset))
 
 	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("list owner audit logs: %w", err)
+		return ListResult{}, fmt.Errorf("list owner audit logs: %w", err)
 	}
 	defer rows.Close()
 
-	return collectLogs(rows)
+	items, err := collectLogs(rows)
+	if err != nil {
+		return ListResult{}, err
+	}
+
+	return ListResult{
+		Items:      items,
+		TotalCount: totalCount,
+	}, nil
 }
 
 func (r *Repository) OwnerHasStore(ctx context.Context, ownerUserID string, storeID string) (bool, error) {
@@ -142,6 +184,20 @@ func collectLogs(rows pgx.Rows) ([]LogEntry, error) {
 	return logs, nil
 }
 
+func (r *Repository) countLogs(ctx context.Context, baseQuery string, clauses []string, args []any) (int, error) {
+	query := baseQuery
+	if len(clauses) > 0 {
+		query += " WHERE " + strings.Join(clauses, " AND ")
+	}
+
+	var totalCount int
+	if err := r.pool.QueryRow(ctx, query, args...).Scan(&totalCount); err != nil {
+		return 0, fmt.Errorf("count audit logs: %w", err)
+	}
+
+	return totalCount, nil
+}
+
 func sanitizeLimit(limit int) int {
 	switch {
 	case limit <= 0:
@@ -151,6 +207,13 @@ func sanitizeLimit(limit int) int {
 	default:
 		return limit
 	}
+}
+
+func sanitizeOffset(offset int) int {
+	if offset < 0 {
+		return 0
+	}
+	return offset
 }
 
 func appendFilterClauses(clauses []string, startAt int, filter Filter, args *[]any) ([]string, int) {
@@ -189,6 +252,24 @@ func appendFilterClauses(clauses []string, startAt int, filter Filter, args *[]a
 			clauses[len(clauses)-1] = fmt.Sprintf("al.target_type = $%d", next)
 		}
 		*args = append(*args, *filter.TargetType)
+		next++
+	}
+
+	if filter.CreatedFrom != nil {
+		clauses = append(clauses, fmt.Sprintf("created_at >= $%d", next))
+		if startAt != 1 {
+			clauses[len(clauses)-1] = fmt.Sprintf("al.created_at >= $%d", next)
+		}
+		*args = append(*args, *filter.CreatedFrom)
+		next++
+	}
+
+	if filter.CreatedTo != nil {
+		clauses = append(clauses, fmt.Sprintf("created_at <= $%d", next))
+		if startAt != 1 {
+			clauses[len(clauses)-1] = fmt.Sprintf("al.created_at <= $%d", next)
+		}
+		*args = append(*args, *filter.CreatedTo)
 		next++
 	}
 

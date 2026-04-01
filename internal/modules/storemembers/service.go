@@ -13,7 +13,7 @@ import (
 type RepositoryContract interface {
 	GetStoreScope(ctx context.Context, storeID string) (StoreScope, error)
 	IsStoreStaff(ctx context.Context, storeID string, userID string) (bool, error)
-	ListStoreMembers(ctx context.Context, storeID string) ([]StoreMember, error)
+	ListStoreMembers(ctx context.Context, filter ListStoreMembersFilter) (StoreMemberPage, error)
 	CreateStoreMember(ctx context.Context, params CreateStoreMemberParams) (StoreMember, error)
 	InsertAuditLog(
 		ctx context.Context,
@@ -31,7 +31,7 @@ type RepositoryContract interface {
 }
 
 type Service interface {
-	ListStoreMembers(ctx context.Context, subject auth.Subject, storeID string) ([]StoreMember, error)
+	ListStoreMembers(ctx context.Context, subject auth.Subject, filter ListStoreMembersFilter) (StoreMemberPage, error)
 	CreateStoreMember(ctx context.Context, subject auth.Subject, storeID string, input CreateStoreMemberInput, metadata auth.RequestMetadata) (StoreMember, error)
 }
 
@@ -53,22 +53,30 @@ func NewService(repository RepositoryContract, now clock.Clock) Service {
 	}
 }
 
-func (s *service) ListStoreMembers(ctx context.Context, subject auth.Subject, storeID string) ([]StoreMember, error) {
-	store, err := s.loadStoreScope(ctx, strings.TrimSpace(storeID))
+func (s *service) ListStoreMembers(ctx context.Context, subject auth.Subject, filter ListStoreMembersFilter) (StoreMemberPage, error) {
+	filter.StoreID = strings.TrimSpace(filter.StoreID)
+	store, err := s.loadStoreScope(ctx, filter.StoreID)
 	if err != nil {
-		return nil, err
+		return StoreMemberPage{}, err
 	}
 
 	allowed, err := s.canViewStore(ctx, subject, store)
 	if err != nil {
-		return nil, err
+		return StoreMemberPage{}, err
 	}
 
 	if !allowed {
-		return nil, ErrForbidden
+		return StoreMemberPage{}, ErrForbidden
 	}
 
-	return s.repository.ListStoreMembers(ctx, store.ID)
+	filter.Query = strings.TrimSpace(filter.Query)
+	filter.Limit = normalizeLimit(filter.Limit, 25, 100)
+	if filter.Offset < 0 {
+		filter.Offset = 0
+	}
+	filter.StoreID = store.ID
+
+	return s.repository.ListStoreMembers(ctx, filter)
 }
 
 func (s *service) CreateStoreMember(ctx context.Context, subject auth.Subject, storeID string, input CreateStoreMemberInput, metadata auth.RequestMetadata) (StoreMember, error) {
@@ -172,4 +180,15 @@ func (s *service) canManageStore(subject auth.Subject, store StoreScope) bool {
 	default:
 		return false
 	}
+}
+
+func normalizeLimit(value int, fallback int, max int) int {
+	if value <= 0 {
+		return fallback
+	}
+	if value > max {
+		return max
+	}
+
+	return value
 }

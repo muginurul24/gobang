@@ -133,7 +133,7 @@ func TestListStoreTopupsForKaryawanForbidden(t *testing.T) {
 	_, err := service.ListStoreTopups(context.Background(), auth.Subject{
 		UserID: "staff-1",
 		Role:   auth.RoleKaryawan,
-	}, "store-1")
+	}, ListTransactionsFilter{StoreID: "store-1", Type: TransactionTypeStoreTopup})
 	if !errors.Is(err, ErrForbidden) {
 		t.Fatalf("ListStoreTopups error = %v, want ErrForbidden", err)
 	}
@@ -604,8 +604,15 @@ func (s *stubRepository) FinalizeQRISTransaction(_ context.Context, params Final
 	return transaction, nil
 }
 
-func (s *stubRepository) ListQRISTransactions(context.Context, string, TransactionType) ([]QRISTransaction, error) {
-	return s.transactions, nil
+func (s *stubRepository) ListQRISTransactionsPage(_ context.Context, filter ListTransactionsFilter) (QRISTransactionPage, error) {
+	return QRISTransactionPage{
+		Items: s.transactions,
+		Summary: QRISTransactionSummary{
+			TotalCount: len(s.transactions),
+		},
+		Limit:  filter.Limit,
+		Offset: filter.Offset,
+	}, nil
 }
 
 func (s *stubRepository) InsertAuditLog(context.Context, *string, string, *string, string, string, *string, map[string]any, string, string, time.Time) error {

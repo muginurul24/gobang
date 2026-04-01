@@ -67,6 +67,33 @@ type ListFilter struct {
 	StoreID string
 }
 
+type ListWithdrawalsFilter struct {
+	StoreID     string
+	Status      *WithdrawalStatus
+	Query       string
+	Limit       int
+	Offset      int
+	CreatedFrom *time.Time
+	CreatedTo   *time.Time
+}
+
+type StoreWithdrawalSummary struct {
+	TotalCount       int    `json:"total_count"`
+	PendingCount     int    `json:"pending_count"`
+	SuccessCount     int    `json:"success_count"`
+	FailedCount      int    `json:"failed_count"`
+	TotalNetAmount   string `json:"total_net_amount"`
+	TotalPlatformFee string `json:"total_platform_fee"`
+	TotalExternalFee string `json:"total_external_fee"`
+}
+
+type StoreWithdrawalPage struct {
+	Items   []StoreWithdrawal      `json:"items"`
+	Summary StoreWithdrawalSummary `json:"summary"`
+	Limit   int                    `json:"limit"`
+	Offset  int                    `json:"offset"`
+}
+
 type CreateWithdrawInput struct {
 	BankAccountID  string      `json:"bank_account_id"`
 	Amount         json.Number `json:"amount"`

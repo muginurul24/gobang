@@ -20,7 +20,7 @@ type HubContract interface {
 }
 
 type Service interface {
-	ListMessages(ctx context.Context, subject auth.Subject, limit int) ([]Message, error)
+	ListMessages(ctx context.Context, subject auth.Subject, filter ListMessagesFilter) (ListMessagesResult, error)
 	SendMessage(ctx context.Context, subject auth.Subject, input SendMessageInput) (Message, error)
 	DeleteMessage(ctx context.Context, subject auth.Subject, messageID string) (Message, error)
 	PruneExpired(ctx context.Context) (int64, error)
@@ -59,19 +59,12 @@ func NewService(options Options) Service {
 	}
 }
 
-func (s *service) ListMessages(ctx context.Context, subject auth.Subject, limit int) ([]Message, error) {
+func (s *service) ListMessages(ctx context.Context, subject auth.Subject, filter ListMessagesFilter) (ListMessagesResult, error) {
 	if !canAccessChat(subject) {
-		return nil, ErrForbidden
+		return ListMessagesResult{}, ErrForbidden
 	}
 
-	if limit <= 0 {
-		limit = 50
-	}
-	if limit > 200 {
-		limit = 200
-	}
-
-	return s.repository.ListMessages(ctx, s.cutoff(), limit)
+	return s.repository.ListMessages(ctx, s.cutoff(), filter)
 }
 
 func (s *service) SendMessage(ctx context.Context, subject auth.Subject, input SendMessageInput) (Message, error) {

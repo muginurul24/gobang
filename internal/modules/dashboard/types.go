@@ -8,6 +8,8 @@ type Summary struct {
 
 type StoreMetrics struct {
 	AccessibleStoreCount int    `json:"accessible_store_count"`
+	ActiveStoreCount     int    `json:"active_store_count"`
+	LowBalanceStoreCount int    `json:"low_balance_store_count"`
 	BalanceTotal         string `json:"balance_total"`
 	PendingQRISCount     int    `json:"pending_qris_count"`
 	SuccessTodayCount    int    `json:"success_today_count"`
@@ -19,6 +21,8 @@ type PlatformMetrics struct {
 	PlatformIncomeToday    string  `json:"platform_income_today"`
 	PlatformIncomeMonth    string  `json:"platform_income_month"`
 	TotalStoreCount        int     `json:"total_store_count"`
+	ActiveStoreCount       int     `json:"active_store_count"`
+	LowBalanceStoreCount   int     `json:"low_balance_store_count"`
 	PendingWithdrawCount   int     `json:"pending_withdraw_count"`
 	UpstreamErrorRate24h   float64 `json:"upstream_error_rate_24h"`
 	CallbackFailureRate24h float64 `json:"callback_failure_rate_24h"`

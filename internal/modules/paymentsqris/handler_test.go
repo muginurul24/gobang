@@ -121,8 +121,8 @@ type stubWebhookService struct {
 	transferErr    error
 }
 
-func (s *stubWebhookService) ListStoreTopups(context.Context, auth.Subject, string) ([]QRISTransaction, error) {
-	return nil, nil
+func (s *stubWebhookService) ListStoreTopups(context.Context, auth.Subject, ListTransactionsFilter) (QRISTransactionPage, error) {
+	return QRISTransactionPage{}, nil
 }
 
 func (s *stubWebhookService) CreateStoreTopup(context.Context, auth.Subject, string, CreateStoreTopupInput, auth.RequestMetadata) (QRISTransaction, error) {

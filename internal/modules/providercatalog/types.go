@@ -27,6 +27,7 @@ type ListProvidersFilter struct {
 	Query  string
 	Status *int
 	Limit  int
+	Offset int
 }
 
 type ListGamesFilter struct {
@@ -34,6 +35,21 @@ type ListGamesFilter struct {
 	Query        string
 	Status       *int
 	Limit        int
+	Offset       int
+}
+
+type ProviderPage struct {
+	Items      []Provider `json:"items"`
+	TotalCount int        `json:"total_count"`
+	Limit      int        `json:"limit"`
+	Offset     int        `json:"offset"`
+}
+
+type GamePage struct {
+	Items      []Game `json:"items"`
+	TotalCount int    `json:"total_count"`
+	Limit      int    `json:"limit"`
+	Offset     int    `json:"offset"`
 }
 
 type snapshotProvider struct {

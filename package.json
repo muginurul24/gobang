@@ -19,5 +19,8 @@
     "lint:web": "npm --workspace @onixggr/web run lint",
     "format:web": "npm --workspace @onixggr/web run format",
     "perf:k6": "./scripts/run-k6-baseline.sh"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.0"
   }
 }

@@ -3,6 +3,7 @@ package stores
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -152,6 +153,52 @@ func TestListStoresHidesCallbackURLForKaryawan(t *testing.T) {
 	}
 }
 
+func TestListStoreDirectoryHidesCallbackURLForKaryawan(t *testing.T) {
+	now := time.Date(2026, 3, 30, 13, 30, 0, 0, time.UTC)
+	repository := newFakeRepository(now)
+	callback := "https://merchant.example.com/callback"
+	repository.staffStores["employee-1"] = []Store{
+		{
+			ID:          "store-1",
+			OwnerUserID: "owner-1",
+			Name:        "Scoped Store",
+			Slug:        "scoped-store",
+			Status:      StatusActive,
+			CallbackURL: callback,
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		},
+	}
+
+	service := NewService(repository, fakePasswordHasher{}, fixedClock{now: now}, 150000)
+	page, err := service.ListStoreDirectory(context.Background(), auth.Subject{
+		UserID: "employee-1",
+		Role:   auth.RoleKaryawan,
+	}, ListStoreDirectoryFilter{Limit: 10})
+	if err != nil {
+		t.Fatalf("ListStoreDirectory returned error: %v", err)
+	}
+
+	if len(page.Items) != 1 {
+		t.Fatalf("len(page.Items) = %d, want 1", len(page.Items))
+	}
+	if page.Items[0].CallbackURL != "" {
+		t.Fatalf("CallbackURL = %q, want empty for karyawan", page.Items[0].CallbackURL)
+	}
+}
+
+func TestListEmployeeDirectoryRejectsNonOwner(t *testing.T) {
+	service := NewService(newFakeRepository(time.Now()), fakePasswordHasher{}, fixedClock{now: time.Now()}, 150000)
+
+	_, err := service.ListEmployeeDirectory(context.Background(), auth.Subject{
+		UserID: "dev-1",
+		Role:   auth.RoleDev,
+	}, ListEmployeesFilter{})
+	if !errors.Is(err, ErrForbidden) {
+		t.Fatalf("ListEmployeeDirectory error = %v, want ErrForbidden", err)
+	}
+}
+
 func TestRotateStoreTokenBlocksDevVisibility(t *testing.T) {
 	now := time.Date(2026, 3, 30, 14, 0, 0, 0, time.UTC)
 	repository := newFakeRepository(now)
@@ -287,6 +334,51 @@ func (r *fakeRepository) ListAllStores(_ context.Context) ([]Store, error) {
 	return stores, nil
 }
 
+func (r *fakeRepository) ListStoreDirectoryForOwner(_ context.Context, ownerUserID string, filter ListStoreDirectoryFilter) (StorePage, error) {
+	var items []Store
+	for _, store := range r.stores {
+		if store.OwnerUserID != ownerUserID || store.DeletedAt != nil {
+			continue
+		}
+		if !matchesStoreDirectory(store, filter) {
+			continue
+		}
+		items = append(items, store)
+	}
+
+	return paginateStorePage(items, filter), nil
+}
+
+func (r *fakeRepository) ListStoreDirectoryForStaff(_ context.Context, userID string, filter ListStoreDirectoryFilter) (StorePage, error) {
+	var items []Store
+	for _, store := range r.staffStores[userID] {
+		if store.DeletedAt != nil {
+			continue
+		}
+		if !matchesStoreDirectory(store, filter) {
+			continue
+		}
+		items = append(items, store)
+	}
+
+	return paginateStorePage(items, filter), nil
+}
+
+func (r *fakeRepository) ListStoreDirectoryForPlatform(_ context.Context, filter ListStoreDirectoryFilter) (StorePage, error) {
+	var items []Store
+	for _, store := range r.stores {
+		if store.DeletedAt != nil {
+			continue
+		}
+		if !matchesStoreDirectory(store, filter) {
+			continue
+		}
+		items = append(items, store)
+	}
+
+	return paginateStorePage(items, filter), nil
+}
+
 func (r *fakeRepository) GetStoreByID(_ context.Context, storeID string) (Store, error) {
 	store, ok := r.stores[storeID]
 	if !ok {
@@ -394,6 +486,26 @@ func (r *fakeRepository) ListEmployeesByOwner(_ context.Context, ownerUserID str
 	return users, nil
 }
 
+func (r *fakeRepository) ListEmployeeDirectoryByOwner(_ context.Context, ownerUserID string, filter ListEmployeesFilter) (StaffUserPage, error) {
+	var items []StaffUser
+	for _, employee := range r.employees {
+		if employee.CreatedByUserID == nil || *employee.CreatedByUserID != ownerUserID {
+			continue
+		}
+
+		if filter.Query != "" {
+			search := strings.ToLower(filter.Query)
+			if !strings.Contains(strings.ToLower(employee.Email), search) && !strings.Contains(strings.ToLower(employee.Username), search) {
+				continue
+			}
+		}
+
+		items = append(items, employee)
+	}
+
+	return paginateStaffPage(items, filter.Limit, filter.Offset), nil
+}
+
 func (r *fakeRepository) GetEmployeeByID(_ context.Context, userID string) (StaffUser, error) {
 	user, ok := r.employees[userID]
 	if !ok {
@@ -405,6 +517,22 @@ func (r *fakeRepository) GetEmployeeByID(_ context.Context, userID string) (Staf
 
 func (r *fakeRepository) ListStoreStaff(_ context.Context, storeID string) ([]StaffUser, error) {
 	return append([]StaffUser(nil), r.storeStaff[storeID]...), nil
+}
+
+func (r *fakeRepository) ListStoreStaffPage(_ context.Context, filter ListStoreStaffFilter) (StaffUserPage, error) {
+	var items []StaffUser
+	for _, user := range r.storeStaff[filter.StoreID] {
+		if filter.Query != "" {
+			search := strings.ToLower(filter.Query)
+			if !strings.Contains(strings.ToLower(user.Email), search) && !strings.Contains(strings.ToLower(user.Username), search) {
+				continue
+			}
+		}
+
+		items = append(items, user)
+	}
+
+	return paginateStaffPage(items, filter.Limit, filter.Offset), nil
 }
 
 func (r *fakeRepository) AssignStaff(_ context.Context, params AssignStaffParams) error {
@@ -441,4 +569,72 @@ func (r *fakeRepository) UnassignStaff(_ context.Context, storeID string, userID
 func (r *fakeRepository) InsertAuditLog(_ context.Context, _ *string, _ string, _ *string, action string, _ string, _ *string, _ map[string]any, _ string, _ string, _ time.Time) error {
 	r.auditLogs = append(r.auditLogs, fakeAuditLog{action: action})
 	return nil
+}
+
+func matchesStoreDirectory(store Store, filter ListStoreDirectoryFilter) bool {
+	if filter.Query != "" {
+		search := strings.ToLower(filter.Query)
+		haystack := strings.ToLower(store.Name + " " + store.Slug + " " + store.CallbackURL)
+		if !strings.Contains(haystack, search) {
+			return false
+		}
+	}
+
+	if filter.Status != nil && store.Status != *filter.Status {
+		return false
+	}
+
+	return true
+}
+
+func paginateStorePage(items []Store, filter ListStoreDirectoryFilter) StorePage {
+	start := filter.Offset
+	if start > len(items) {
+		start = len(items)
+	}
+	end := start + filter.Limit
+	if end > len(items) {
+		end = len(items)
+	}
+
+	summary := StoreDirectorySummary{
+		TotalCount: len(items),
+	}
+	for _, item := range items {
+		switch item.Status {
+		case StatusActive:
+			summary.ActiveCount++
+		case StatusInactive:
+			summary.InactiveCount++
+		case StatusBanned:
+			summary.BannedCount++
+		case StatusDeleted:
+			summary.DeletedCount++
+		}
+	}
+
+	return StorePage{
+		Items:   append([]Store(nil), items[start:end]...),
+		Summary: summary,
+		Limit:   filter.Limit,
+		Offset:  filter.Offset,
+	}
+}
+
+func paginateStaffPage(items []StaffUser, limit int, offset int) StaffUserPage {
+	start := offset
+	if start > len(items) {
+		start = len(items)
+	}
+	end := start + limit
+	if end > len(items) {
+		end = len(items)
+	}
+
+	return StaffUserPage{
+		Items:      append([]StaffUser(nil), items[start:end]...),
+		TotalCount: len(items),
+		Limit:      limit,
+		Offset:     offset,
+	}
 }

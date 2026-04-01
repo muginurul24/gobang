@@ -89,8 +89,8 @@ func (s *stubNotificationService) Create(context.Context, CreateParams) (Notific
 	return Notification{}, nil
 }
 
-func (s *stubNotificationService) ListByScope(context.Context, ListParams) ([]Notification, error) {
-	return nil, nil
+func (s *stubNotificationService) ListByScope(context.Context, ListParams) (ListResult, error) {
+	return ListResult{}, nil
 }
 
 func (s *stubNotificationService) MarkRead(_ context.Context, params MarkReadParams) error {

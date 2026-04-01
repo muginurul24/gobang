@@ -1,14 +1,17 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import type { ChartConfiguration } from 'chart.js';
 
   import { authSession } from '$lib/auth/client';
   import EmptyState from '$lib/components/app/empty-state.svelte';
-  import {
-    fetchDashboardCards,
-    type DashboardPlatformMetrics,
-    type DashboardStoreMetrics
-  } from '$lib/dashboard/client';
+  import ChartCanvas from '$lib/components/app/chart-canvas.svelte';
+  import GaugeRing from '$lib/components/app/gauge-ring.svelte';
+  import MetricCard from '$lib/components/app/metric-card.svelte';
+  import Notice from '$lib/components/app/notice.svelte';
+  import { fetchDashboardCards, type DashboardPlatformMetrics, type DashboardStoreMetrics } from '$lib/dashboard/client';
+  import { formatCurrency, formatDateTime, formatNumber, formatPercent, safeList } from '$lib/formatters';
   import { realtimeState } from '$lib/realtime/client';
+  import { parseMoney } from '$lib/stores/client';
 
   const relevantRealtimeEvents = new Set([
     'member_payment.success',
@@ -18,17 +21,63 @@
     'callback.delivery_failed',
     'game.deposit.success',
     'game.withdraw.success',
-    'store.low_balance'
+    'store.low_balance',
   ]);
 
+  const chartTextColor = '#6b5d45';
+  const chartGridColor = 'rgba(98, 84, 49, 0.12)';
+
   let loading = true;
-  let errorMessage: string | null = null;
+  let errorMessage = '';
   let storeMetrics: DashboardStoreMetrics | null = null;
   let platformMetrics: DashboardPlatformMetrics | null = null;
   let lastSyncedAt: string | null = null;
   let requestInFlight = false;
   let lastRealtimeKey: string | null = null;
   let lastConnectionID: string | null = null;
+
+  $: role = $authSession?.user.role ?? '';
+  $: recentEvents = safeList($realtimeState.events)
+    .filter((event) => relevantRealtimeEvents.has(event.type))
+    .slice(0, 5);
+  $: storeMixValues = storeMetrics
+    ? [
+        storeMetrics.pending_qris_count,
+        storeMetrics.success_today_count,
+        storeMetrics.expired_today_count,
+      ]
+    : [];
+  $: storeMixTotal = storeMixValues.reduce((total, value) => total + value, 0);
+  $: storeMixChart = buildDonutChart(
+    ['Pending QRIS', 'Success Today', 'Expired Today'],
+    storeMixValues,
+    ['#22c977', '#efc86d', '#d66b5a'],
+  );
+  $: storeFinanceChart = buildBarChart(
+    ['Balance Pool', 'Monthly Income'],
+    [
+      parseMoney(storeMetrics?.balance_total),
+      parseMoney(storeMetrics?.monthly_store_income),
+    ],
+    ['#22c977', '#0f7242'],
+  );
+  $: platformFinanceChart = buildBarChart(
+    ['Today', 'Month'],
+    [
+      parseMoney(platformMetrics?.platform_income_today),
+      parseMoney(platformMetrics?.platform_income_month),
+    ],
+    ['#efc86d', '#22c977'],
+  );
+  $: platformOpsChart = buildDonutChart(
+    ['Pending Withdraw', 'Active Store', 'At Risk'],
+    [
+      platformMetrics?.pending_withdraw_count ?? 0,
+      platformMetrics?.active_store_count ?? 0,
+      platformMetrics?.low_balance_store_count ?? 0,
+    ],
+    ['#efc86d', '#22c977', '#d66b5a'],
+  );
 
   onMount(() => {
     let active = true;
@@ -39,27 +88,24 @@
       }
 
       requestInFlight = true;
-      errorMessage = null;
+      errorMessage = '';
 
-      const response = await fetchDashboardCards();
+      const dashboardResponse = await fetchDashboardCards();
       requestInFlight = false;
+
       if (!active) {
         return;
       }
 
-      if (!response.status || response.message !== 'SUCCESS') {
-        errorMessage = response.message;
+      if (!dashboardResponse.status || dashboardResponse.message !== 'SUCCESS') {
+        errorMessage = dashboardResponse.message;
         loading = false;
         return;
       }
 
-      storeMetrics = response.data.store_metrics ?? null;
-      platformMetrics = response.data.platform_metrics ?? null;
-      lastSyncedAt = new Date().toLocaleTimeString('id-ID', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      });
+      storeMetrics = dashboardResponse.data.store_metrics ?? null;
+      platformMetrics = dashboardResponse.data.platform_metrics ?? null;
+      lastSyncedAt = new Date().toISOString();
       loading = false;
     }
 
@@ -86,8 +132,8 @@
       if (eventKey === lastRealtimeKey) {
         return;
       }
-      lastRealtimeKey = eventKey;
 
+      lastRealtimeKey = eventKey;
       if (relevantRealtimeEvents.has(latestEvent.type)) {
         void loadCards();
       }
@@ -102,206 +148,450 @@
     };
   });
 
-  function formatCurrency(value: string | null | undefined) {
-    const amount = Number(value ?? '0');
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(Number.isFinite(amount) ? amount : 0);
-  }
-
-  function formatPercent(value: number | null | undefined) {
-    return `${(value ?? 0).toFixed(2)}%`;
-  }
-
   function liveMode(status: string) {
     return status === 'connected' ? 'Realtime aktif' : 'Fallback polling 30s';
+  }
+
+  function buildDonutChart(
+    labels: string[],
+    values: number[],
+    colors: string[],
+  ): ChartConfiguration<'doughnut'> {
+    return {
+      type: 'doughnut',
+      data: {
+        labels,
+        datasets: [
+          {
+            data: values.map((value) => Math.max(0, value)),
+            backgroundColor: colors,
+            borderWidth: 0,
+            hoverOffset: 6,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '72%',
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              color: chartTextColor,
+              usePointStyle: true,
+              boxWidth: 10,
+              padding: 18,
+            },
+          },
+          tooltip: {
+            callbacks: {
+              label: (context) =>
+                `${context.label}: ${formatNumber(Number(context.parsed ?? 0))}`,
+            },
+          },
+        },
+      },
+    };
+  }
+
+  function buildBarChart(
+    labels: string[],
+    values: number[],
+    colors: string[],
+  ): ChartConfiguration<'bar'> {
+    return {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            data: values.map((value) => Math.max(0, value)),
+            backgroundColor: colors,
+            borderRadius: 14,
+            borderSkipped: false,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false,
+          },
+          tooltip: {
+            callbacks: {
+              label: (context) => formatCurrency(Number(context.parsed.y ?? 0)),
+            },
+          },
+        },
+        scales: {
+          x: {
+            ticks: {
+              color: chartTextColor,
+            },
+            grid: {
+              display: false,
+            },
+          },
+          y: {
+            ticks: {
+              color: chartTextColor,
+              callback: (value) => formatCurrency(Number(value), { compact: true }),
+            },
+            grid: {
+              color: chartGridColor,
+            },
+          },
+        },
+      },
+    };
   }
 </script>
 
 <svelte:head>
-  <title>App | onixggr</title>
+  <title>Dashboard | onixggr</title>
 </svelte:head>
 
 <section class="space-y-6">
-  <div class="glass-panel rounded-4xl px-6 py-7">
-    <p class="text-xs font-semibold uppercase tracking-[0.24em] text-accent-700">
-      Dashboard Cards
-    </p>
-    <h2 class="mt-3 font-display text-4xl font-bold tracking-tight text-ink-900">
-      Angka operasional yang mengikuti scope role dashboard
-    </h2>
-    <p class="mt-3 max-w-3xl text-sm leading-7 text-ink-700">
-      Ringkasan ini mengambil agregat backend sesuai blueprint: owner atau karyawan hanya melihat
-      toko yang memang bisa mereka akses, sedangkan dev atau superadmin melihat kartu platform.
-    </p>
-
-    {#if $authSession}
-      <div class="mt-6 grid gap-4 lg:grid-cols-[1fr_18rem]">
-        <div class="rounded-3xl bg-canvas-100 px-5 py-4 text-sm text-ink-700">
-          <p class="font-semibold text-ink-900">Current Session</p>
-          <p class="mt-1">{$authSession.user.email}</p>
-          <p>Role: {$authSession.user.role}</p>
-        </div>
-        <div class="rounded-3xl border border-ink-100 px-5 py-4 text-sm text-ink-700">
-          <p class="font-semibold text-ink-900">Sync Mode</p>
-          <p class="mt-1 uppercase tracking-[0.18em] text-brand-700">
-            {liveMode($realtimeState.status)}
+  <section class="surface-dark surface-grid overflow-hidden rounded-[2.4rem] px-6 py-6 text-white sm:px-7 sm:py-7">
+    <div class="grid gap-6 xl:grid-cols-[1.18fr_0.82fr]">
+      <div class="space-y-4">
+        <p class="status-chip w-fit">Dashboard command</p>
+        <div class="space-y-3">
+          <h1 class="font-display text-4xl font-bold tracking-tight sm:text-5xl">
+            Role-aware signal wall untuk flow uang, store health, dan live operations.
+          </h1>
+          <p class="max-w-3xl text-sm leading-7 text-white/72 sm:text-base">
+            Ringkasan ini membaca aggregate backend sesuai scope role, lalu memperkaya tampilan
+            dengan chart, store health, dan event rail tanpa membuat asumsi data baru di frontend.
           </p>
-          <p class="mt-2 text-xs text-ink-500">Last sync: {lastSyncedAt ?? 'belum ada'}</p>
         </div>
       </div>
-    {/if}
-  </div>
 
-  {#if errorMessage}
-    <article class="rounded-3xl border border-danger/30 bg-danger/10 px-5 py-4 text-sm text-danger">
-      Gagal memuat dashboard cards: {errorMessage}
-    </article>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <article class="rounded-[1.8rem] border border-white/12 bg-white/7 p-5 backdrop-blur">
+          <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-white/45">
+            Session
+          </p>
+          <p class="mt-3 text-lg font-semibold text-white">{$authSession?.user.email ?? '-'}</p>
+          <p class="mt-1 text-sm text-white/62">Role {$authSession?.user.role ?? '-'}</p>
+        </article>
+
+        <article class="rounded-[1.8rem] border border-white/12 bg-white/7 p-5 backdrop-blur">
+          <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-white/45">
+            Sync Mode
+          </p>
+          <p class="mt-3 text-lg font-semibold text-white">{liveMode($realtimeState.status)}</p>
+          <p class="mt-1 text-sm text-white/62">
+            Last sync {lastSyncedAt ? formatDateTime(lastSyncedAt) : 'belum ada'}
+          </p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  {#if errorMessage !== ''}
+    <Notice tone="error" title="Dashboard Unavailable" message={`Gagal memuat dashboard cards: ${errorMessage}`} />
   {/if}
 
   {#if loading}
-    <div class="grid gap-4 md:grid-cols-3">
-      {#each Array(6) as _, index}
-        <article class="glass-panel animate-pulse rounded-3xl px-5 py-5" aria-hidden="true">
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {#each Array(8) as _}
+        <article class="glass-panel animate-pulse rounded-[1.8rem] px-5 py-5" aria-hidden="true">
           <div class="h-3 w-24 rounded-full bg-canvas-100"></div>
           <div class="mt-4 h-10 w-36 rounded-full bg-canvas-100"></div>
           <div class="mt-3 h-3 w-full rounded-full bg-canvas-100"></div>
-          <div class="mt-2 h-3 w-2/3 rounded-full bg-canvas-100"></div>
         </article>
       {/each}
     </div>
   {:else if storeMetrics}
-    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-      <article class="glass-panel rounded-3xl px-5 py-5">
-        <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">Balance Toko</p>
-        <p class="mt-3 font-display text-3xl font-bold text-ink-900">
-          {formatCurrency(storeMetrics.balance_total)}
-        </p>
-        <p class="mt-2 text-sm leading-6 text-ink-700">
-          Akumulasi saldo untuk {storeMetrics.accessible_store_count} toko dalam scope sesi ini.
-        </p>
-      </article>
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+      <MetricCard
+        eyebrow="Store Balance"
+        title="Balance pool"
+        value={formatCurrency(storeMetrics.balance_total)}
+        detail={`Akumulasi saldo untuk ${formatNumber(storeMetrics.accessible_store_count)} toko yang bisa diakses sesi ini.`}
+        tone="brand"
+      />
+      <MetricCard
+        eyebrow="Store Health"
+        title="Active stores"
+        value={formatNumber(storeMetrics.active_store_count)}
+        detail={`Low balance terdeteksi pada ${formatNumber(storeMetrics.low_balance_store_count)} toko dalam scope sesi.`}
+      />
+      <MetricCard
+        eyebrow="QRIS Queue"
+        title="Pending QRIS"
+        value={formatNumber(storeMetrics.pending_qris_count)}
+        detail="Menunggu webhook provider atau QRIS reconcile worker."
+        tone="accent"
+      />
+      <MetricCard
+        eyebrow="Today"
+        title="Success today"
+        value={formatNumber(storeMetrics.success_today_count)}
+        detail="store_topup atau member_payment yang selesai hari ini."
+      />
+      <MetricCard
+        eyebrow="Today"
+        title="Expired today"
+        value={formatNumber(storeMetrics.expired_today_count)}
+        detail="QRIS yang kedaluwarsa pada hari berjalan."
+        tone="danger"
+      />
+      <MetricCard
+        eyebrow="Monthly"
+        title="Store income"
+        value={formatCurrency(storeMetrics.monthly_store_income)}
+        detail="Kredit toko dari member_payment.success selama bulan berjalan."
+      />
+    </div>
 
-      <article class="glass-panel rounded-3xl px-5 py-5">
-        <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">Pending QRIS</p>
-        <p class="mt-3 font-display text-3xl font-bold text-ink-900">
-          {storeMetrics.pending_qris_count}
-        </p>
-        <p class="mt-2 text-sm leading-6 text-ink-700">
-          QRIS yang masih menunggu webhook atau reconcile provider.
-        </p>
-      </article>
+    <div class="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+      <section class="glass-panel rounded-[2.2rem] p-5 sm:p-6">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p class="section-kicker !text-brand-700">Signal mix</p>
+            <h2 class="mt-3 font-display text-3xl font-bold tracking-tight text-ink-900">
+              Transaction state composition
+            </h2>
+          </div>
+          <span class="surface-chip">{formatNumber(storeMixTotal)} tracked event</span>
+        </div>
 
-      <article class="glass-panel rounded-3xl px-5 py-5">
-        <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
-          Success Hari Ini
-        </p>
-        <p class="mt-3 font-display text-3xl font-bold text-ink-900">
-          {storeMetrics.success_today_count}
-        </p>
-        <p class="mt-2 text-sm leading-6 text-ink-700">
-          QRIS `store_topup` atau `member_payment` yang selesai hari ini.
-        </p>
-      </article>
+        {#if storeMixTotal > 0}
+          <div class="mt-6 grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
+            <ChartCanvas class="h-[320px]" config={storeMixChart} />
+            <div class="grid gap-4">
+              <article class="rounded-[1.7rem] bg-canvas-50 px-5 py-5">
+                <p class="text-sm font-semibold text-ink-900">Balance vs income</p>
+                <p class="mt-2 text-sm leading-6 text-ink-700">
+                  Compare current accessible store balance against monthly credit inflow from
+                  member payment.
+                </p>
+                <ChartCanvas class="mt-4 h-[220px]" config={storeFinanceChart} />
+              </article>
 
-      <article class="glass-panel rounded-3xl px-5 py-5">
-        <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
-          Expired Hari Ini
-        </p>
-        <p class="mt-3 font-display text-3xl font-bold text-ink-900">
-          {storeMetrics.expired_today_count}
-        </p>
-        <p class="mt-2 text-sm leading-6 text-ink-700">
-          QRIS yang kedaluwarsa pada hari berjalan.
-        </p>
-      </article>
+              <article class="rounded-[1.7rem] border border-ink-100 bg-white/80 px-5 py-5">
+                <p class="text-sm font-semibold text-ink-900">Store health</p>
+                <p class="mt-2 text-sm leading-6 text-ink-700">
+                  {storeMetrics.low_balance_store_count === 0
+                    ? 'Tidak ada store yang berada di bawah threshold saat ini.'
+                    : `${formatNumber(storeMetrics.low_balance_store_count)} store berada di threshold atau di bawah threshold.`}
+                </p>
+                <div class="mt-4 space-y-3">
+                  {#if storeMetrics.low_balance_store_count === 0}
+                    <div class="rounded-[1.4rem] bg-brand-100/70 px-4 py-4 text-sm text-brand-700">
+                      Semua store dalam scope ini masih berada di atas threshold.
+                    </div>
+                  {:else}
+                    <div class="rounded-[1.4rem] border border-amber-200/60 bg-linear-to-r from-accent-100/40 to-white px-4 py-4 text-sm leading-6 text-ink-700">
+                      Low balance detail kini dihitung langsung oleh backend supaya dashboard tetap
+                      ringan walau roster store sudah besar.
+                    </div>
+                  {/if}
+                </div>
+              </article>
+            </div>
+          </div>
+        {:else}
+          <div class="mt-6">
+            <EmptyState
+              eyebrow="Signal Mix"
+              title="Belum ada event transaksi untuk divisualisasikan"
+              body="Saat pending, success, atau expired QRIS mulai bergerak, chart komposisi di dashboard akan terisi otomatis."
+            />
+          </div>
+        {/if}
+      </section>
 
-      <article class="glass-panel rounded-3xl px-5 py-5">
-        <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
-          Income Bulan Ini
-        </p>
-        <p class="mt-3 font-display text-3xl font-bold text-ink-900">
-          {formatCurrency(storeMetrics.monthly_store_income)}
-        </p>
-        <p class="mt-2 text-sm leading-6 text-ink-700">
-          Kredit toko dari `member_payment.success` selama bulan berjalan.
-        </p>
-      </article>
+      <section class="space-y-6">
+        <div class="glass-panel rounded-[2.2rem] p-5 sm:p-6">
+          <div class="flex items-end justify-between gap-4">
+            <div>
+              <p class="section-kicker !text-brand-700">Realtime rail</p>
+              <h2 class="mt-3 font-display text-3xl font-bold tracking-tight text-ink-900">
+                Latest transaction events
+              </h2>
+            </div>
+            <span class="surface-chip">{$realtimeState.status}</span>
+          </div>
+
+          <div class="mt-6 space-y-3">
+            {#if recentEvents.length === 0}
+              <div class="rounded-[1.6rem] bg-canvas-50 px-4 py-4 text-sm leading-6 text-ink-700">
+                Belum ada event realtime yang masuk ke sesi ini.
+              </div>
+            {:else}
+              {#each recentEvents as event}
+                <article class="rounded-[1.6rem] border border-ink-100 bg-white/78 px-4 py-4">
+                  <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p class="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-brand-700">
+                        {event.type}
+                      </p>
+                      <p class="mt-2 text-sm font-semibold text-ink-900">{event.channel}</p>
+                    </div>
+                    <p class="text-xs text-ink-500">{formatDateTime(event.created_at)}</p>
+                  </div>
+                </article>
+              {/each}
+            {/if}
+          </div>
+        </div>
+
+        <div class="glass-panel rounded-[2.2rem] p-5 sm:p-6">
+          <div class="flex items-end justify-between gap-4">
+            <div>
+              <p class="section-kicker !text-brand-700">Scope telemetry</p>
+              <h2 class="mt-3 font-display text-3xl font-bold tracking-tight text-ink-900">
+                Portfolio snapshot
+              </h2>
+            </div>
+            <span class="surface-chip">{formatNumber(storeMetrics.accessible_store_count)} store</span>
+          </div>
+
+          <div class="mt-6 grid gap-4 sm:grid-cols-2">
+            <MetricCard
+              class="h-full"
+              eyebrow="Store Count"
+              title="Accessible stores"
+              value={formatNumber(storeMetrics.accessible_store_count)}
+              detail="Jumlah toko yang bisa dibaca oleh role sesi aktif."
+              tone="brand"
+            />
+            <MetricCard
+              class="h-full"
+              eyebrow="Threshold"
+              title="Low balance"
+              value={formatNumber(storeMetrics.low_balance_store_count)}
+              detail="Store yang sudah masuk alert threshold berdasarkan saldo current balance."
+              tone={storeMetrics.low_balance_store_count > 0 ? 'accent' : 'default'}
+            />
+          </div>
+        </div>
+      </section>
     </div>
   {:else if platformMetrics}
-    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-      <article class="glass-panel rounded-3xl px-5 py-5">
-        <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
-          Income Hari Ini
-        </p>
-        <p class="mt-3 font-display text-3xl font-bold text-ink-900">
-          {formatCurrency(platformMetrics.platform_income_today)}
-        </p>
-        <p class="mt-2 text-sm leading-6 text-ink-700">
-          Akumulasi fee platform dari `member_payment` dan withdraw sukses hari ini.
-        </p>
-      </article>
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <MetricCard
+        eyebrow="Platform Fee"
+        title="Income today"
+        value={formatCurrency(platformMetrics.platform_income_today)}
+        detail="Akumulasi fee platform dari flow sukses hari ini."
+        tone="accent"
+      />
+      <MetricCard
+        eyebrow="Platform Fee"
+        title="Income month"
+        value={formatCurrency(platformMetrics.platform_income_month)}
+        detail="Akumulasi fee platform bulan berjalan."
+        tone="brand"
+      />
+      <MetricCard
+        eyebrow="Tenant"
+        title="Total store"
+        value={formatNumber(platformMetrics.total_store_count)}
+        detail="Store aktif platform yang belum di-soft-delete."
+      />
+      <MetricCard
+        eyebrow="Health"
+        title="Low balance"
+        value={formatNumber(platformMetrics.low_balance_store_count)}
+        detail={`Dari ${formatNumber(platformMetrics.active_store_count)} toko active yang sedang berjalan.`}
+        tone={platformMetrics.low_balance_store_count > 0 ? 'accent' : 'default'}
+      />
+      <MetricCard
+        eyebrow="Queue"
+        title="Pending withdraw"
+        value={formatNumber(platformMetrics.pending_withdraw_count)}
+        detail="Masih menunggu webhook transfer atau status checker."
+      />
+    </div>
 
-      <article class="glass-panel rounded-3xl px-5 py-5">
-        <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
-          Income Bulan Ini
-        </p>
-        <p class="mt-3 font-display text-3xl font-bold text-ink-900">
-          {formatCurrency(platformMetrics.platform_income_month)}
-        </p>
-        <p class="mt-2 text-sm leading-6 text-ink-700">
-          Fee platform bulan berjalan untuk seluruh tenant.
-        </p>
-      </article>
+    <div class="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
+      <section class="glass-panel rounded-[2.2rem] p-5 sm:p-6">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p class="section-kicker !text-brand-700">Platform finance</p>
+            <h2 class="mt-3 font-display text-3xl font-bold tracking-tight text-ink-900">
+              Income and operating pressure
+            </h2>
+          </div>
+          <span class="surface-chip">{formatNumber(platformMetrics.total_store_count)} tenant</span>
+        </div>
 
-      <article class="glass-panel rounded-3xl px-5 py-5">
-        <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">Total Toko</p>
-        <p class="mt-3 font-display text-3xl font-bold text-ink-900">
-          {platformMetrics.total_store_count}
-        </p>
-        <p class="mt-2 text-sm leading-6 text-ink-700">
-          Semua toko aktif platform yang belum di-soft-delete.
-        </p>
-      </article>
+        <div class="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr]">
+          <article class="rounded-[1.7rem] bg-canvas-50 px-5 py-5">
+            <p class="text-sm font-semibold text-ink-900">Income ladder</p>
+            <p class="mt-2 text-sm leading-6 text-ink-700">
+              Compare platform fee accumulation today versus month-to-date.
+            </p>
+            <ChartCanvas class="mt-4 h-[260px]" config={platformFinanceChart} />
+          </article>
 
-      <article class="glass-panel rounded-3xl px-5 py-5">
-        <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
-          Pending Withdraw
-        </p>
-        <p class="mt-3 font-display text-3xl font-bold text-ink-900">
-          {platformMetrics.pending_withdraw_count}
-        </p>
-        <p class="mt-2 text-sm leading-6 text-ink-700">
-          Withdrawal owner yang masih menunggu webhook atau status check.
-        </p>
-      </article>
+          <article class="rounded-[1.7rem] bg-canvas-50 px-5 py-5">
+            <p class="text-sm font-semibold text-ink-900">Operations mix</p>
+            <p class="mt-2 text-sm leading-6 text-ink-700">
+              Pending withdraw volume versus active tenant count and current low-balance risk.
+            </p>
+            <ChartCanvas class="mt-4 h-[260px]" config={platformOpsChart} />
+          </article>
+        </div>
+      </section>
 
-      <article class="glass-panel rounded-3xl px-5 py-5">
-        <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
-          Upstream Error 24h
-        </p>
-        <p class="mt-3 font-display text-3xl font-bold text-ink-900">
-          {formatPercent(platformMetrics.upstream_error_rate_24h)}
-        </p>
-        <p class="mt-2 text-sm leading-6 text-ink-700">
-          Rasio status check atau reconcile yang berakhir `upstream_error` 24 jam terakhir.
-        </p>
-      </article>
+      <section class="space-y-6">
+        <div class="grid gap-4 sm:grid-cols-2">
+          <GaugeRing
+            label="Upstream error 24h"
+            value={platformMetrics.upstream_error_rate_24h}
+            detail="Status check atau reconcile yang berakhir upstream_error dalam 24 jam terakhir."
+            tone={platformMetrics.upstream_error_rate_24h >= 5 ? 'accent' : 'brand'}
+          />
+          <GaugeRing
+            label="Callback failure 24h"
+            value={platformMetrics.callback_failure_rate_24h}
+            detail="Callback owner yang gagal setelah retry worker selama 24 jam terakhir."
+            tone={platformMetrics.callback_failure_rate_24h >= 5 ? 'accent' : 'slate'}
+          />
+        </div>
 
-      <article class="glass-panel rounded-3xl px-5 py-5">
-        <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
-          Callback Failure 24h
-        </p>
-        <p class="mt-3 font-display text-3xl font-bold text-ink-900">
-          {formatPercent(platformMetrics.callback_failure_rate_24h)}
-        </p>
-        <p class="mt-2 text-sm leading-6 text-ink-700">
-          Rasio attempt callback yang berstatus gagal dalam 24 jam terakhir.
-        </p>
-      </article>
+        <div class="glass-panel rounded-[2.2rem] p-5 sm:p-6">
+          <div class="flex items-end justify-between gap-4">
+            <div>
+              <p class="section-kicker !text-brand-700">Live operations</p>
+              <h2 class="mt-3 font-display text-3xl font-bold tracking-tight text-ink-900">
+                Realtime feed
+              </h2>
+            </div>
+            <span class="surface-chip">{$realtimeState.status}</span>
+          </div>
+
+          <div class="mt-6 space-y-3">
+            {#if recentEvents.length === 0}
+              <div class="rounded-[1.6rem] bg-canvas-50 px-4 py-4 text-sm leading-6 text-ink-700">
+                Belum ada event realtime lintas store pada sesi ini.
+              </div>
+            {:else}
+              {#each recentEvents as event}
+                <article class="rounded-[1.6rem] border border-ink-100 bg-white/78 px-4 py-4">
+                  <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p class="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-brand-700">
+                        {event.type}
+                      </p>
+                      <p class="mt-2 text-sm font-semibold text-ink-900">{event.channel}</p>
+                    </div>
+                    <p class="text-xs text-ink-500">{formatDateTime(event.created_at)}</p>
+                  </div>
+                </article>
+              {/each}
+            {/if}
+          </div>
+        </div>
+      </section>
     </div>
   {:else}
     <EmptyState

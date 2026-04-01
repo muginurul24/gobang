@@ -2,21 +2,41 @@
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
 
+  import DateRangeFilter from '$lib/components/app/date-range-filter.svelte';
+  import EmptyState from '$lib/components/app/empty-state.svelte';
+  import ExportActions from '$lib/components/app/export-actions.svelte';
   import Button from '$lib/components/ui/button/button.svelte';
   import { authSession, initializeAuthSession } from '$lib/auth/client';
   import { fetchAuditLogs, type AuditLogEntry } from '$lib/audit/client';
-  import { fetchStores, type Store } from '$lib/stores/client';
+  import { exportRowsToCSV, exportRowsToPDF, exportRowsToXLSX } from '$lib/exporters';
+  import MetricCard from '$lib/components/app/metric-card.svelte';
+  import PaginationControls from '$lib/components/app/pagination-controls.svelte';
+  import Notice from '$lib/components/app/notice.svelte';
+  import PageSkeleton from '$lib/components/app/page-skeleton.svelte';
+  import StoreScopePicker from '$lib/components/app/store-scope-picker.svelte';
+  import type { Store } from '$lib/stores/client';
+  import { formatDateTime, formatNumber } from '$lib/formatters';
 
   let loading = true;
   let refreshing = false;
   let errorMessage = '';
   let logs: AuditLogEntry[] = [];
-  let stores: Store[] = [];
+  let storeScopeLoading = true;
+  let storeScopeTotalCount = 0;
   let selectedStoreID = '';
-  let selectedLimit = 50;
+  let selectedStore: Store | null = null;
   let actionQuery = '';
   let selectedActorRole = '';
   let selectedTargetType = '';
+  let auditFrom = '';
+  let auditTo = '';
+  let auditPage = 1;
+  let auditPageSize = 12;
+  let totalCount = 0;
+  let lastAuditQueryKey = '';
+
+  $: uniqueActions = new Set(logs.map((entry) => entry.action)).size;
+  $: uniqueStores = new Set(logs.map((entry) => entry.store_id).filter(Boolean)).size;
 
   onMount(async () => {
     await initializeAuthSession();
@@ -29,25 +49,27 @@
     await loadAudit();
   });
 
+  $: {
+    const nextKey = `${auditPage}:${auditPageSize}`;
+    if (!loading && nextKey !== lastAuditQueryKey) {
+      lastAuditQueryKey = nextKey;
+      void refreshAudit();
+    }
+  }
+
   async function loadAudit() {
     loading = true;
     errorMessage = '';
 
-    const storesResponse = await fetchStores();
-    if (!(await ensureAuthorized(storesResponse.message))) {
-      return;
-    }
-
-    if (storesResponse.status && storesResponse.message === 'SUCCESS') {
-      stores = storesResponse.data;
-    }
-
     const logsResponse = await fetchAuditLogs({
       storeID: selectedStoreID || undefined,
-      limit: selectedLimit,
+      limit: auditPageSize,
+      offset: (auditPage - 1) * auditPageSize,
       action: actionQuery || undefined,
       actorRole: selectedActorRole || undefined,
-      targetType: selectedTargetType || undefined
+      targetType: selectedTargetType || undefined,
+      createdFrom: auditFrom || undefined,
+      createdTo: auditTo || undefined
     });
     if (!(await ensureAuthorized(logsResponse.message))) {
       return;
@@ -60,8 +82,17 @@
       return;
     }
 
-    logs = logsResponse.data;
+    logs = logsResponse.data.items ?? [];
+    totalCount = logsResponse.data.total_count ?? 0;
+    lastAuditQueryKey = `${auditPage}:${auditPageSize}`;
     loading = false;
+  }
+
+  async function handleStoreScopeChange(event: CustomEvent<{ storeID: string; store: Store | null }>) {
+    selectedStoreID = event.detail.storeID;
+    selectedStore = event.detail.store;
+    auditPage = 1;
+    await refreshAudit();
   }
 
   async function refreshAudit() {
@@ -95,6 +126,56 @@
         return 'Gagal memuat audit log.';
     }
   }
+
+  function exportAuditToCSV() {
+    exportRowsToCSV(
+      `${selectedStoreID || 'scope'}-audit`,
+      [
+        { label: 'Created At', value: (entry) => formatDateTime(entry.created_at) },
+        { label: 'Action', value: (entry) => entry.action },
+        { label: 'Actor Role', value: (entry) => entry.actor_role },
+        { label: 'Store ID', value: (entry) => entry.store_id ?? '-' },
+        { label: 'Target Type', value: (entry) => entry.target_type },
+        { label: 'Target ID', value: (entry) => entry.target_id ?? '-' },
+        { label: 'IP Address', value: (entry) => entry.ip_address ?? '-' },
+        { label: 'Payload', value: (entry) => formatPayload(entry) }
+      ],
+      logs,
+    );
+  }
+
+  function exportAuditToXLSX() {
+    exportRowsToXLSX(
+      `${selectedStoreID || 'scope'}-audit`,
+      'Audit',
+      [
+        { label: 'Created At', value: (entry) => formatDateTime(entry.created_at) },
+        { label: 'Action', value: (entry) => entry.action },
+        { label: 'Actor Role', value: (entry) => entry.actor_role },
+        { label: 'Store ID', value: (entry) => entry.store_id ?? '-' },
+        { label: 'Target Type', value: (entry) => entry.target_type },
+        { label: 'Target ID', value: (entry) => entry.target_id ?? '-' },
+        { label: 'IP Address', value: (entry) => entry.ip_address ?? '-' },
+        { label: 'Payload', value: (entry) => formatPayload(entry) }
+      ],
+      logs,
+    );
+  }
+
+  function exportAuditToPDF() {
+    exportRowsToPDF(
+      `${selectedStoreID || 'scope'}-audit`,
+      'Audit Trail',
+      [
+        { label: 'Created', value: (entry) => formatDateTime(entry.created_at) },
+        { label: 'Action', value: (entry) => entry.action },
+        { label: 'Role', value: (entry) => entry.actor_role },
+        { label: 'Store', value: (entry) => entry.store_id ?? '-' },
+        { label: 'Target', value: (entry) => `${entry.target_type}:${entry.target_id ?? '-'}` }
+      ],
+      logs,
+    );
+  }
 </script>
 
 <svelte:head>
@@ -102,64 +183,91 @@
 </svelte:head>
 
 {#if loading}
-  <div class="glass-panel rounded-4xl p-6">
-    <p class="text-sm text-ink-700">Memuat audit log sesuai scope role...</p>
-  </div>
+  <PageSkeleton blocks={3} />
 {:else}
   <div class="space-y-6">
-    <section class="glass-panel rounded-4xl p-6">
-      <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+    <section class="surface-dark surface-grid overflow-hidden rounded-[2.4rem] px-6 py-6 text-white sm:px-7 sm:py-7">
+      <div class="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
         <div class="space-y-2">
-          <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
+          <p class="section-kicker">
             Audit Viewer
           </p>
-          <h1 class="font-display text-3xl font-bold tracking-tight text-ink-900">
-            Audit trail sesuai boundary owner dan platform
+          <h1 class="font-display text-4xl font-bold tracking-tight sm:text-5xl">
+            Audit trail untuk boundary owner, staff, dan platform role.
           </h1>
-          <p class="max-w-3xl text-sm leading-6 text-ink-700">
+          <p class="max-w-3xl text-sm leading-7 text-white/72 sm:text-base">
             Owner hanya melihat domainnya, superadmin/dev melihat global, dan karyawan diblokir dari
             endpoint audit. Audit log dipertahankan maksimal 90 hari lewat retention job scheduler.
           </p>
         </div>
 
-        <div class="rounded-3xl bg-canvas-100 px-4 py-3 text-sm text-ink-700">
-          <p class="font-semibold text-ink-900">Filter</p>
-          <p>Role: {$authSession?.user.role ?? '-'}</p>
-          <p>Total row: {logs.length}</p>
+        <div class="rounded-[1.8rem] border border-white/12 bg-white/7 px-4 py-4 text-sm text-white/72 backdrop-blur">
+          <p class="font-semibold text-white">Filter</p>
+          <p class="mt-2">Role: {$authSession?.user.role ?? '-'}</p>
+          <p>Total row: {formatNumber(totalCount)}</p>
         </div>
       </div>
     </section>
 
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <MetricCard
+        eyebrow="Rows"
+        title="Filtered logs"
+        value={formatNumber(totalCount)}
+        detail="Total row audit terfilter yang tersedia dari backend."
+        tone="brand"
+      />
+      <MetricCard
+        eyebrow="Action"
+        title="Unique actions"
+        value={formatNumber(uniqueActions)}
+        detail="Variasi action yang muncul dalam hasil saat ini."
+      />
+      <MetricCard
+        eyebrow="Store"
+        title="Store touched"
+        value={formatNumber(uniqueStores)}
+        detail="Jumlah store unik yang muncul pada result set saat ini."
+      />
+      <MetricCard
+        eyebrow="Scope"
+        title="Viewer role"
+        value={$authSession?.user.role ?? '-'}
+        detail="Owner scoped, superadmin/dev global, karyawan diblokir."
+        tone="accent"
+      />
+    </div>
+
     {#if errorMessage}
-      <div class="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-        {errorMessage}
-      </div>
+      <Notice tone="error" title="Audit belum bisa dimuat" message={errorMessage} />
     {/if}
 
     <section class="glass-panel rounded-4xl p-6">
-      <div class="grid gap-4 xl:grid-cols-[1.2fr_180px_180px_220px_auto]">
-        <label class="space-y-2">
-          <span class="text-sm font-medium text-ink-700">Filter toko</span>
-          <select
-            bind:value={selectedStoreID}
-            class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300"
-          >
-            <option value="">Semua toko dalam scope</option>
-            {#each stores as store}
-              <option value={store.id}>{store.name} · {store.slug}</option>
-            {/each}
-          </select>
-        </label>
+      <StoreScopePicker
+        bind:selectedStoreID
+        bind:selectedStore
+        bind:loading={storeScopeLoading}
+        bind:totalCount={storeScopeTotalCount}
+        title="Store filter untuk audit"
+        description="Audit viewer tetap global secara default. Aktifkan filter store hanya saat Anda memang ingin menyempitkan result set."
+        placeholder="Cari store untuk menyaring audit"
+        allowEmpty={true}
+        allowEmptyLabel="Semua store dalam scope"
+        on:change={handleStoreScopeChange}
+      />
+
+      <div class="mt-5 grid gap-4 xl:grid-cols-[180px_180px_220px_auto]">
 
         <label class="space-y-2">
-          <span class="text-sm font-medium text-ink-700">Limit</span>
+          <span class="text-sm font-medium text-ink-700">Legacy window</span>
           <select
-            bind:value={selectedLimit}
+            bind:value={auditPageSize}
             class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300"
           >
             <option value={25}>25</option>
             <option value={50}>50</option>
             <option value={100}>100</option>
+            <option value={200}>200</option>
           </select>
         </label>
 
@@ -225,7 +333,10 @@
               selectedActorRole = '';
               selectedTargetType = '';
               selectedStoreID = '';
-              selectedLimit = 50;
+              auditFrom = '';
+              auditTo = '';
+              auditPage = 1;
+              lastAuditQueryKey = '';
               void refreshAudit();
             }}
           >
@@ -233,13 +344,45 @@
           </Button>
         </div>
       </div>
+
+      <div class="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <DateRangeFilter bind:start={auditFrom} bind:end={auditTo} label="Created at" />
+        <ExportActions
+          count={logs.length}
+          disabled={logs.length === 0}
+          onCsv={exportAuditToCSV}
+          onXlsx={exportAuditToXLSX}
+          onPdf={exportAuditToPDF}
+        />
+      </div>
+
+      <p class="mt-4 text-xs leading-5 text-ink-500">
+        Pagination, action filter, role filter, store scope, dan date range sekarang dieksekusi di backend agar tetap ringan saat row audit besar.
+      </p>
+
+      <div class="mt-4 flex flex-wrap gap-3">
+        <Button
+          variant="brand"
+          size="sm"
+          onclick={async () => {
+            auditPage = 1;
+            lastAuditQueryKey = '';
+            await loadAudit();
+          }}
+          disabled={refreshing}
+        >
+          Apply filters
+        </Button>
+      </div>
     </section>
 
     <section class="space-y-4">
-      {#if logs.length === 0}
-        <div class="glass-panel rounded-4xl p-6 text-sm text-ink-700">
-          Tidak ada audit log dalam scope dan filter saat ini.
-        </div>
+      {#if totalCount === 0}
+        <EmptyState
+          eyebrow="Audit Window"
+          title="Tidak ada audit log"
+          body="Tidak ada audit log dalam scope dan filter backend saat ini."
+        />
       {:else}
         {#each logs as entry}
           <article class="glass-panel rounded-4xl p-6">
@@ -255,12 +398,12 @@
                 <p class="text-xs text-ink-500">Actor ID: {entry.actor_user_id ?? '-'}</p>
               </div>
 
-              <div class="rounded-3xl bg-canvas-100 px-4 py-3 text-sm text-ink-700">
+              <div class="rounded-[1.6rem] bg-canvas-100 px-4 py-3 text-sm text-ink-700">
                 <p class="font-semibold text-ink-900">Meta</p>
                 <p>Store: {entry.store_id ?? '-'}</p>
                 <p>Target: {entry.target_id ?? '-'}</p>
                 <p>IP: {entry.ip_address ?? '-'}</p>
-                <p>{new Date(entry.created_at).toLocaleString('id-ID')}</p>
+                <p>{formatDateTime(entry.created_at)}</p>
               </div>
             </div>
 
@@ -272,6 +415,8 @@
             </div>
           </article>
         {/each}
+
+        <PaginationControls bind:page={auditPage} bind:pageSize={auditPageSize} totalItems={totalCount} />
       {/if}
     </section>
   </div>

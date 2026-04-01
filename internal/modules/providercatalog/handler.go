@@ -28,6 +28,7 @@ func (h *Handler) handleListProviders() http.Handler {
 			Query:  r.URL.Query().Get("query"),
 			Status: parseOptionalStatus(r.URL.Query().Get("status")),
 			Limit:  parseLimit(r.URL.Query().Get("limit")),
+			Offset: parseOffset(r.URL.Query().Get("offset")),
 		})
 		if err != nil {
 			writeEnvelope(w, http.StatusInternalServerError, false, "INTERNAL_ERROR", nil)
@@ -45,6 +46,7 @@ func (h *Handler) handleListGames() http.Handler {
 			Query:        r.URL.Query().Get("query"),
 			Status:       parseOptionalStatus(r.URL.Query().Get("status")),
 			Limit:        parseLimit(r.URL.Query().Get("limit")),
+			Offset:       parseOffset(r.URL.Query().Get("offset")),
 		})
 		if err != nil {
 			writeEnvelope(w, http.StatusInternalServerError, false, "INTERNAL_ERROR", nil)
@@ -85,6 +87,19 @@ func parseOptionalStatus(raw string) *int {
 }
 
 func parseLimit(raw string) int {
+	if raw == "" {
+		return 0
+	}
+
+	parsed, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0
+	}
+
+	return parsed
+}
+
+func parseOffset(raw string) int {
 	if raw == "" {
 		return 0
 	}

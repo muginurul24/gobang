@@ -20,8 +20,17 @@ export type NotificationQuery = {
   storeID?: string;
   scopeType?: NotificationScopeType;
   scopeID?: string;
+  query?: string;
+  readState?: 'all' | 'unread' | 'read';
+  createdFrom?: string;
+  createdTo?: string;
   limit?: number;
   offset?: number;
+};
+
+export type NotificationPage = {
+  items: NotificationRecord[];
+  total_count: number;
 };
 
 export type ResolvedNotificationScope = {
@@ -46,7 +55,7 @@ const notificationEventTypes = new Set([
 ]);
 
 export async function fetchNotifications(params: NotificationQuery = {}) {
-  return apiRequest<NotificationRecord[]>(
+  return apiRequest<NotificationPage>(
     `/v1/notifications${buildQueryString(params)}`,
   );
 }
@@ -193,6 +202,22 @@ function buildQueryString(params: NotificationQuery) {
 
   if ((params.limit ?? 0) > 0) {
     query.set('limit', String(params.limit));
+  }
+
+  if ((params.query ?? '').trim() !== '') {
+    query.set('query', (params.query ?? '').trim());
+  }
+
+  if ((params.readState ?? '').trim() !== '' && params.readState !== 'all') {
+    query.set('read_state', (params.readState ?? '').trim());
+  }
+
+  if ((params.createdFrom ?? '').trim() !== '') {
+    query.set('created_from', (params.createdFrom ?? '').trim());
+  }
+
+  if ((params.createdTo ?? '').trim() !== '') {
+    query.set('created_to', (params.createdTo ?? '').trim());
   }
 
   if ((params.offset ?? 0) > 0) {

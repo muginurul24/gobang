@@ -20,9 +20,17 @@ type LogEntry struct {
 }
 
 type Filter struct {
-	StoreID    *string
-	Action     *string
-	ActorRole  *string
-	TargetType *string
-	Limit      int
+	StoreID     *string
+	Action      *string
+	ActorRole   *string
+	TargetType  *string
+	CreatedFrom *time.Time
+	CreatedTo   *time.Time
+	Limit       int
+	Offset      int
+}
+
+type ListResult struct {
+	Items      []LogEntry `json:"items"`
+	TotalCount int        `json:"total_count"`
 }

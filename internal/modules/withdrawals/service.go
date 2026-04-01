@@ -21,7 +21,7 @@ type RepositoryContract interface {
 	FindByIdempotencyKey(ctx context.Context, storeID string, idempotencyKey string) (StoreWithdrawal, error)
 	FindByPartnerRefNo(ctx context.Context, partnerRefNo string) (StoreWithdrawal, error)
 	GetByID(ctx context.Context, withdrawalID string) (StoreWithdrawal, error)
-	ListStoreWithdrawals(ctx context.Context, storeID string) ([]StoreWithdrawal, error)
+	ListStoreWithdrawalsPage(ctx context.Context, filter ListWithdrawalsFilter) (StoreWithdrawalPage, error)
 	CreateStoreWithdrawal(ctx context.Context, params CreateStoreWithdrawalParams) (StoreWithdrawal, error)
 	UpdateStoreWithdrawal(ctx context.Context, params UpdateStoreWithdrawalParams) (StoreWithdrawal, error)
 	AcquireProcessingLock(ctx context.Context, withdrawalID string) (ProcessingLock, bool, error)
@@ -60,7 +60,7 @@ type NotificationEmitter interface {
 }
 
 type Service interface {
-	ListStoreWithdrawals(ctx context.Context, subject auth.Subject, storeID string) ([]StoreWithdrawal, error)
+	ListStoreWithdrawals(ctx context.Context, subject auth.Subject, filter ListWithdrawalsFilter) (StoreWithdrawalPage, error)
 	CreateStoreWithdrawal(ctx context.Context, subject auth.Subject, storeID string, input CreateWithdrawInput, metadata auth.RequestMetadata) (StoreWithdrawal, bool, error)
 	HandleTransferWebhook(ctx context.Context, payload qris.TransferWebhook, metadata auth.RequestMetadata) (TransferWebhookResult, error)
 	RunPendingChecks(ctx context.Context, limit int) (StatusCheckRunSummary, error)
@@ -121,16 +121,17 @@ func NewService(options Options) Service {
 	}
 }
 
-func (s *service) ListStoreWithdrawals(ctx context.Context, subject auth.Subject, storeID string) ([]StoreWithdrawal, error) {
-	store, err := s.loadStore(ctx, storeID)
+func (s *service) ListStoreWithdrawals(ctx context.Context, subject auth.Subject, filter ListWithdrawalsFilter) (StoreWithdrawalPage, error) {
+	store, err := s.loadStore(ctx, filter.StoreID)
 	if err != nil {
-		return nil, err
+		return StoreWithdrawalPage{}, err
 	}
 	if !canViewWithdrawals(subject, store) {
-		return nil, ErrForbidden
+		return StoreWithdrawalPage{}, ErrForbidden
 	}
 
-	return s.repository.ListStoreWithdrawals(ctx, store.ID)
+	filter.StoreID = store.ID
+	return s.repository.ListStoreWithdrawalsPage(ctx, filter)
 }
 
 func (s *service) CreateStoreWithdrawal(ctx context.Context, subject auth.Subject, storeID string, input CreateWithdrawInput, metadata auth.RequestMetadata) (StoreWithdrawal, bool, error) {

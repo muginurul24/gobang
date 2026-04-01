@@ -14,7 +14,7 @@ import (
 
 type RepositoryContract interface {
 	GetStoreScope(ctx context.Context, storeID string) (StoreScope, error)
-	ListBankAccounts(ctx context.Context, storeID string) ([]BankAccount, error)
+	ListBankAccounts(ctx context.Context, filter ListBankAccountsFilter) (BankAccountPage, error)
 	CreateBankAccount(ctx context.Context, params CreateBankAccountParams) (BankAccount, error)
 	GetBankAccountByID(ctx context.Context, bankAccountID string) (BankAccount, error)
 	UpdateBankAccountStatus(ctx context.Context, params UpdateBankAccountStatusParams) (BankAccount, error)
@@ -35,7 +35,7 @@ type RepositoryContract interface {
 
 type Service interface {
 	SearchBanks(ctx context.Context, subject auth.Subject, filter SearchFilter) ([]BankDirectoryEntry, error)
-	ListBankAccounts(ctx context.Context, subject auth.Subject, storeID string) ([]BankAccount, error)
+	ListBankAccounts(ctx context.Context, subject auth.Subject, filter ListBankAccountsFilter) (BankAccountPage, error)
 	CreateBankAccount(ctx context.Context, subject auth.Subject, storeID string, input CreateBankAccountInput, metadata auth.RequestMetadata) (BankAccount, error)
 	UpdateBankAccountStatus(ctx context.Context, subject auth.Subject, storeID string, bankAccountID string, input UpdateBankAccountStatusInput, metadata auth.RequestMetadata) (BankAccount, error)
 }
@@ -80,17 +80,25 @@ func (s *service) SearchBanks(_ context.Context, subject auth.Subject, filter Se
 	return response, nil
 }
 
-func (s *service) ListBankAccounts(ctx context.Context, subject auth.Subject, storeID string) ([]BankAccount, error) {
-	store, err := s.loadStoreScope(ctx, strings.TrimSpace(storeID))
+func (s *service) ListBankAccounts(ctx context.Context, subject auth.Subject, filter ListBankAccountsFilter) (BankAccountPage, error) {
+	filter.StoreID = strings.TrimSpace(filter.StoreID)
+	store, err := s.loadStoreScope(ctx, filter.StoreID)
 	if err != nil {
-		return nil, err
+		return BankAccountPage{}, err
 	}
 
 	if !s.canAccessStore(subject, store) {
-		return nil, ErrForbidden
+		return BankAccountPage{}, ErrForbidden
 	}
 
-	return s.repository.ListBankAccounts(ctx, store.ID)
+	filter.Query = strings.TrimSpace(filter.Query)
+	filter.Limit = normalizeLimit(filter.Limit, 20, 100)
+	if filter.Offset < 0 {
+		filter.Offset = 0
+	}
+	filter.StoreID = store.ID
+
+	return s.repository.ListBankAccounts(ctx, filter)
 }
 
 func (s *service) CreateBankAccount(ctx context.Context, subject auth.Subject, storeID string, input CreateBankAccountInput, metadata auth.RequestMetadata) (BankAccount, error) {
@@ -262,6 +270,17 @@ func (s *service) canAccessStore(subject auth.Subject, store StoreScope) bool {
 	default:
 		return false
 	}
+}
+
+func normalizeLimit(value int, fallback int, max int) int {
+	if value <= 0 {
+		return fallback
+	}
+	if value > max {
+		return max
+	}
+
+	return value
 }
 
 func canUseBankAccounts(role auth.Role) bool {

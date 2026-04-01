@@ -102,6 +102,34 @@ type CreateMemberPaymentInput struct {
 	Amount   json.Number `json:"amount"`
 }
 
+type ListTransactionsFilter struct {
+	StoreID     string
+	Type        TransactionType
+	Status      *TransactionStatus
+	Query       string
+	Limit       int
+	Offset      int
+	CreatedFrom *time.Time
+	CreatedTo   *time.Time
+}
+
+type QRISTransactionSummary struct {
+	TotalCount   int    `json:"total_count"`
+	PendingCount int    `json:"pending_count"`
+	SuccessCount int    `json:"success_count"`
+	ExpiredCount int    `json:"expired_count"`
+	FailedCount  int    `json:"failed_count"`
+	TotalGross   string `json:"total_gross"`
+	PendingGross string `json:"pending_gross"`
+}
+
+type QRISTransactionPage struct {
+	Items   []QRISTransaction      `json:"items"`
+	Summary QRISTransactionSummary `json:"summary"`
+	Limit   int                    `json:"limit"`
+	Offset  int                    `json:"offset"`
+}
+
 type CreateQRISTransactionParams struct {
 	StoreID           string
 	StoreMemberID     *string

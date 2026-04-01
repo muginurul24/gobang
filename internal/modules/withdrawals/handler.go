@@ -5,7 +5,9 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/mugiew/onixggr/internal/modules/auth"
 )
@@ -32,7 +34,14 @@ func (h *Handler) handleListStoreWithdrawals() http.Handler {
 			return
 		}
 
-		withdrawals, err := h.service.ListStoreWithdrawals(r.Context(), subject, r.PathValue("storeID"))
+		filter, err := parseListWithdrawalsFilter(r)
+		if err != nil {
+			writeEnvelope(w, http.StatusBadRequest, false, "INVALID_REQUEST", nil)
+			return
+		}
+
+		filter.StoreID = r.PathValue("storeID")
+		withdrawals, err := h.service.ListStoreWithdrawals(r.Context(), subject, filter)
 		if err != nil {
 			writeWithdrawalError(w, err)
 			return
@@ -40,6 +49,76 @@ func (h *Handler) handleListStoreWithdrawals() http.Handler {
 
 		writeEnvelope(w, http.StatusOK, true, "SUCCESS", withdrawals)
 	})
+}
+
+func parseListWithdrawalsFilter(r *http.Request) (ListWithdrawalsFilter, error) {
+	query := r.URL.Query()
+	filter := ListWithdrawalsFilter{
+		Query:  strings.TrimSpace(query.Get("query")),
+		Limit:  12,
+		Offset: 0,
+	}
+
+	if rawStatus := strings.TrimSpace(query.Get("status")); rawStatus != "" {
+		status := WithdrawalStatus(rawStatus)
+		switch status {
+		case WithdrawalStatusPending, WithdrawalStatusSuccess, WithdrawalStatusFailed:
+			filter.Status = &status
+		default:
+			return ListWithdrawalsFilter{}, errors.New("invalid status")
+		}
+	}
+
+	if rawLimit := strings.TrimSpace(query.Get("limit")); rawLimit != "" {
+		limit, err := strconv.Atoi(rawLimit)
+		if err != nil || limit <= 0 {
+			return ListWithdrawalsFilter{}, errors.New("invalid limit")
+		}
+		if limit > 100 {
+			limit = 100
+		}
+		filter.Limit = limit
+	}
+
+	if rawOffset := strings.TrimSpace(query.Get("offset")); rawOffset != "" {
+		offset, err := strconv.Atoi(rawOffset)
+		if err != nil || offset < 0 {
+			return ListWithdrawalsFilter{}, errors.New("invalid offset")
+		}
+		filter.Offset = offset
+	}
+
+	createdFrom, err := parseFilterTime(query.Get("created_from"))
+	if err != nil {
+		return ListWithdrawalsFilter{}, err
+	}
+	filter.CreatedFrom = createdFrom
+
+	createdTo, err := parseFilterTime(query.Get("created_to"))
+	if err != nil {
+		return ListWithdrawalsFilter{}, err
+	}
+	filter.CreatedTo = createdTo
+
+	return filter, nil
+}
+
+func parseFilterTime(raw string) (*time.Time, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, nil
+	}
+
+	layouts := []string{time.RFC3339, "2006-01-02T15:04", "2006-01-02"}
+	for _, layout := range layouts {
+		parsed, err := time.Parse(layout, trimmed)
+		if err == nil {
+			value := parsed.UTC()
+			return &value, nil
+		}
+	}
+
+	return nil, errors.New("invalid time filter")
 }
 
 func (h *Handler) handleCreateStoreWithdrawal() http.Handler {

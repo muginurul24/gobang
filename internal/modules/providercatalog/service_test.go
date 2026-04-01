@@ -111,12 +111,12 @@ func (r *fakeRepository) ApplySnapshot(_ context.Context, snapshot catalogSnapsh
 	}, nil
 }
 
-func (r *fakeRepository) ListProviders(_ context.Context, _ ListProvidersFilter) ([]Provider, error) {
-	return nil, nil
+func (r *fakeRepository) ListProviders(_ context.Context, _ ListProvidersFilter) (ProviderPage, error) {
+	return ProviderPage{}, nil
 }
 
-func (r *fakeRepository) ListGames(_ context.Context, _ ListGamesFilter) ([]Game, error) {
-	return nil, nil
+func (r *fakeRepository) ListGames(_ context.Context, _ ListGamesFilter) (GamePage, error) {
+	return GamePage{}, nil
 }
 
 type fakeUpstream struct {

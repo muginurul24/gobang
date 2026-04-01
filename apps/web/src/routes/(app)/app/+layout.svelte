@@ -1,81 +1,133 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { page } from '$app/stores';
   import { onMount } from 'svelte';
 
   import Button from '$lib/components/ui/button/button.svelte';
+  import PaginationControls from '$lib/components/app/pagination-controls.svelte';
+  import ThemeToggle from '$lib/components/app/theme-toggle.svelte';
   import Notice from '$lib/components/app/notice.svelte';
   import {
     authSession,
     initializeAuthSession,
     logoutCurrentSession,
-    syncProfile
+    syncProfile,
   } from '$lib/auth/client';
-  import {
-    connectRealtime,
-    disconnectRealtime,
-    realtimeState
-  } from '$lib/realtime/client';
-  import {
-    fetchUnreadNotificationCount,
-    isNotificationEvent,
-    resolveNotificationScope,
-    subscribeNotificationsChanged
-  } from '$lib/notifications/client';
-  import {
-    fetchStores,
-    isStoreLowBalance,
-    parseMoney,
-    type Store
-  } from '$lib/stores/client';
-  import {
-    hydratePreferredStoreID,
-    pickPreferredStoreID,
-    preferredStoreID,
-    setPreferredStoreID
-  } from '$lib/stores/preferences';
+  import { formatCurrency, formatNumber } from '$lib/formatters';
+  import { fetchUnreadNotificationCount, isNotificationEvent, resolveNotificationScope, subscribeNotificationsChanged } from '$lib/notifications/client';
+  import { connectRealtime, disconnectRealtime, realtimeState } from '$lib/realtime/client';
+  import { fetchStore, fetchStoreDirectory, isStoreLowBalance, type Store, type StoreDirectorySummary } from '$lib/stores/client';
+  import { hydratePreferredStoreID, pickPreferredStoreID, preferredStoreID, setPreferredStoreID } from '$lib/stores/preferences';
 
   let ready = false;
   let storeDirectoryLoading = true;
   let storeDirectoryError = '';
   let accessibleStores: Store[] = [];
+  let storeDirectorySummary: StoreDirectorySummary = {
+    total_count: 0,
+    active_count: 0,
+    inactive_count: 0,
+    banned_count: 0,
+    deleted_count: 0,
+    low_balance_count: 0
+  };
+  let storeQuery = '';
+  let storePage = 1;
+  let storePageSize = 12;
   let selectedStoreID = '';
+  let selectedStoreSummary: Store | null = null;
   let unreadNotificationCount = 0;
   let notificationLoading = false;
   let lastNotificationEventKey: string | null = null;
   let lastNotificationScopeKey = '';
+  let lastStoreDirectoryKey = '';
+  let viewActive = false;
 
   $: role = $authSession?.user.role ?? '';
-  $: currentStore = accessibleStores.find((store) => store.id === selectedStoreID) ?? null;
-  $: lowBalanceStores = accessibleStores.filter((store) => isStoreLowBalance(store));
+  $: currentStore =
+    accessibleStores.find((store) => store.id === selectedStoreID) ??
+    (selectedStoreSummary?.id === selectedStoreID ? selectedStoreSummary : null);
+  $: visibleLowBalanceStores = accessibleStores.filter((store) => isStoreLowBalance(store));
   $: selectedStoreIsLowBalance = currentStore ? isStoreLowBalance(currentStore) : false;
   $: notificationScope = resolveNotificationScope(role, selectedStoreID);
-  $: notificationBadge =
-    unreadNotificationCount > 99 ? '99+' : unreadNotificationCount > 0 ? String(unreadNotificationCount) : '';
+  $: notificationBadge = unreadNotificationCount > 99
+    ? '99+'
+    : unreadNotificationCount > 0
+      ? String(unreadNotificationCount)
+      : '';
   $: nav = [
-    { href: '/app', label: 'Dashboard' },
-    { href: '/app/notifications', label: 'Notifications', badge: notificationBadge },
-    { href: '/app/stores', label: 'Stores' },
-    { href: '/app/catalog', label: 'Catalog' },
-    { href: '/app/members', label: 'Members' },
-    ...(role === 'karyawan'
+    { href: '/app', label: 'Dashboard', description: 'realtime cards' },
+    { href: '/app/notifications', label: 'Notifications', description: 'event stream', badge: notificationBadge },
+    { href: '/app/stores', label: 'Stores', description: 'token + callback' },
+    { href: '/app/api-docs', label: 'API Docs', description: 'owner integration' },
+    { href: '/app/catalog', label: 'Catalog', description: 'provider + games' },
+    { href: '/app/members', label: 'Members', description: 'store identities' },
+    ...(
+      role === 'karyawan'
         ? []
         : [
-          { href: '/app/topups', label: 'Topups' },
-          { href: '/app/bank-accounts', label: 'Bank Accounts' },
-          { href: '/app/withdrawals', label: 'Withdrawals' },
-          { href: '/app/audit', label: 'Audit' }
-        ]),
-    { href: '/app/security', label: 'Security' },
-    { href: '/app/chat', label: 'Global Chat' },
-    { href: '/', label: 'Back to Public' }
+            { href: '/app/topups', label: 'Topups', description: 'qris store credit' },
+            { href: '/app/bank-accounts', label: 'Banking', description: 'withdraw accounts' },
+            { href: '/app/withdrawals', label: 'Withdrawals', description: 'payout desk' },
+            { href: '/app/audit', label: 'Audit', description: 'activity trail' },
+          ]
+    ),
+    { href: '/app/security', label: 'Security', description: '2fa + allowlist' },
+    { href: '/app/chat', label: 'Global Chat', description: 'ops room' },
+    { href: '/', label: 'Public', description: 'marketing shell' },
   ];
 
+  async function loadAccessibleStores() {
+    storeDirectoryLoading = true;
+    storeDirectoryError = '';
+
+    const response = await fetchStoreDirectory({
+      query: storeQuery,
+      limit: storePageSize,
+      offset: (storePage - 1) * storePageSize
+    });
+    if (!viewActive) {
+      return;
+    }
+
+    if (!response.status || response.message !== 'SUCCESS') {
+      storeDirectoryError =
+        response.message === 'FORBIDDEN'
+          ? 'Store switch tidak tersedia untuk role ini.'
+          : 'Store switch belum bisa dimuat. Halaman lain tetap bisa dipakai.';
+      accessibleStores = [];
+      storeDirectorySummary = {
+        total_count: 0,
+        active_count: 0,
+        inactive_count: 0,
+        banned_count: 0,
+        deleted_count: 0,
+        low_balance_count: 0
+      };
+      selectedStoreSummary = null;
+      selectedStoreID = '';
+      storeDirectoryLoading = false;
+      return;
+    }
+
+    accessibleStores = response.data.items ?? [];
+    storeDirectorySummary = response.data.summary ?? storeDirectorySummary;
+    selectedStoreID = pickPreferredStoreID(accessibleStores, selectedStoreID);
+    setPreferredStoreID(selectedStoreID);
+    if (selectedStoreID !== '') {
+      await syncSelectedStoreSummary(selectedStoreID);
+    } else {
+      selectedStoreSummary = null;
+    }
+    storeDirectoryLoading = false;
+  }
+
   onMount(() => {
-    let active = true;
+    viewActive = true;
     hydratePreferredStoreID();
 
     const unsubscribeStorePreference = preferredStoreID.subscribe((storeID) => {
-      if (!active) {
+      if (!viewActive) {
         return;
       }
 
@@ -84,34 +136,8 @@
       }
     });
 
-    async function loadAccessibleStores() {
-      storeDirectoryLoading = true;
-      storeDirectoryError = '';
-
-      const response = await fetchStores();
-      if (!active) {
-        return;
-      }
-
-      if (!response.status || response.message !== 'SUCCESS') {
-        storeDirectoryError =
-          response.message === 'FORBIDDEN'
-            ? 'Store switch tidak tersedia untuk role ini.'
-            : 'Store switch belum bisa dimuat. Halaman lain tetap bisa dipakai.';
-        accessibleStores = [];
-        selectedStoreID = '';
-        storeDirectoryLoading = false;
-        return;
-      }
-
-      accessibleStores = response.data ?? [];
-      selectedStoreID = pickPreferredStoreID(accessibleStores, selectedStoreID);
-      setPreferredStoreID(selectedStoreID);
-        storeDirectoryLoading = false;
-    }
-
     async function loadUnreadNotifications() {
-      if (!active) {
+      if (!viewActive) {
         return;
       }
 
@@ -123,7 +149,7 @@
 
       notificationLoading = true;
       const response = await fetchUnreadNotificationCount(notificationScope.params);
-      if (!active) {
+      if (!viewActive) {
         return;
       }
 
@@ -145,7 +171,7 @@
       }
 
       const profile = await syncProfile();
-      if (!active) {
+      if (!viewActive) {
         return;
       }
 
@@ -161,7 +187,7 @@
     })();
 
     const unsubscribeRealtime = realtimeState.subscribe((snapshot) => {
-      if (!active || !notificationScope.ready) {
+      if (!viewActive || !notificationScope.ready) {
         return;
       }
 
@@ -188,13 +214,21 @@
     });
 
     return () => {
-      active = false;
+      viewActive = false;
       unsubscribeStorePreference();
       unsubscribeRealtime();
       unsubscribeNotificationsChanged();
       disconnectRealtime();
     };
   });
+
+  $: if (ready) {
+    const nextStoreDirectoryKey = `${storeQuery}:${storePage}:${storePageSize}`;
+    if (nextStoreDirectoryKey !== lastStoreDirectoryKey) {
+      lastStoreDirectoryKey = nextStoreDirectoryKey;
+      void loadAccessibleStores();
+    }
+  }
 
   $: if (ready) {
     const nextScopeKey = notificationScope.key;
@@ -226,171 +260,336 @@
   function switchStore(storeID: string) {
     selectedStoreID = storeID;
     setPreferredStoreID(storeID);
+    void syncSelectedStoreSummary(storeID);
   }
 
-  function formatCurrency(value: string | null | undefined) {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(parseMoney(value));
-  }
-
-  function formatThreshold(value: string | null | undefined) {
-    if ((value ?? '').trim() === '') {
-      return '-';
+  async function syncSelectedStoreSummary(storeID: string) {
+    const matched = accessibleStores.find((store) => store.id === storeID) ?? null;
+    if (matched) {
+      selectedStoreSummary = matched;
+      return;
     }
 
-    return formatCurrency(value);
+    if (storeID === '') {
+      selectedStoreSummary = null;
+      return;
+    }
+
+    const response = await fetchStore(storeID);
+    if (!response.status || response.message !== 'SUCCESS') {
+      selectedStoreSummary = null;
+      return;
+    }
+
+    selectedStoreSummary = response.data ?? null;
+  }
+
+  async function applyStoreDirectorySearch() {
+    storePage = 1;
+    lastStoreDirectoryKey = '';
+    await loadAccessibleStores();
+  }
+
+  async function resetStoreDirectorySearch() {
+    storeQuery = '';
+    storePage = 1;
+    lastStoreDirectoryKey = '';
+    await loadAccessibleStores();
+  }
+
+  function isActive(href: string) {
+    const pathname = $page.url.pathname;
+    return href === '/app' ? pathname === '/app' : pathname.startsWith(href);
+  }
+
+  function realtimeLabel() {
+    switch ($realtimeState.status) {
+      case 'connected':
+        return 'live';
+      case 'reconnecting':
+        return 'retrying';
+      case 'connecting':
+        return 'connecting';
+      case 'error':
+        return 'error';
+      default:
+        return 'idle';
+    }
+  }
+
+  function pageSummary() {
+    if (role === 'karyawan') {
+      return 'Store-scoped command center untuk monitoring, members, security, dan realtime feed.';
+    }
+
+    if (role === 'owner') {
+      return 'Command center owner untuk toko, QRIS, withdraw, callback, dan integrasi store API.';
+    }
+
+    return 'Platform command surface untuk monitoring lintas store, audit, realtime, dan observability.';
   }
 </script>
 
 {#if ready}
-  <div class="shell-width mx-auto flex min-h-screen flex-col gap-6 py-6 lg:flex-row">
-    <aside class="glass-panel w-full rounded-4xl p-5 lg:sticky lg:top-6 lg:h-[calc(100vh-3rem)] lg:w-80">
-      <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">App Shell</p>
-      <h1 class="mt-3 font-display text-3xl font-bold tracking-tight text-ink-900">onixggr</h1>
-      <p class="mt-3 text-sm leading-6 text-ink-700">
-        Area app sekarang menutup auth, store management, topup, withdraw, store members, audit
-        viewer, dan security hardening dari blueprint awal.
-      </p>
-
-      {#if $authSession}
-        <div class="mt-6 rounded-3xl bg-canvas-100 px-4 py-4 text-sm text-ink-700">
-          <p class="font-semibold text-ink-900">Signed In</p>
-          <p class="mt-1">{$authSession.user.username}</p>
-          <p>{$authSession.user.role}</p>
-        </div>
-
-        <div class="mt-4 rounded-3xl border border-ink-100 px-4 py-4 text-sm text-ink-700">
-          <p class="font-semibold text-ink-900">Realtime</p>
-          <p class="mt-1 uppercase tracking-[0.18em] text-brand-700">{$realtimeState.status}</p>
-          <p class="mt-2 text-xs text-ink-500">
-            {$realtimeState.channels.length} channel aktif
-          </p>
-        </div>
-
-        <div class="mt-4 rounded-3xl border border-ink-100 px-4 py-4 text-sm text-ink-700">
-          <p class="font-semibold text-ink-900">Quick Store Switch</p>
-          <p class="mt-1 text-xs leading-5 text-ink-500">
-            Dipakai sebagai default di halaman members, topups, bank accounts, dan withdrawals.
-          </p>
-
-          {#if storeDirectoryLoading}
-            <div class="mt-4 animate-pulse rounded-2xl bg-canvas-100 px-4 py-4">
-              <div class="h-3 w-24 rounded-full bg-white/80"></div>
-              <div class="mt-3 h-10 rounded-2xl bg-white/80"></div>
+  <div class="matrix-page" data-app-shell="ready">
+    <div class="shell-width mx-auto flex min-h-screen flex-col gap-6 pb-10 pt-4 sm:pt-6">
+      <section class="surface-dark surface-grid overflow-hidden rounded-[2.6rem] px-5 py-5 text-white sm:px-7 sm:py-6">
+        <div class="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+          <div class="space-y-5">
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="status-chip">role {role || 'guest'}</span>
+              <span class="status-chip">realtime {realtimeLabel()}</span>
+              {#if notificationBadge !== ''}
+                <span class="status-chip">{notificationBadge} unread</span>
+              {/if}
             </div>
-          {:else if storeDirectoryError !== ''}
+
+            <div class="space-y-3">
+              <p class="section-kicker">Command Matrix</p>
+              <h1 class="font-display text-4xl font-bold tracking-tight text-white sm:text-5xl">
+                Operasional toko, transaksi, dan integrasi dalam satu shell.
+              </h1>
+              <p class="max-w-3xl text-sm leading-7 text-white/70 sm:text-base">
+                {pageSummary()}
+              </p>
+            </div>
+          </div>
+
+          <div class="grid gap-3 sm:grid-cols-2">
+            <article class="rounded-[1.8rem] border border-white/12 bg-white/7 p-5 backdrop-blur">
+              <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-white/45">
+                Session
+              </p>
+              <p class="mt-3 text-lg font-semibold text-white">
+                {$authSession?.user.username ?? '-'}
+              </p>
+              <p class="mt-1 text-sm text-white/62">{$authSession?.user.role ?? '-'}</p>
+              <p class="mt-4 text-xs leading-6 text-white/52">
+                {$realtimeState.channels.length} realtime channel aktif di sesi ini.
+              </p>
+            </article>
+
+            <article class="rounded-[1.8rem] border border-white/12 bg-white/7 p-5 backdrop-blur">
+              <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-white/45">
+                Active Store
+              </p>
+              {#if currentStore}
+                <p class="mt-3 text-lg font-semibold text-white">{currentStore.name}</p>
+                <p class="mt-1 text-sm text-white/62">{currentStore.slug}</p>
+                <p class="mt-4 text-xs leading-6 text-white/52">
+                  Balance {formatCurrency(currentStore.current_balance)}{#if currentStore.low_balance_threshold}
+                    {' '}· threshold {formatCurrency(currentStore.low_balance_threshold)}
+                  {/if}
+                </p>
+              {:else if storeDirectoryLoading}
+                <p class="mt-3 text-sm text-white/60">Memuat store directory...</p>
+              {:else}
+                <p class="mt-3 text-sm text-white/60">Belum ada store aktif untuk sesi ini.</p>
+              {/if}
+            </article>
+          </div>
+        </div>
+
+        <div class="mt-6 overflow-x-auto soft-scroll">
+          <nav class="flex min-w-max gap-3 pb-1">
+            {#each nav as item}
+              <a class="app-nav-link" data-active={isActive(item.href)} href={item.href}>
+                <span>{item.label}</span>
+                {#if item.badge}
+                  <span class="rounded-full bg-white/10 px-2 py-1 text-[0.68rem] font-semibold">
+                    {item.badge}
+                  </span>
+                {/if}
+              </a>
+            {/each}
+          </nav>
+        </div>
+      </section>
+
+      <div class="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+        <aside class="space-y-6">
+          <section class="glass-panel rounded-[2rem] p-5">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <p class="section-kicker !text-brand-700">Access Rail</p>
+                <h2 class="mt-3 font-display text-2xl font-bold tracking-tight text-ink-900">
+                  Tenant context
+                </h2>
+              </div>
+
+              <span class="surface-chip">{$authSession?.user.role ?? '-'}</span>
+            </div>
+
+            <div class="mt-5 rounded-[1.6rem] bg-canvas-50 px-4 py-4">
+              <p class="text-sm font-semibold text-ink-900">Notification scope</p>
+              <p class="mt-2 text-xs leading-5 text-ink-500">{notificationScope.description}</p>
+              <div class="mt-4 flex flex-wrap items-center gap-2">
+                <span class="surface-chip">{notificationScope.label}</span>
+                <span class="surface-chip">
+                  {notificationLoading ? 'syncing' : `${formatNumber(unreadNotificationCount)} unread`}
+                </span>
+              </div>
+            </div>
+
             <div class="mt-4">
-              <Notice tone="warning" message={storeDirectoryError} />
+              <ThemeToggle />
             </div>
-          {:else if accessibleStores.length === 0}
-            <div class="mt-4 rounded-2xl bg-canvas-100 px-4 py-4 text-xs leading-5 text-ink-600">
-              Belum ada toko di scope sesi ini.
-            </div>
-          {:else}
-            <label class="mt-4 block space-y-2">
-              <span class="text-xs font-semibold uppercase tracking-[0.18em] text-ink-500">
-                Store aktif
-              </span>
-              <select
-                bind:value={selectedStoreID}
-                class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300"
-                onchange={(event) => switchStore((event.currentTarget as HTMLSelectElement).value)}
-              >
-                {#each accessibleStores as store}
-                  <option value={store.id}>{store.name} · {store.slug}</option>
-                {/each}
-              </select>
-            </label>
 
-            {#if currentStore}
-              <div class="mt-4 rounded-2xl bg-canvas-100 px-4 py-4 text-xs leading-5 text-ink-700">
-                <p class="font-semibold text-ink-900">{currentStore.name}</p>
-                <p>Balance: {formatCurrency(currentStore.current_balance)}</p>
-                <p>Threshold: {formatThreshold(currentStore.low_balance_threshold)}</p>
+            <div class="mt-4">
+              <Button variant="outline" size="lg" class="w-full" onclick={signOut}>
+                Logout
+              </Button>
+            </div>
+          </section>
+
+          <section class="glass-panel rounded-[2rem] p-5">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <p class="section-kicker !text-brand-700">Quick Switch</p>
+                <h2 class="mt-3 font-display text-2xl font-bold tracking-tight text-ink-900">
+                  Active store
+                </h2>
+              </div>
+
+              <span class="surface-chip">{formatNumber(storeDirectorySummary.total_count)} store</span>
+            </div>
+
+            {#if storeDirectoryLoading}
+              <div class="mt-5 animate-pulse rounded-[1.6rem] bg-canvas-50 px-4 py-5">
+                <div class="h-3 w-24 rounded-full bg-white/80"></div>
+                <div class="mt-3 h-11 rounded-2xl bg-white/80"></div>
+              </div>
+            {:else if storeDirectoryError !== ''}
+              <div class="mt-5">
+                <Notice tone="warning" message={storeDirectoryError} />
+              </div>
+            {:else if accessibleStores.length === 0}
+              <div class="mt-5 rounded-[1.6rem] bg-canvas-50 px-4 py-5 text-sm leading-6 text-ink-700">
+                Belum ada toko di scope sesi ini.
+              </div>
+            {:else}
+              <div class="mt-5 space-y-4">
+                <label class="block space-y-2">
+                  <span class="text-sm font-medium text-ink-700">Cari store untuk switch context</span>
+                  <input
+                    bind:value={storeQuery}
+                    type="search"
+                    placeholder="Cari nama, slug, atau callback URL..."
+                    class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300"
+                  />
+                </label>
+
+                <div class="flex flex-wrap gap-2">
+                  <Button variant="brand" size="sm" onclick={applyStoreDirectorySearch}>
+                    Search
+                  </Button>
+                  <Button variant="outline" size="sm" onclick={resetStoreDirectorySearch}>
+                    Reset
+                  </Button>
+                  <span class="surface-chip">{formatNumber(accessibleStores.length)} on page</span>
+                  <span class="surface-chip">{formatNumber(storeDirectorySummary.low_balance_count)} low balance</span>
+                </div>
+
+                <label class="block space-y-2">
+                  <span class="text-sm font-medium text-ink-700">Store aktif untuk command flow</span>
+                  <select
+                    bind:value={selectedStoreID}
+                    class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300"
+                    onchange={(event) => switchStore((event.currentTarget as HTMLSelectElement).value)}
+                  >
+                    {#each accessibleStores as store}
+                      <option value={store.id}>{store.name} · {store.slug}</option>
+                    {/each}
+                  </select>
+                </label>
+
+                <PaginationControls
+                  bind:page={storePage}
+                  bind:pageSize={storePageSize}
+                  totalItems={storeDirectorySummary.total_count}
+                  pageSizeOptions={[6, 12, 24]}
+                />
               </div>
             {/if}
-          {/if}
-        </div>
 
-        <div class="mt-4 rounded-3xl border border-ink-100 px-4 py-4 text-sm text-ink-700">
-          <div class="flex items-center justify-between gap-3">
-            <div>
-              <p class="font-semibold text-ink-900">Notifications</p>
-              <p class="mt-1 text-xs leading-5 text-ink-500">{notificationScope.label}</p>
-            </div>
-            {#if notificationLoading}
-              <span class="rounded-full bg-canvas-100 px-3 py-1 text-xs font-semibold text-ink-500">
-                ...
-              </span>
-            {:else if notificationBadge !== ''}
-              <span class="rounded-full bg-accent-100 px-3 py-1 text-xs font-semibold text-accent-800">
-                {notificationBadge}
-              </span>
+            {#if currentStore}
+              <div class="mt-4 rounded-[1.6rem] border border-ink-100 bg-white/74 px-4 py-4">
+                <p class="text-sm font-semibold text-ink-900">{currentStore.name}</p>
+                <div class="mt-3 space-y-2 text-xs leading-5 text-ink-500">
+                  <p>Balance: {formatCurrency(currentStore.current_balance)}</p>
+                  <p>
+                    Threshold:
+                    {currentStore.low_balance_threshold
+                      ? formatCurrency(currentStore.low_balance_threshold)
+                      : '-'}
+                  </p>
+                  <p>Staff: {formatNumber(currentStore.staff_count)}</p>
+                </div>
+              </div>
             {/if}
-          </div>
-          <p class="mt-3 text-xs leading-5 text-ink-500">{notificationScope.description}</p>
-          <a
-            class="mt-3 inline-flex text-xs font-semibold uppercase tracking-[0.18em] text-brand-700 underline-offset-4 hover:underline"
-            href="/app/notifications"
-          >
-            Open feed
-          </a>
-        </div>
+          </section>
 
-        {#if lowBalanceStores.length > 0}
-          <div class="mt-4 rounded-3xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
-            <p class="font-semibold">Low Balance Alert</p>
-            <p class="mt-2 leading-6">
-              {lowBalanceStores.length} toko berada di threshold atau di bawah threshold saldo.
-            </p>
-            {#if currentStore && selectedStoreIsLowBalance}
-              <p class="mt-2 text-xs leading-5">
-                Store aktif saat ini juga low balance: {currentStore.name} dengan saldo
-                {formatCurrency(currentStore.current_balance)}.
+          {#if storeDirectorySummary.low_balance_count > 0}
+            <section class="glass-panel rounded-[2rem] p-5">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <p class="section-kicker !text-accent-700">Alert</p>
+                  <h2 class="mt-3 font-display text-2xl font-bold tracking-tight text-ink-900">
+                    Low balance
+                  </h2>
+                </div>
+
+                <span class="surface-chip">{formatNumber(storeDirectorySummary.low_balance_count)} store</span>
+              </div>
+
+              <p class="mt-3 text-sm leading-6 text-ink-700">
+                Store di bawah threshold akan ikut memicu notification event dan bisa berdampak ke
+                deposit atau withdrawal flow.
               </p>
-            {/if}
-            <a class="mt-3 inline-flex text-xs font-semibold uppercase tracking-[0.18em] text-amber-800 underline-offset-4 hover:underline" href="/app/stores">
-              Review threshold
-            </a>
-          </div>
-        {/if}
-      {/if}
 
-      <nav class="mt-8 space-y-2">
-        {#each nav as item}
-          <a
-            class="flex items-center justify-between gap-3 rounded-2xl border border-transparent px-4 py-3 text-sm font-medium text-ink-700 transition hover:border-ink-100 hover:bg-canvas-100 hover:text-ink-900"
-            href={item.href}
-          >
-            <span>{item.label}</span>
-            {#if item.badge}
-              <span class="rounded-full bg-accent-100 px-3 py-1 text-xs font-semibold text-accent-800">
-                {item.badge}
-              </span>
-            {/if}
-          </a>
-        {/each}
-      </nav>
+              <div class="mt-4 space-y-3">
+                {#each visibleLowBalanceStores.slice(0, 3) as store}
+                  <div class="rounded-[1.4rem] border border-amber-200/60 bg-linear-to-r from-accent-100/45 to-white px-4 py-4">
+                    <p class="text-sm font-semibold text-ink-900">{store.name}</p>
+                    <p class="mt-1 text-xs text-ink-500">{formatCurrency(store.current_balance)}</p>
+                  </div>
+                {/each}
+              </div>
 
-      <div class="mt-8">
-        <Button variant="outline" size="lg" class="w-full" onclick={signOut}>
-          Logout
-        </Button>
+              {#if visibleLowBalanceStores.length === 0}
+                <div class="mt-4 rounded-[1.4rem] border border-ink-100 bg-white/76 px-4 py-4 text-xs leading-6 text-ink-600">
+                  Store low balance ada di scope backend, tetapi tidak sedang tampil pada page switcher saat ini. Gunakan search atau pagination untuk menemukannya.
+                </div>
+              {/if}
+
+              {#if currentStore && selectedStoreIsLowBalance}
+                <div class="mt-4">
+                  <Notice
+                    tone="warning"
+                    message={`Store aktif saat ini juga low balance: ${currentStore.name}.`}
+                  />
+                </div>
+              {/if}
+            </section>
+          {/if}
+        </aside>
+
+        <main class="min-w-0 space-y-6">
+          <slot />
+        </main>
       </div>
-    </aside>
-
-    <main class="min-w-0 flex-1">
-      <slot />
-    </main>
+    </div>
   </div>
 {:else}
-  <div class="shell-width mx-auto min-h-screen py-10">
-    <div class="glass-panel rounded-4xl px-6 py-8">
-      <p class="text-sm text-ink-700">Memeriksa session dashboard...</p>
+  <div class="matrix-page" data-app-shell="loading">
+    <div class="shell-width mx-auto min-h-screen py-8">
+      <div class="surface-dark surface-grid rounded-[2.4rem] px-6 py-8 text-white">
+        <p class="section-kicker">Session Handshake</p>
+        <h1 class="mt-3 font-display text-3xl font-bold tracking-tight">Memeriksa sesi dashboard...</h1>
+        <p class="mt-3 max-w-xl text-sm leading-7 text-white/68">
+          Shell sedang memuat profile user, scope store, notification counter, dan koneksi realtime.
+        </p>
+      </div>
     </div>
   </div>
 {/if}

@@ -28,3 +28,17 @@ type DeleteMessageParams struct {
 	DeletedByDevUserID string
 	DeletedAt          time.Time
 }
+
+type ListMessagesFilter struct {
+	Query       string
+	Role        string
+	CreatedFrom *time.Time
+	CreatedTo   *time.Time
+	Limit       int
+	Offset      int
+}
+
+type ListMessagesResult struct {
+	Items      []Message `json:"items"`
+	TotalCount int       `json:"total_count"`
+}

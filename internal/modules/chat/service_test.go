@@ -115,8 +115,11 @@ type stubRepository struct {
 	lastPruneCutoff time.Time
 }
 
-func (s *stubRepository) ListMessages(context.Context, time.Time, int) ([]Message, error) {
-	return s.listMessages, nil
+func (s *stubRepository) ListMessages(context.Context, time.Time, ListMessagesFilter) (ListMessagesResult, error) {
+	return ListMessagesResult{
+		Items:      s.listMessages,
+		TotalCount: len(s.listMessages),
+	}, nil
 }
 
 func (s *stubRepository) CreateMessage(_ context.Context, params CreateMessageParams) (Message, error) {

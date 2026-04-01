@@ -11,10 +11,17 @@
     "format": "prettier --write ."
   },
   "dependencies": {
+    "@fontsource-variable/manrope": "^5.2.8",
+    "@fontsource/jetbrains-mono": "^5.2.8",
+    "@fontsource/space-grotesk": "^5.2.10",
+    "chart.js": "^4.5.1",
     "class-variance-authority": "latest",
     "clsx": "latest",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.7",
     "qrcode": "^1.5.4",
-    "tailwind-merge": "latest"
+    "tailwind-merge": "latest",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@sveltejs/adapter-node": "latest",

@@ -20,6 +20,9 @@ type RepositoryContract interface {
 	ListStoresForOwner(ctx context.Context, ownerUserID string) ([]Store, error)
 	ListStoresForStaff(ctx context.Context, userID string) ([]Store, error)
 	ListAllStores(ctx context.Context) ([]Store, error)
+	ListStoreDirectoryForOwner(ctx context.Context, ownerUserID string, filter ListStoreDirectoryFilter) (StorePage, error)
+	ListStoreDirectoryForStaff(ctx context.Context, userID string, filter ListStoreDirectoryFilter) (StorePage, error)
+	ListStoreDirectoryForPlatform(ctx context.Context, filter ListStoreDirectoryFilter) (StorePage, error)
 	GetStoreByID(ctx context.Context, storeID string) (Store, error)
 	IsStoreStaff(ctx context.Context, storeID string, userID string) (bool, error)
 	CreateStore(ctx context.Context, params CreateStoreParams) (Store, error)
@@ -29,8 +32,10 @@ type RepositoryContract interface {
 	UpdateCallbackURL(ctx context.Context, params UpdateCallbackParams) (Store, error)
 	CreateEmployee(ctx context.Context, params CreateEmployeeParams) (StaffUser, error)
 	ListEmployeesByOwner(ctx context.Context, ownerUserID string) ([]StaffUser, error)
+	ListEmployeeDirectoryByOwner(ctx context.Context, ownerUserID string, filter ListEmployeesFilter) (StaffUserPage, error)
 	GetEmployeeByID(ctx context.Context, userID string) (StaffUser, error)
 	ListStoreStaff(ctx context.Context, storeID string) ([]StaffUser, error)
+	ListStoreStaffPage(ctx context.Context, filter ListStoreStaffFilter) (StaffUserPage, error)
 	AssignStaff(ctx context.Context, params AssignStaffParams) error
 	UnassignStaff(ctx context.Context, storeID string, userID string) error
 	InsertAuditLog(
@@ -50,6 +55,7 @@ type RepositoryContract interface {
 
 type Service interface {
 	ListStores(ctx context.Context, subject auth.Subject) ([]Store, error)
+	ListStoreDirectory(ctx context.Context, subject auth.Subject, filter ListStoreDirectoryFilter) (StorePage, error)
 	GetStore(ctx context.Context, subject auth.Subject, storeID string) (Store, error)
 	CreateStore(ctx context.Context, subject auth.Subject, input CreateStoreInput, metadata auth.RequestMetadata) (Store, error)
 	UpdateStore(ctx context.Context, subject auth.Subject, storeID string, input UpdateStoreInput, metadata auth.RequestMetadata) (Store, error)
@@ -58,7 +64,9 @@ type Service interface {
 	UpdateCallbackURL(ctx context.Context, subject auth.Subject, storeID string, input UpdateCallbackInput, metadata auth.RequestMetadata) (Store, error)
 	CreateEmployee(ctx context.Context, subject auth.Subject, input CreateEmployeeInput, metadata auth.RequestMetadata) (StaffUser, error)
 	ListEmployees(ctx context.Context, subject auth.Subject) ([]StaffUser, error)
+	ListEmployeeDirectory(ctx context.Context, subject auth.Subject, filter ListEmployeesFilter) (StaffUserPage, error)
 	ListStoreStaff(ctx context.Context, subject auth.Subject, storeID string) ([]StaffUser, error)
+	ListStoreStaffDirectory(ctx context.Context, subject auth.Subject, filter ListStoreStaffFilter) (StaffUserPage, error)
 	AssignStoreStaff(ctx context.Context, subject auth.Subject, storeID string, input AssignStaffInput, metadata auth.RequestMetadata) ([]StaffUser, error)
 	UnassignStoreStaff(ctx context.Context, subject auth.Subject, storeID string, userID string, metadata auth.RequestMetadata) ([]StaffUser, error)
 }
@@ -110,6 +118,39 @@ func (s *service) ListStores(ctx context.Context, subject auth.Subject) ([]Store
 	}
 
 	return stores, nil
+}
+
+func (s *service) ListStoreDirectory(ctx context.Context, subject auth.Subject, filter ListStoreDirectoryFilter) (StorePage, error) {
+	filter.Query = strings.TrimSpace(filter.Query)
+	filter.Limit = normalizeLimit(filter.Limit, 12, 100)
+	if filter.Offset < 0 {
+		filter.Offset = 0
+	}
+
+	var (
+		page StorePage
+		err  error
+	)
+
+	switch subject.Role {
+	case auth.RoleOwner:
+		page, err = s.repository.ListStoreDirectoryForOwner(ctx, subject.UserID, filter)
+	case auth.RoleKaryawan:
+		page, err = s.repository.ListStoreDirectoryForStaff(ctx, subject.UserID, filter)
+	case auth.RoleDev, auth.RoleSuperadmin:
+		page, err = s.repository.ListStoreDirectoryForPlatform(ctx, filter)
+	default:
+		return StorePage{}, ErrForbidden
+	}
+	if err != nil {
+		return StorePage{}, err
+	}
+
+	for index := range page.Items {
+		page.Items[index] = s.sanitizeStore(subject, page.Items[index])
+	}
+
+	return page, nil
 }
 
 func (s *service) GetStore(ctx context.Context, subject auth.Subject, storeID string) (Store, error) {
@@ -503,6 +544,20 @@ func (s *service) ListEmployees(ctx context.Context, subject auth.Subject) ([]St
 	return s.repository.ListEmployeesByOwner(ctx, subject.UserID)
 }
 
+func (s *service) ListEmployeeDirectory(ctx context.Context, subject auth.Subject, filter ListEmployeesFilter) (StaffUserPage, error) {
+	if subject.Role != auth.RoleOwner {
+		return StaffUserPage{}, ErrForbidden
+	}
+
+	filter.Query = strings.TrimSpace(filter.Query)
+	filter.Limit = normalizeLimit(filter.Limit, 12, 100)
+	if filter.Offset < 0 {
+		filter.Offset = 0
+	}
+
+	return s.repository.ListEmployeeDirectoryByOwner(ctx, subject.UserID, filter)
+}
+
 func (s *service) ListStoreStaff(ctx context.Context, subject auth.Subject, storeID string) ([]StaffUser, error) {
 	store, err := s.repository.GetStoreByID(ctx, strings.TrimSpace(storeID))
 	if err != nil {
@@ -523,6 +578,35 @@ func (s *service) ListStoreStaff(ctx context.Context, subject auth.Subject, stor
 	}
 
 	return s.repository.ListStoreStaff(ctx, store.ID)
+}
+
+func (s *service) ListStoreStaffDirectory(ctx context.Context, subject auth.Subject, filter ListStoreStaffFilter) (StaffUserPage, error) {
+	store, err := s.repository.GetStoreByID(ctx, strings.TrimSpace(filter.StoreID))
+	if err != nil {
+		return StaffUserPage{}, err
+	}
+
+	if store.DeletedAt != nil {
+		return StaffUserPage{}, ErrNotFound
+	}
+
+	allowed, err := s.canViewStore(ctx, subject, store)
+	if err != nil {
+		return StaffUserPage{}, err
+	}
+
+	if !allowed || subject.Role == auth.RoleKaryawan {
+		return StaffUserPage{}, ErrForbidden
+	}
+
+	filter.StoreID = store.ID
+	filter.Query = strings.TrimSpace(filter.Query)
+	filter.Limit = normalizeLimit(filter.Limit, 8, 100)
+	if filter.Offset < 0 {
+		filter.Offset = 0
+	}
+
+	return s.repository.ListStoreStaffPage(ctx, filter)
 }
 
 func (s *service) AssignStoreStaff(ctx context.Context, subject auth.Subject, storeID string, input AssignStaffInput, metadata auth.RequestMetadata) ([]StaffUser, error) {
@@ -712,4 +796,15 @@ func cloneNullableString(value *string) *string {
 func cloneStringPtr(value string) *string {
 	trimmed := strings.TrimSpace(value)
 	return &trimmed
+}
+
+func normalizeLimit(value int, fallback int, max int) int {
+	if value <= 0 {
+		return fallback
+	}
+	if value > max {
+		return max
+	}
+
+	return value
 }

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/mugiew/onixggr/internal/modules/auth"
 )
@@ -62,11 +63,27 @@ func (h *Handler) handleList(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	createdFrom, err := parseFilterTime(r.URL.Query().Get("created_from"))
+	if err != nil {
+		writeEnvelope(w, http.StatusBadRequest, false, "INVALID_REQUEST", nil)
+		return
+	}
+
+	createdTo, err := parseFilterTime(r.URL.Query().Get("created_to"))
+	if err != nil {
+		writeEnvelope(w, http.StatusBadRequest, false, "INVALID_REQUEST", nil)
+		return
+	}
+
 	list, err := h.service.ListByScope(r.Context(), ListParams{
-		ScopeType: scopeType,
-		ScopeID:   scopeID,
-		Limit:     limit,
-		Offset:    offset,
+		ScopeType:   scopeType,
+		ScopeID:     scopeID,
+		Query:       strings.TrimSpace(r.URL.Query().Get("query")),
+		ReadState:   strings.TrimSpace(r.URL.Query().Get("read_state")),
+		CreatedFrom: createdFrom,
+		CreatedTo:   createdTo,
+		Limit:       limit,
+		Offset:      offset,
 	})
 	if err != nil {
 		writeEnvelope(w, http.StatusInternalServerError, false, "INTERNAL_ERROR", nil)
@@ -167,6 +184,24 @@ func (h *Handler) resolveScope(r *http.Request, subject auth.Subject) (ScopeType
 	default:
 		return "", "", errForbiddenScope
 	}
+}
+
+func parseFilterTime(raw string) (*time.Time, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, nil
+	}
+
+	layouts := []string{time.RFC3339, "2006-01-02T15:04", "2006-01-02"}
+	for _, layout := range layouts {
+		parsed, err := time.Parse(layout, trimmed)
+		if err == nil {
+			value := parsed.UTC()
+			return &value, nil
+		}
+	}
+
+	return nil, errors.New("invalid time filter")
 }
 
 func (h *Handler) writeScopeError(w http.ResponseWriter, err error) {

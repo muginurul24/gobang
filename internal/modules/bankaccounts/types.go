@@ -46,6 +46,29 @@ type SearchFilter struct {
 	Limit int
 }
 
+type ListBankAccountsFilter struct {
+	StoreID      string
+	Query        string
+	IsActive     *bool
+	Limit        int
+	Offset       int
+	VerifiedFrom *time.Time
+	VerifiedTo   *time.Time
+}
+
+type BankAccountSummary struct {
+	TotalCount    int `json:"total_count"`
+	ActiveCount   int `json:"active_count"`
+	InactiveCount int `json:"inactive_count"`
+}
+
+type BankAccountPage struct {
+	Items   []BankAccount      `json:"items"`
+	Summary BankAccountSummary `json:"summary"`
+	Limit   int                `json:"limit"`
+	Offset  int                `json:"offset"`
+}
+
 type CreateBankAccountInput struct {
 	BankCode      string `json:"bank_code"`
 	AccountNumber string `json:"account_number"`

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/mugiew/onixggr/internal/modules/auth"
 )
@@ -49,6 +51,24 @@ func (h *Handler) handleListLogs(w http.ResponseWriter, r *http.Request) {
 			filter.Limit = parsed
 		}
 	}
+	if offset := r.URL.Query().Get("offset"); offset != "" {
+		parsed, err := strconv.Atoi(offset)
+		if err == nil {
+			filter.Offset = parsed
+		}
+	}
+	if createdFrom, err := parseFilterTime(r.URL.Query().Get("created_from")); err == nil {
+		filter.CreatedFrom = createdFrom
+	} else {
+		writeEnvelope(w, http.StatusBadRequest, false, "INVALID_REQUEST", nil)
+		return
+	}
+	if createdTo, err := parseFilterTime(r.URL.Query().Get("created_to")); err == nil {
+		filter.CreatedTo = createdTo
+	} else {
+		writeEnvelope(w, http.StatusBadRequest, false, "INVALID_REQUEST", nil)
+		return
+	}
 
 	logs, err := h.service.ListLogs(r.Context(), subject, filter)
 	if err != nil {
@@ -62,6 +82,24 @@ func (h *Handler) handleListLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeEnvelope(w, http.StatusOK, true, "SUCCESS", logs)
+}
+
+func parseFilterTime(raw string) (*time.Time, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, nil
+	}
+
+	layouts := []string{time.RFC3339, "2006-01-02T15:04", "2006-01-02"}
+	for _, layout := range layouts {
+		parsed, err := time.Parse(layout, trimmed)
+		if err == nil {
+			value := parsed.UTC()
+			return &value, nil
+		}
+	}
+
+	return nil, errors.New("invalid time filter")
 }
 
 type envelope struct {

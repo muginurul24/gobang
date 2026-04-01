@@ -55,7 +55,7 @@ func TestListLogsReturnsOwnerScopedEntries(t *testing.T) {
 		t.Fatalf("ListLogs returned error: %v", err)
 	}
 
-	if len(logs) != 1 || logs[0].Action != "store.create" {
+	if len(logs.Items) != 1 || logs.Items[0].Action != "store.create" {
 		t.Fatalf("logs = %#v, want owner-scoped entry", logs)
 	}
 }
@@ -120,14 +120,20 @@ type fakeRepository struct {
 	lastPruneCutoff time.Time
 }
 
-func (r *fakeRepository) ListGlobal(_ context.Context, filter Filter) ([]LogEntry, error) {
+func (r *fakeRepository) ListGlobal(_ context.Context, filter Filter) (ListResult, error) {
 	r.lastFilter = filter
-	return append([]LogEntry(nil), r.logs...), nil
+	return ListResult{
+		Items:      append([]LogEntry(nil), r.logs...),
+		TotalCount: len(r.logs),
+	}, nil
 }
 
-func (r *fakeRepository) ListOwnerScoped(_ context.Context, _ string, filter Filter) ([]LogEntry, error) {
+func (r *fakeRepository) ListOwnerScoped(_ context.Context, _ string, filter Filter) (ListResult, error) {
 	r.lastFilter = filter
-	return append([]LogEntry(nil), r.logs...), nil
+	return ListResult{
+		Items:      append([]LogEntry(nil), r.logs...),
+		TotalCount: len(r.logs),
+	}, nil
 }
 
 func (r *fakeRepository) OwnerHasStore(_ context.Context, _ string, _ string) (bool, error) {

@@ -6,7 +6,9 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/mugiew/onixggr/internal/modules/auth"
 	"github.com/mugiew/onixggr/internal/platform/qris"
@@ -41,7 +43,14 @@ func (h *Handler) handleListStoreTopups() http.Handler {
 			return
 		}
 
-		transactions, err := h.service.ListStoreTopups(r.Context(), subject, r.PathValue("storeID"))
+		filter, err := parseListTransactionsFilter(r)
+		if err != nil {
+			writeEnvelope(w, http.StatusBadRequest, false, "INVALID_REQUEST", nil)
+			return
+		}
+
+		filter.StoreID = r.PathValue("storeID")
+		transactions, err := h.service.ListStoreTopups(r.Context(), subject, filter)
 		if err != nil {
 			writePaymentError(w, err)
 			return
@@ -49,6 +58,84 @@ func (h *Handler) handleListStoreTopups() http.Handler {
 
 		writeEnvelope(w, http.StatusOK, true, "SUCCESS", transactions)
 	})
+}
+
+func parseListTransactionsFilter(r *http.Request) (ListTransactionsFilter, error) {
+	query := r.URL.Query()
+	filter := ListTransactionsFilter{
+		Type:   TransactionTypeStoreTopup,
+		Query:  strings.TrimSpace(query.Get("query")),
+		Limit:  12,
+		Offset: 0,
+	}
+
+	if rawType := strings.TrimSpace(query.Get("type")); rawType != "" {
+		filter.Type = TransactionType(rawType)
+		if filter.Type != TransactionTypeStoreTopup && filter.Type != TransactionTypeMemberPayment {
+			return ListTransactionsFilter{}, errors.New("invalid type")
+		}
+	}
+
+	if rawStatus := strings.TrimSpace(query.Get("status")); rawStatus != "" {
+		status := TransactionStatus(rawStatus)
+		switch status {
+		case TransactionStatusPending, TransactionStatusSuccess, TransactionStatusExpired, TransactionStatusFailed:
+			filter.Status = &status
+		default:
+			return ListTransactionsFilter{}, errors.New("invalid status")
+		}
+	}
+
+	if rawLimit := strings.TrimSpace(query.Get("limit")); rawLimit != "" {
+		limit, err := strconv.Atoi(rawLimit)
+		if err != nil || limit <= 0 {
+			return ListTransactionsFilter{}, errors.New("invalid limit")
+		}
+		if limit > 100 {
+			limit = 100
+		}
+		filter.Limit = limit
+	}
+
+	if rawOffset := strings.TrimSpace(query.Get("offset")); rawOffset != "" {
+		offset, err := strconv.Atoi(rawOffset)
+		if err != nil || offset < 0 {
+			return ListTransactionsFilter{}, errors.New("invalid offset")
+		}
+		filter.Offset = offset
+	}
+
+	createdFrom, err := parseFilterTime(query.Get("created_from"))
+	if err != nil {
+		return ListTransactionsFilter{}, err
+	}
+	filter.CreatedFrom = createdFrom
+
+	createdTo, err := parseFilterTime(query.Get("created_to"))
+	if err != nil {
+		return ListTransactionsFilter{}, err
+	}
+	filter.CreatedTo = createdTo
+
+	return filter, nil
+}
+
+func parseFilterTime(raw string) (*time.Time, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, nil
+	}
+
+	layouts := []string{time.RFC3339, "2006-01-02T15:04", "2006-01-02"}
+	for _, layout := range layouts {
+		parsed, err := time.Parse(layout, trimmed)
+		if err == nil {
+			value := parsed.UTC()
+			return &value, nil
+		}
+	}
+
+	return nil, errors.New("invalid time filter")
 }
 
 func (h *Handler) handleCreateStoreTopup() http.Handler {

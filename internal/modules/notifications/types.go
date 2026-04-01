@@ -37,10 +37,19 @@ type MarkReadParams struct {
 }
 
 type ListParams struct {
-	ScopeType ScopeType
-	ScopeID   string
-	Limit     int
-	Offset    int
+	ScopeType   ScopeType
+	ScopeID     string
+	Query       string
+	ReadState   string
+	CreatedFrom *time.Time
+	CreatedTo   *time.Time
+	Limit       int
+	Offset      int
+}
+
+type ListResult struct {
+	Items      []Notification `json:"items"`
+	TotalCount int            `json:"total_count"`
 }
 
 // Emitter is the interface exposed to domain modules for creating notifications.

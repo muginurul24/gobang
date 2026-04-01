@@ -125,8 +125,18 @@ func (r *Repository) ApplySnapshot(ctx context.Context, snapshot catalogSnapshot
 	}, nil
 }
 
-func (r *Repository) ListProviders(ctx context.Context, filter ListProvidersFilter) ([]Provider, error) {
+func (r *Repository) ListProviders(ctx context.Context, filter ListProvidersFilter) (ProviderPage, error) {
 	search := "%" + filter.Query + "%"
+	var totalCount int
+	if err := r.pool.QueryRow(ctx, `
+		SELECT count(*)::int
+		FROM provider_catalogs
+		WHERE ($1 = '' OR provider_code ILIKE $2 OR provider_name ILIKE $2)
+			AND ($3::int IS NULL OR status = $3)
+	`, filter.Query, search, filter.Status).Scan(&totalCount); err != nil {
+		return ProviderPage{}, fmt.Errorf("count provider catalog: %w", err)
+	}
+
 	rows, err := r.pool.Query(ctx, `
 		SELECT
 			provider_code,
@@ -138,9 +148,10 @@ func (r *Repository) ListProviders(ctx context.Context, filter ListProvidersFilt
 			AND ($3::int IS NULL OR status = $3)
 		ORDER BY provider_code ASC
 		LIMIT $4
-	`, filter.Query, search, filter.Status, filter.Limit)
+		OFFSET $5
+	`, filter.Query, search, filter.Status, filter.Limit, filter.Offset)
 	if err != nil {
-		return nil, fmt.Errorf("list provider catalog: %w", err)
+		return ProviderPage{}, fmt.Errorf("list provider catalog: %w", err)
 	}
 	defer rows.Close()
 
@@ -153,21 +164,37 @@ func (r *Repository) ListProviders(ctx context.Context, filter ListProvidersFilt
 			&provider.Status,
 			&provider.SyncedAt,
 		); err != nil {
-			return nil, fmt.Errorf("scan provider catalog: %w", err)
+			return ProviderPage{}, fmt.Errorf("scan provider catalog: %w", err)
 		}
 
 		providers = append(providers, provider)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate provider catalog: %w", err)
+		return ProviderPage{}, fmt.Errorf("iterate provider catalog: %w", err)
 	}
 
-	return providers, nil
+	return ProviderPage{
+		Items:      providers,
+		TotalCount: totalCount,
+		Limit:      filter.Limit,
+		Offset:     filter.Offset,
+	}, nil
 }
 
-func (r *Repository) ListGames(ctx context.Context, filter ListGamesFilter) ([]Game, error) {
+func (r *Repository) ListGames(ctx context.Context, filter ListGamesFilter) (GamePage, error) {
 	search := "%" + filter.Query + "%"
+	var totalCount int
+	if err := r.pool.QueryRow(ctx, `
+		SELECT count(*)::int
+		FROM provider_games
+		WHERE ($1 = '' OR provider_code = $1)
+			AND ($2 = '' OR game_code ILIKE $3 OR COALESCE(game_name->>'default', '') ILIKE $3)
+			AND ($4::int IS NULL OR status = $4)
+	`, filter.ProviderCode, filter.Query, search, filter.Status).Scan(&totalCount); err != nil {
+		return GamePage{}, fmt.Errorf("count provider games: %w", err)
+	}
+
 	rows, err := r.pool.Query(ctx, `
 		SELECT
 			provider_code,
@@ -182,9 +209,10 @@ func (r *Repository) ListGames(ctx context.Context, filter ListGamesFilter) ([]G
 			AND ($4::int IS NULL OR status = $4)
 		ORDER BY provider_code ASC, game_code ASC
 		LIMIT $5
-	`, filter.ProviderCode, filter.Query, search, filter.Status, filter.Limit)
+		OFFSET $6
+	`, filter.ProviderCode, filter.Query, search, filter.Status, filter.Limit, filter.Offset)
 	if err != nil {
-		return nil, fmt.Errorf("list provider games: %w", err)
+		return GamePage{}, fmt.Errorf("list provider games: %w", err)
 	}
 	defer rows.Close()
 
@@ -199,17 +227,22 @@ func (r *Repository) ListGames(ctx context.Context, filter ListGamesFilter) ([]G
 			&game.Status,
 			&game.SyncedAt,
 		); err != nil {
-			return nil, fmt.Errorf("scan provider game: %w", err)
+			return GamePage{}, fmt.Errorf("scan provider game: %w", err)
 		}
 
 		games = append(games, game)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate provider games: %w", err)
+		return GamePage{}, fmt.Errorf("iterate provider games: %w", err)
 	}
 
-	return games, nil
+	return GamePage{
+		Items:      games,
+		TotalCount: totalCount,
+		Limit:      filter.Limit,
+		Offset:     filter.Offset,
+	}, nil
 }
 
 func nullableString(value string) *string {

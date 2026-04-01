@@ -1,0 +1,13 @@
+DROP INDEX IF EXISTS chat_messages_body_trgm_idx;
+DROP INDEX IF EXISTS notifications_search_trgm_idx;
+DROP INDEX IF EXISTS store_withdrawals_search_trgm_idx;
+DROP INDEX IF EXISTS store_bank_accounts_search_trgm_idx;
+DROP INDEX IF EXISTS qris_transactions_search_trgm_idx;
+DROP INDEX IF EXISTS provider_games_search_trgm_idx;
+DROP INDEX IF EXISTS provider_catalogs_search_trgm_idx;
+DROP INDEX IF EXISTS store_members_search_trgm_idx;
+DROP INDEX IF EXISTS users_karyawan_search_trgm_idx;
+DROP INDEX IF EXISTS stores_search_trgm_idx;
+DROP INDEX IF EXISTS users_created_by_role_created_at_desc_idx;
+DROP INDEX IF EXISTS store_staff_store_created_at_desc_idx;
+DROP INDEX IF EXISTS stores_owner_created_at_desc_idx;

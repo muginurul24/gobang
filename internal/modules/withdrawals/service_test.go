@@ -254,7 +254,7 @@ func TestListStoreWithdrawalsBlocksKaryawan(t *testing.T) {
 	_, err := service.ListStoreWithdrawals(context.Background(), auth.Subject{
 		UserID: "employee-1",
 		Role:   auth.RoleKaryawan,
-	}, "store-1")
+	}, ListWithdrawalsFilter{StoreID: "store-1"})
 	if !errors.Is(err, ErrForbidden) {
 		t.Fatalf("error = %v, want ErrForbidden", err)
 	}
@@ -364,8 +364,12 @@ func (r *stubRepository) GetByID(_ context.Context, withdrawalID string) (StoreW
 	return withdrawal, nil
 }
 
-func (r *stubRepository) ListStoreWithdrawals(context.Context, string) ([]StoreWithdrawal, error) {
-	return nil, nil
+func (r *stubRepository) ListStoreWithdrawalsPage(_ context.Context, filter ListWithdrawalsFilter) (StoreWithdrawalPage, error) {
+	return StoreWithdrawalPage{
+		Summary: StoreWithdrawalSummary{},
+		Limit:   filter.Limit,
+		Offset:  filter.Offset,
+	}, nil
 }
 
 func (r *stubRepository) AcquireProcessingLock(context.Context, string) (ProcessingLock, bool, error) {

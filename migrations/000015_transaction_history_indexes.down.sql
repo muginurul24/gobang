@@ -1,0 +1,3 @@
+DROP INDEX IF EXISTS store_withdrawals_store_status_created_at_idx;
+
+DROP INDEX IF EXISTS qris_transactions_store_type_status_created_at_idx;

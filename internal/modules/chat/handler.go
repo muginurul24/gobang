@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/mugiew/onixggr/internal/modules/auth"
 )
@@ -39,7 +40,33 @@ func (h *Handler) handleListMessages(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	messages, err := h.service.ListMessages(r.Context(), subject, limit)
+	offset := 0
+	if raw := strings.TrimSpace(r.URL.Query().Get("offset")); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed >= 0 {
+			offset = parsed
+		}
+	}
+
+	createdFrom, err := parseFilterTime(r.URL.Query().Get("created_from"))
+	if err != nil {
+		writeEnvelope(w, http.StatusBadRequest, false, "INVALID_REQUEST", nil)
+		return
+	}
+
+	createdTo, err := parseFilterTime(r.URL.Query().Get("created_to"))
+	if err != nil {
+		writeEnvelope(w, http.StatusBadRequest, false, "INVALID_REQUEST", nil)
+		return
+	}
+
+	messages, err := h.service.ListMessages(r.Context(), subject, ListMessagesFilter{
+		Query:       strings.TrimSpace(r.URL.Query().Get("query")),
+		Role:        strings.TrimSpace(r.URL.Query().Get("role")),
+		CreatedFrom: createdFrom,
+		CreatedTo:   createdTo,
+		Limit:       limit,
+		Offset:      offset,
+	})
 	if err != nil {
 		writeChatError(w, err)
 		return
@@ -97,6 +124,24 @@ func writeChatError(w http.ResponseWriter, err error) {
 	default:
 		writeEnvelope(w, http.StatusInternalServerError, false, "INTERNAL_ERROR", nil)
 	}
+}
+
+func parseFilterTime(raw string) (*time.Time, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, nil
+	}
+
+	layouts := []string{time.RFC3339, "2006-01-02T15:04", "2006-01-02"}
+	for _, layout := range layouts {
+		parsed, err := time.Parse(layout, trimmed)
+		if err == nil {
+			value := parsed.UTC()
+			return &value, nil
+		}
+	}
+
+	return nil, errors.New("invalid time filter")
 }
 
 type envelope struct {

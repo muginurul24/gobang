@@ -182,8 +182,8 @@ func (r *stubRepository) Create(_ context.Context, params CreateParams, createdA
 	return r.created, nil
 }
 
-func (r *stubRepository) ListByScope(_ context.Context, _ ListParams) ([]Notification, error) {
-	return []Notification{}, nil
+func (r *stubRepository) ListByScope(_ context.Context, _ ListParams) (ListResult, error) {
+	return ListResult{Items: []Notification{}}, nil
 }
 
 func (r *stubRepository) MarkRead(_ context.Context, _ MarkReadParams, _ time.Time) error {

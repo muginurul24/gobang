@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/mugiew/onixggr/internal/modules/auth"
 )
@@ -64,7 +65,49 @@ func (h *Handler) handleListBankAccounts() http.Handler {
 			return
 		}
 
-		results, err := h.service.ListBankAccounts(r.Context(), subject, r.PathValue("storeID"))
+		filter := ListBankAccountsFilter{
+			StoreID: r.PathValue("storeID"),
+			Query:   strings.TrimSpace(r.URL.Query().Get("query")),
+			Limit:   20,
+		}
+		if rawStatus := strings.TrimSpace(r.URL.Query().Get("status")); rawStatus != "" {
+			isActive, ok := parseOptionalAccountStatus(rawStatus)
+			if !ok {
+				writeEnvelope(w, http.StatusBadRequest, false, "INVALID_REQUEST", nil)
+				return
+			}
+			filter.IsActive = isActive
+		}
+		if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+			limit, err := strconv.Atoi(raw)
+			if err != nil {
+				writeEnvelope(w, http.StatusBadRequest, false, "INVALID_REQUEST", nil)
+				return
+			}
+			filter.Limit = limit
+		}
+		if raw := strings.TrimSpace(r.URL.Query().Get("offset")); raw != "" {
+			offset, err := strconv.Atoi(raw)
+			if err != nil {
+				writeEnvelope(w, http.StatusBadRequest, false, "INVALID_REQUEST", nil)
+				return
+			}
+			filter.Offset = offset
+		}
+		verifiedFrom, err := parseFilterTime(r.URL.Query().Get("verified_from"))
+		if err != nil {
+			writeEnvelope(w, http.StatusBadRequest, false, "INVALID_REQUEST", nil)
+			return
+		}
+		verifiedTo, err := parseFilterTime(r.URL.Query().Get("verified_to"))
+		if err != nil {
+			writeEnvelope(w, http.StatusBadRequest, false, "INVALID_REQUEST", nil)
+			return
+		}
+		filter.VerifiedFrom = verifiedFrom
+		filter.VerifiedTo = verifiedTo
+
+		results, err := h.service.ListBankAccounts(r.Context(), subject, filter)
 		if err != nil {
 			writeBankAccountError(w, err)
 			return
@@ -196,4 +239,32 @@ func clientIP(r *http.Request) string {
 	}
 
 	return "0.0.0.0"
+}
+
+func parseOptionalAccountStatus(raw string) (*bool, bool) {
+	switch strings.TrimSpace(raw) {
+	case "active":
+		value := true
+		return &value, true
+	case "inactive":
+		value := false
+		return &value, true
+	default:
+		return nil, false
+	}
+}
+
+func parseFilterTime(raw string) (*time.Time, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return nil, nil
+	}
+
+	parsed, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return nil, err
+	}
+
+	parsed = parsed.UTC()
+	return &parsed, nil
 }

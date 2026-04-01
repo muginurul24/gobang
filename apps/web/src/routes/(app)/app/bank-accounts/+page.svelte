@@ -2,11 +2,18 @@
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
 
+  import DateRangeFilter from '$lib/components/app/date-range-filter.svelte';
   import EmptyState from '$lib/components/app/empty-state.svelte';
+  import ExportActions from '$lib/components/app/export-actions.svelte';
+  import MetricCard from '$lib/components/app/metric-card.svelte';
   import Notice from '$lib/components/app/notice.svelte';
+  import PaginationControls from '$lib/components/app/pagination-controls.svelte';
   import PageSkeleton from '$lib/components/app/page-skeleton.svelte';
+  import StoreScopePicker from '$lib/components/app/store-scope-picker.svelte';
   import Button from '$lib/components/ui/button/button.svelte';
   import { authSession, initializeAuthSession } from '$lib/auth/client';
+  import { exportRowsToCSV, exportRowsToPDF, exportRowsToXLSX } from '$lib/exporters';
+  import { formatDateTime, formatNumber } from '$lib/formatters';
   import {
     createBankAccount,
     fetchBankAccounts,
@@ -15,10 +22,9 @@
     type BankDirectoryEntry,
     updateBankAccountStatus
   } from '$lib/bank-accounts/client';
-  import { fetchStores, type Store } from '$lib/stores/client';
+  import type { Store } from '$lib/stores/client';
   import {
     hydratePreferredStoreID,
-    pickPreferredStoreID,
     preferredStoreID,
     setPreferredStoreID
   } from '$lib/stores/preferences';
@@ -27,16 +33,26 @@
   let busy = false;
   let errorMessage = '';
   let successMessage = '';
-  let stores: Store[] = [];
+  let storeScopeLoading = true;
+  let storeScopeTotalCount = 0;
   let selectedStoreID = '';
+  let selectedStore: Store | null = null;
   let bankAccounts: BankAccount[] = [];
+  let totalBankAccountCount = 0;
+  let activeAccountCount = 0;
+  let inactiveAccountCount = 0;
   let bankQuery = '';
   let bankResults: BankDirectoryEntry[] = [];
   let selectedBank: BankDirectoryEntry | null = null;
   let accountNumber = '';
   let savedAccountSearchTerm = '';
+  let savedAccountStatusFilter: 'all' | 'active' | 'inactive' = 'all';
+  let savedAccountFrom = '';
+  let savedAccountTo = '';
+  let savedAccountPage = 1;
+  let savedAccountPageSize = 6;
+  let lastBankAccountQueryKey = '';
 
-  $: normalizedSavedAccountSearch = savedAccountSearchTerm.trim().toLowerCase();
   $: bankQueryNote =
     bankQuery.trim() === ''
       ? 'Kosongkan untuk melihat shortlist bank awal, atau isi kode/nama bank spesifik.'
@@ -45,28 +61,22 @@
     accountNumber.trim() !== '' && !/^[0-9]{6,30}$/.test(accountNumber.trim())
       ? 'Nomor rekening harus numerik dengan panjang 6 sampai 30 digit.'
       : '';
-  $: filteredBankAccounts = bankAccounts.filter((bankAccount) => {
-    if (normalizedSavedAccountSearch === '') {
-      return true;
+  $: if (!loading && selectedStoreID !== '') {
+    const nextKey = `${selectedStoreID}:${savedAccountPage}:${savedAccountPageSize}`;
+    if (nextKey !== lastBankAccountQueryKey) {
+      void loadBankAccounts();
     }
-
-    return (
-      bankAccount.bank_name.toLowerCase().includes(normalizedSavedAccountSearch) ||
-      bankAccount.bank_code.toLowerCase().includes(normalizedSavedAccountSearch) ||
-      bankAccount.account_name.toLowerCase().includes(normalizedSavedAccountSearch) ||
-      bankAccount.account_number_masked.toLowerCase().includes(normalizedSavedAccountSearch)
-    );
-  });
+  }
 
   onMount(() => {
     let active = true;
     hydratePreferredStoreID();
     const unsubscribe = preferredStoreID.subscribe(async (storeID) => {
-      if (!active || loading || stores.length === 0) {
+      if (!active || loading || storeScopeLoading) {
         return;
       }
 
-      if (storeID !== '' && storeID !== selectedStoreID && stores.some((store) => store.id === storeID)) {
+      if (storeID !== '' && storeID !== selectedStoreID) {
         selectedStoreID = storeID;
         errorMessage = '';
         successMessage = '';
@@ -82,7 +92,8 @@
         return;
       }
 
-      await loadStoresAndAccounts();
+      await runBankSearch();
+      loading = false;
     })();
 
     return () => {
@@ -91,45 +102,25 @@
     };
   });
 
-  async function loadStoresAndAccounts() {
-    loading = true;
-    errorMessage = '';
-
-    const storesResponse = await fetchStores();
-    if (!(await ensureAuthorized(storesResponse.message))) {
-      return;
-    }
-
-    if (!storesResponse.status || storesResponse.message !== 'SUCCESS') {
-      errorMessage = toMessage(storesResponse.message);
-      loading = false;
-      return;
-    }
-
-    stores = storesResponse.data ?? [];
-    if (stores.length === 0) {
-      selectedStoreID = '';
-      bankAccounts = [];
-      bankResults = [];
-      loading = false;
-      return;
-    }
-
-    selectedStoreID = pickPreferredStoreID(stores, selectedStoreID);
-    setPreferredStoreID(selectedStoreID);
-
-    await loadBankAccounts();
-    await runBankSearch();
-    loading = false;
-  }
-
   async function loadBankAccounts() {
+    totalBankAccountCount = 0;
+    activeAccountCount = 0;
+    inactiveAccountCount = 0;
+
     if (selectedStoreID === '') {
       bankAccounts = [];
+      lastBankAccountQueryKey = '';
       return;
     }
 
-    const response = await fetchBankAccounts(selectedStoreID);
+    const response = await fetchBankAccounts(selectedStoreID, {
+      query: savedAccountSearchTerm || undefined,
+      status: savedAccountStatusFilter === 'all' ? undefined : savedAccountStatusFilter,
+      limit: savedAccountPageSize,
+      offset: (savedAccountPage - 1) * savedAccountPageSize,
+      verifiedFrom: savedAccountFrom || undefined,
+      verifiedTo: savedAccountTo || undefined
+    });
     if (!(await ensureAuthorized(response.message))) {
       return;
     }
@@ -140,7 +131,11 @@
       return;
     }
 
-    bankAccounts = response.data ?? [];
+    bankAccounts = response.data.items ?? [];
+    totalBankAccountCount = response.data.summary?.total_count ?? 0;
+    activeAccountCount = response.data.summary?.active_count ?? 0;
+    inactiveAccountCount = response.data.summary?.inactive_count ?? 0;
+    lastBankAccountQueryKey = `${selectedStoreID}:${savedAccountPage}:${savedAccountPageSize}`;
   }
 
   async function runBankSearch() {
@@ -158,9 +153,11 @@
     bankResults = response.data ?? [];
   }
 
-  async function changeStore(storeID: string) {
-    selectedStoreID = storeID;
+  async function handleStoreScopeChange(event: CustomEvent<{ storeID: string; store: Store | null }>) {
+    selectedStoreID = event.detail.storeID;
+    selectedStore = event.detail.store;
     setPreferredStoreID(selectedStoreID);
+    savedAccountPage = 1;
     await loadBankAccounts();
   }
 
@@ -241,7 +238,7 @@
   }
 
   function currentStore() {
-    return stores.find((store) => store.id === selectedStoreID) ?? null;
+    return selectedStore;
   }
 
   function canUseBankAccounts() {
@@ -266,6 +263,68 @@
         return 'Terjadi kesalahan. Coba ulangi.';
     }
   }
+
+  function exportBankAccountsToCSV() {
+    exportRowsToCSV(
+      `${selectedStoreID || 'store'}-bank-accounts`,
+      [
+        { label: 'Status', value: (bankAccount) => (bankAccount.is_active ? 'Active' : 'Inactive') },
+        { label: 'Bank Code', value: (bankAccount) => bankAccount.bank_code },
+        { label: 'Bank Name', value: (bankAccount) => bankAccount.bank_name },
+        { label: 'Account Name', value: (bankAccount) => bankAccount.account_name },
+        { label: 'Account Number', value: (bankAccount) => bankAccount.account_number_masked },
+        { label: 'Verified At', value: (bankAccount) => formatDateTime(bankAccount.verified_at) },
+        { label: 'Created At', value: (bankAccount) => formatDateTime(bankAccount.created_at) }
+      ],
+      bankAccounts,
+    );
+  }
+
+  function exportBankAccountsToXLSX() {
+    exportRowsToXLSX(
+      `${selectedStoreID || 'store'}-bank-accounts`,
+      'BankAccounts',
+      [
+        { label: 'Status', value: (bankAccount) => (bankAccount.is_active ? 'Active' : 'Inactive') },
+        { label: 'Bank Code', value: (bankAccount) => bankAccount.bank_code },
+        { label: 'Bank Name', value: (bankAccount) => bankAccount.bank_name },
+        { label: 'Account Name', value: (bankAccount) => bankAccount.account_name },
+        { label: 'Account Number', value: (bankAccount) => bankAccount.account_number_masked },
+        { label: 'Verified At', value: (bankAccount) => formatDateTime(bankAccount.verified_at) },
+        { label: 'Created At', value: (bankAccount) => formatDateTime(bankAccount.created_at) }
+      ],
+      bankAccounts,
+    );
+  }
+
+  function exportBankAccountsToPDF() {
+    exportRowsToPDF(
+      `${selectedStoreID || 'store'}-bank-accounts`,
+      'Store Bank Accounts',
+      [
+        { label: 'Status', value: (bankAccount) => (bankAccount.is_active ? 'Active' : 'Inactive') },
+        { label: 'Bank', value: (bankAccount) => `${bankAccount.bank_code} ${bankAccount.bank_name}` },
+        { label: 'Account Name', value: (bankAccount) => bankAccount.account_name },
+        { label: 'Masked Number', value: (bankAccount) => bankAccount.account_number_masked },
+        { label: 'Verified', value: (bankAccount) => formatDateTime(bankAccount.verified_at) }
+      ],
+      bankAccounts,
+    );
+  }
+
+  async function applySavedAccountFilters() {
+    savedAccountPage = 1;
+    await loadBankAccounts();
+  }
+
+  async function resetSavedAccountFilters() {
+    savedAccountSearchTerm = '';
+    savedAccountStatusFilter = 'all';
+    savedAccountFrom = '';
+    savedAccountTo = '';
+    savedAccountPage = 1;
+    await loadBankAccounts();
+  }
 </script>
 
 <svelte:head>
@@ -276,26 +335,26 @@
   <PageSkeleton blocks={4} />
 {:else}
   <div class="space-y-6">
-    <section class="glass-panel rounded-4xl p-6">
-      <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+    <section class="surface-dark surface-grid overflow-hidden rounded-[2.4rem] px-6 py-6 text-white sm:px-7 sm:py-7">
+      <div class="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
         <div class="space-y-2">
-          <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
+          <p class="section-kicker">
             Withdrawal Destination
           </p>
-          <h1 class="font-display text-3xl font-bold tracking-tight text-ink-900">
-            Verifikasi rekening tujuan per toko
+          <h1 class="font-display text-4xl font-bold tracking-tight sm:text-5xl">
+            Directory rekening tujuan yang aman, masked, dan siap dipakai payout.
           </h1>
-          <p class="max-w-3xl text-sm leading-6 text-ink-700">
+          <p class="max-w-3xl text-sm leading-7 text-white/72 sm:text-base">
             Module ini memakai `docs/Bank RTOL.json` untuk validasi `bank_code`, lalu melakukan
             inquiry sebelum rekening disimpan. Nomor rekening penuh tidak ditampilkan lagi di UI;
             yang tampil hanya hasil masking.
           </p>
         </div>
 
-        <div class="rounded-3xl bg-canvas-100 px-4 py-3 text-sm text-ink-700">
-          <p class="font-semibold text-ink-900">Scope</p>
-          <p>Role: {$authSession?.user.role ?? '-'}</p>
-          <p>Toko tersedia: {stores.length}</p>
+        <div class="rounded-[1.8rem] border border-white/12 bg-white/7 px-4 py-4 text-sm text-white/72 backdrop-blur">
+          <p class="font-semibold text-white">Scope</p>
+          <p class="mt-2">Role: {$authSession?.user.role ?? '-'}</p>
+          <p>Toko tersedia: {formatNumber(storeScopeTotalCount)}</p>
         </div>
       </div>
     </section>
@@ -314,7 +373,9 @@
         title="Role ini tidak bisa mengelola rekening tujuan"
         body="Rekening withdraw hanya boleh diubah oleh owner, dev, dan superadmin agar data payout tidak bocor ke role yang tidak relevan."
       />
-    {:else if stores.length === 0}
+    {:else if storeScopeLoading}
+      <PageSkeleton blocks={2} />
+    {:else if storeScopeTotalCount === 0}
       <EmptyState
         eyebrow="Bank Accounts"
         title="Belum ada toko untuk dihubungkan"
@@ -323,6 +384,36 @@
         actionLabel="Buka Stores"
       />
     {:else}
+      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          eyebrow="Accounts"
+          title="Stored accounts"
+          value={formatNumber(totalBankAccountCount)}
+          detail="Semua rekening payout terfilter di store aktif."
+          tone="brand"
+        />
+        <MetricCard
+          eyebrow="Accounts"
+          title="Active"
+          value={formatNumber(activeAccountCount)}
+          detail="Rekening yang bisa dipakai flow withdraw saat ini."
+        />
+        <MetricCard
+          eyebrow="Accounts"
+          title="Inactive"
+          value={formatNumber(inactiveAccountCount)}
+          detail="Rekening yang masih tersimpan namun tidak aktif."
+          tone={inactiveAccountCount > 0 ? 'accent' : 'default'}
+        />
+        <MetricCard
+          eyebrow="Store"
+          title="Current store"
+          value={currentStore()?.name ?? '-'}
+          detail="Semua operasi bank account mengikuti store aktif."
+          tone="accent"
+        />
+      </div>
+
       <div class="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <section class="glass-panel rounded-4xl p-6">
           <h2 class="font-display text-2xl font-bold text-ink-900">Tambah rekening tujuan</h2>
@@ -332,18 +423,17 @@
           </p>
 
           <div class="mt-5 space-y-4">
-            <label class="space-y-2">
-              <span class="text-sm font-medium text-ink-700">Toko</span>
-              <select
-                bind:value={selectedStoreID}
-                class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300"
-                onchange={(event) => changeStore((event.currentTarget as HTMLSelectElement).value)}
-              >
-                {#each stores as store}
-                  <option value={store.id}>{store.name} · {store.slug}</option>
-                {/each}
-              </select>
-            </label>
+            <StoreScopePicker
+              bind:selectedStoreID
+              bind:selectedStore
+              bind:loading={storeScopeLoading}
+              bind:totalCount={storeScopeTotalCount}
+              compact
+              title="Store scope untuk rekening payout"
+              description="Selector store memakai backend directory yang dipaginasi, agar cepat walau jumlah toko besar."
+              placeholder="Cari store tujuan rekening withdraw"
+              on:change={handleStoreScopeChange}
+            />
 
             <label class="space-y-2">
               <span class="text-sm font-medium text-ink-700">Cari bank RTOL</span>
@@ -426,7 +516,8 @@
           <p class="mt-2 text-sm leading-6 text-ink-700">
             {#if currentStore()}
               Rekening yang tersimpan untuk {currentStore()?.name}. Hanya nomor masked yang tampil di
-              dashboard.
+              dashboard. Search, status, rentang waktu, dan pagination sekarang dieksekusi di
+              backend agar tetap ringan saat row membesar.
             {/if}
           </p>
 
@@ -439,21 +530,56 @@
             />
           </label>
 
+          <div class="mt-4 grid gap-4 xl:grid-cols-[12rem_minmax(0,1fr)]">
+            <label class="space-y-2">
+              <span class="text-sm font-medium text-ink-700">Status</span>
+              <select
+                bind:value={savedAccountStatusFilter}
+                class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300"
+              >
+                <option value="all">Semua status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </label>
+
+            <DateRangeFilter bind:start={savedAccountFrom} bind:end={savedAccountTo} label="Verified at" />
+          </div>
+
+          <div class="mt-4">
+            <ExportActions
+              count={bankAccounts.length}
+              disabled={bankAccounts.length === 0}
+              onCsv={exportBankAccountsToCSV}
+              onXlsx={exportBankAccountsToXLSX}
+              onPdf={exportBankAccountsToPDF}
+            />
+          </div>
+
+          <div class="mt-4 flex flex-wrap gap-3">
+            <Button variant="brand" size="lg" onclick={applySavedAccountFilters}>
+              Apply Filters
+            </Button>
+            <Button variant="outline" size="lg" onclick={resetSavedAccountFilters}>
+              Reset
+            </Button>
+          </div>
+
           <div class="mt-5 space-y-4">
-            {#if bankAccounts.length === 0}
+            {#if totalBankAccountCount === 0}
               <EmptyState
                 eyebrow="Stored Accounts"
                 title="Belum ada rekening terverifikasi"
                 body="Rekening yang lolos inquiry akan tampil di sini dalam bentuk masked agar aman untuk dashboard."
               />
-            {:else if filteredBankAccounts.length === 0}
+            {:else if bankAccounts.length === 0}
               <EmptyState
                 eyebrow="Filter Result"
                 title="Tidak ada rekening yang cocok"
-                body={`Tidak ada rekening yang cocok dengan filter "${savedAccountSearchTerm}".`}
+                body={`Tidak ada rekening yang cocok dengan filter "${savedAccountSearchTerm}" dan rentang waktu aktif.`}
               />
             {:else}
-              {#each filteredBankAccounts as bankAccount}
+              {#each bankAccounts as bankAccount}
                 <article class="rounded-3xl border border-ink-100 bg-white p-4">
                   <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                     <div class="space-y-1">
@@ -465,16 +591,11 @@
                       <p class="font-mono text-sm text-ink-900">{bankAccount.account_number_masked}</p>
                     </div>
 
-                    <div class="rounded-3xl bg-canvas-100 px-4 py-3 text-sm text-ink-700">
+                    <div class="rounded-[1.5rem] bg-canvas-100 px-4 py-3 text-sm text-ink-700">
                       <p class="font-semibold text-ink-900">
                         {bankAccount.is_active ? 'Active' : 'Inactive'}
                       </p>
-                      <p>
-                        Verified:
-                        {bankAccount.verified_at
-                          ? new Date(bankAccount.verified_at).toLocaleString('id-ID')
-                          : '-'}
-                      </p>
+                      <p>Verified: {bankAccount.verified_at ? formatDateTime(bankAccount.verified_at) : '-'}</p>
                     </div>
                   </div>
 
@@ -492,6 +613,12 @@
               {/each}
             {/if}
           </div>
+
+          {#if totalBankAccountCount > 0}
+            <div class="mt-5">
+              <PaginationControls bind:page={savedAccountPage} bind:pageSize={savedAccountPageSize} totalItems={totalBankAccountCount} />
+            </div>
+          {/if}
         </section>
       </div>
     {/if}

@@ -13,6 +13,8 @@ func TestGetSummaryReturnsStoreMetricsForOwner(t *testing.T) {
 	repository := &stubRepository{
 		storeMetrics: StoreMetrics{
 			AccessibleStoreCount: 2,
+			ActiveStoreCount:     2,
+			LowBalanceStoreCount: 1,
 			BalanceTotal:         "150000.00",
 			PendingQRISCount:     3,
 			SuccessTodayCount:    7,
@@ -51,6 +53,8 @@ func TestGetSummaryReturnsPlatformMetricsForDev(t *testing.T) {
 			PlatformIncomeToday:    "15000.00",
 			PlatformIncomeMonth:    "300000.00",
 			TotalStoreCount:        8,
+			ActiveStoreCount:       7,
+			LowBalanceStoreCount:   2,
 			PendingWithdrawCount:   2,
 			UpstreamErrorRate24h:   4.5,
 			CallbackFailureRate24h: 1.25,

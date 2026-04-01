@@ -3,10 +3,11 @@
   import { onMount } from 'svelte';
 
   import Button from '$lib/components/ui/button/button.svelte';
+  import Notice from '$lib/components/app/notice.svelte';
   import { authSession, initializeAuthSession, login, saveAuthSession } from '$lib/auth/client';
 
-  let loginValue = 'owner-demo';
-  let password = 'OwnerDemo123!';
+  let loginValue = '';
+  let password = '';
   let totpCode = '';
   let recoveryCode = '';
   let loading = false;
@@ -78,32 +79,36 @@
 </svelte:head>
 
 <div class="space-y-6">
-  <div class="space-y-2">
-    <p class="text-xs font-semibold uppercase tracking-[0.24em] text-accent-700">Auth UX</p>
-    <h1 class="font-display text-3xl font-bold tracking-tight text-ink-900">Masuk ke dashboard</h1>
-    <p class="text-sm leading-6 text-ink-700">
-      Login dashboard sekarang sudah mendukung username/email, one-device session, TOTP optional,
-      recovery code, dan hardening rate limit dasar.
+  <div class="space-y-3">
+    <p class="section-kicker">Command Login</p>
+    <h1 class="font-display text-4xl font-bold tracking-tight text-ink-900 sm:text-5xl">
+      Masuk ke command center
+    </h1>
+    <p class="max-w-2xl text-sm leading-7 text-ink-700">
+      Gunakan username atau email dashboard. Jika akun mewajibkan 2FA, flow akan otomatis
+      berpindah ke verifikasi TOTP atau recovery code.
     </p>
   </div>
 
-  <div class="rounded-3xl border border-brand-200 bg-brand-100/60 px-4 py-4 text-sm leading-6 text-brand-700">
-    Demo:
-    <span class="font-semibold text-ink-900">owner-demo / OwnerDemo123!</span>
-    atau
-    <span class="font-semibold text-ink-900">dev-demo / DevDemo123!</span>
+  <div class="grid gap-3 sm:grid-cols-3">
+    {#each [
+      ['Session', 'refresh cookie + CSRF'],
+      ['Boundary', 'owner/store scope'],
+      ['Hardening', '2FA + allowlist']
+    ] as [label, value]}
+      <article class="rounded-[1.6rem] border border-white/60 bg-white/70 px-4 py-4 shadow-[0_16px_32px_rgba(7,16,12,0.08)]">
+        <p class="text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-ink-300">{label}</p>
+        <p class="mt-2 text-sm font-semibold text-ink-900">{value}</p>
+      </article>
+    {/each}
   </div>
 
   {#if errorMessage}
-    <div class="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-      {errorMessage}
-    </div>
+    <Notice tone="error" title="Login Gagal" message={errorMessage} />
   {/if}
 
   {#if successMessage}
-    <div class="rounded-3xl border border-brand-200 bg-brand-100/60 px-4 py-3 text-sm text-brand-700">
-      {successMessage}
-    </div>
+    <Notice tone="success" title="Akses Diterima" message={successMessage} />
   {/if}
 
   <form class="space-y-4" onsubmit={handleSubmit}>
@@ -113,7 +118,7 @@
         bind:value={loginValue}
         class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300"
         type="text"
-        placeholder="owner-demo"
+        placeholder="owner@example.com"
       />
     </label>
 
@@ -128,7 +133,7 @@
     </label>
 
     {#if requiresTOTP}
-      <div class="rounded-3xl border border-ink-100 bg-canvas-50 px-4 py-4">
+      <div class="rounded-[1.7rem] border border-accent-200/60 bg-linear-to-r from-accent-100/70 to-white px-4 py-4">
         <p class="text-sm font-semibold text-ink-900">2FA diperlukan</p>
         <p class="mt-1 text-sm leading-6 text-ink-700">
           Isi salah satu: kode TOTP 6 digit dari authenticator atau recovery code sekali pakai.
@@ -160,4 +165,12 @@
       {requiresTOTP ? 'Verifikasi Login' : 'Masuk ke Dashboard'}
     </Button>
   </form>
+
+  <article class="rounded-[1.7rem] border border-dashed border-ink-200 bg-white/56 px-4 py-4 text-sm leading-6 text-ink-700">
+    <p class="font-semibold text-ink-900">Catatan environment</p>
+    <p class="mt-2">
+      Seed demo atau akun bootstrap bisa berbeda per environment. UI login tidak lagi mengisi demo
+      credential secara otomatis agar aman untuk staging dan production.
+    </p>
+  </article>
 </div>

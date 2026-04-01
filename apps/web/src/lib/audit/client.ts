@@ -14,13 +14,21 @@ export type AuditLogEntry = {
   created_at: string;
 };
 
+export type AuditLogPage = {
+  items: AuditLogEntry[];
+  total_count: number;
+};
+
 export async function fetchAuditLogs(
   params: {
     storeID?: string;
     limit?: number;
+    offset?: number;
     action?: string;
     actorRole?: string;
     targetType?: string;
+    createdFrom?: string;
+    createdTo?: string;
   } = {},
 ) {
   const search = new URLSearchParams();
@@ -40,7 +48,16 @@ export async function fetchAuditLogs(
   if (params.limit) {
     search.set('limit', String(params.limit));
   }
+  if ((params.offset ?? 0) > 0) {
+    search.set('offset', String(params.offset));
+  }
+  if (params.createdFrom) {
+    search.set('created_from', params.createdFrom);
+  }
+  if (params.createdTo) {
+    search.set('created_to', params.createdTo);
+  }
 
   const suffix = search.size > 0 ? `?${search.toString()}` : '';
-  return apiRequest<AuditLogEntry[]>(`/v1/audit/logs${suffix}`);
+  return apiRequest<AuditLogPage>(`/v1/audit/logs${suffix}`);
 }

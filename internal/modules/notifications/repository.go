@@ -3,6 +3,7 @@ package notifications
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -10,7 +11,7 @@ import (
 
 type RepositoryContract interface {
 	Create(ctx context.Context, params CreateParams, createdAt time.Time) (Notification, error)
-	ListByScope(ctx context.Context, params ListParams) ([]Notification, error)
+	ListByScope(ctx context.Context, params ListParams) (ListResult, error)
 	MarkRead(ctx context.Context, params MarkReadParams, readAt time.Time) error
 	CountUnread(ctx context.Context, scopeType ScopeType, scopeID string) (int, error)
 }
@@ -39,21 +40,61 @@ func (r *Repository) Create(ctx context.Context, params CreateParams, createdAt 
 	return n, nil
 }
 
-func (r *Repository) ListByScope(ctx context.Context, params ListParams) ([]Notification, error) {
+func (r *Repository) ListByScope(ctx context.Context, params ListParams) (ListResult, error) {
 	limit := params.Limit
 	if limit <= 0 {
 		limit = 50
 	}
+	if limit > 200 {
+		limit = 200
+	}
 
+	clauses := []string{
+		"scope_type = $1",
+		"scope_id = $2",
+	}
+	args := []any{params.ScopeType, params.ScopeID}
+
+	if query := strings.TrimSpace(params.Query); query != "" {
+		args = append(args, "%"+query+"%")
+		placeholder := fmt.Sprintf("$%d", len(args))
+		clauses = append(clauses, fmt.Sprintf("(event_type ILIKE %s OR title ILIKE %s OR body ILIKE %s)", placeholder, placeholder, placeholder))
+	}
+
+	switch strings.TrimSpace(params.ReadState) {
+	case "unread":
+		clauses = append(clauses, "read_at IS NULL")
+	case "read":
+		clauses = append(clauses, "read_at IS NOT NULL")
+	}
+
+	if params.CreatedFrom != nil {
+		args = append(args, *params.CreatedFrom)
+		clauses = append(clauses, fmt.Sprintf("created_at >= $%d", len(args)))
+	}
+
+	if params.CreatedTo != nil {
+		args = append(args, *params.CreatedTo)
+		clauses = append(clauses, fmt.Sprintf("created_at <= $%d", len(args)))
+	}
+
+	whereClause := strings.Join(clauses, " AND ")
+
+	var totalCount int
+	countQuery := "SELECT count(*) FROM notifications WHERE " + whereClause
+	if err := r.pool.QueryRow(ctx, countQuery, args...).Scan(&totalCount); err != nil {
+		return ListResult{}, fmt.Errorf("count notifications: %w", err)
+	}
+
+	args = append(args, limit, params.Offset)
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, scope_type, scope_id, event_type, title, body, read_at, created_at
 		FROM notifications
-		WHERE scope_type = $1 AND scope_id = $2
+		WHERE `+whereClause+`
 		ORDER BY created_at DESC
-		LIMIT $3 OFFSET $4
-	`, params.ScopeType, params.ScopeID, limit, params.Offset)
+		LIMIT $`+fmt.Sprintf("%d", len(args)-1)+` OFFSET $`+fmt.Sprintf("%d", len(args)))
 	if err != nil {
-		return nil, fmt.Errorf("list notifications: %w", err)
+		return ListResult{}, fmt.Errorf("list notifications: %w", err)
 	}
 	defer rows.Close()
 
@@ -61,16 +102,19 @@ func (r *Repository) ListByScope(ctx context.Context, params ListParams) ([]Noti
 	for rows.Next() {
 		var n Notification
 		if err := rows.Scan(&n.ID, &n.ScopeType, &n.ScopeID, &n.EventType, &n.Title, &n.Body, &n.ReadAt, &n.CreatedAt); err != nil {
-			return nil, fmt.Errorf("scan notification: %w", err)
+			return ListResult{}, fmt.Errorf("scan notification: %w", err)
 		}
 		notifications = append(notifications, n)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate notifications: %w", err)
+		return ListResult{}, fmt.Errorf("iterate notifications: %w", err)
 	}
 
-	return notifications, nil
+	return ListResult{
+		Items:      notifications,
+		TotalCount: totalCount,
+	}, nil
 }
 
 func (r *Repository) MarkRead(ctx context.Context, params MarkReadParams, readAt time.Time) error {

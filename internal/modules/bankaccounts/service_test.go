@@ -85,7 +85,7 @@ func TestListBankAccountsBlocksKaryawan(t *testing.T) {
 	_, err := service.ListBankAccounts(context.Background(), auth.Subject{
 		UserID: "employee-1",
 		Role:   auth.RoleKaryawan,
-	}, "store-1")
+	}, ListBankAccountsFilter{StoreID: "store-1"})
 	if !errors.Is(err, ErrForbidden) {
 		t.Fatalf("ListBankAccounts error = %v, want ErrForbidden", err)
 	}
@@ -169,15 +169,31 @@ func (r *fakeRepository) GetStoreScope(_ context.Context, storeID string) (Store
 	return r.store, nil
 }
 
-func (r *fakeRepository) ListBankAccounts(_ context.Context, storeID string) ([]BankAccount, error) {
+func (r *fakeRepository) ListBankAccounts(_ context.Context, filter ListBankAccountsFilter) (BankAccountPage, error) {
 	var bankAccounts []BankAccount
 	for _, bankAccount := range r.bankAccounts {
-		if bankAccount.StoreID == storeID {
+		if bankAccount.StoreID == filter.StoreID {
 			bankAccounts = append(bankAccounts, bankAccount)
 		}
 	}
 
-	return bankAccounts, nil
+	activeCount := 0
+	for _, bankAccount := range bankAccounts {
+		if bankAccount.IsActive {
+			activeCount++
+		}
+	}
+
+	return BankAccountPage{
+		Items: bankAccounts,
+		Summary: BankAccountSummary{
+			TotalCount:    len(bankAccounts),
+			ActiveCount:   activeCount,
+			InactiveCount: len(bankAccounts) - activeCount,
+		},
+		Limit:  filter.Limit,
+		Offset: filter.Offset,
+	}, nil
 }
 
 func (r *fakeRepository) CreateBankAccount(_ context.Context, params CreateBankAccountParams) (BankAccount, error) {

@@ -179,6 +179,39 @@ func (r *Repository) ListAllStores(ctx context.Context) ([]Store, error) {
 	return collectStores(rows)
 }
 
+func (r *Repository) ListStoreDirectoryForOwner(ctx context.Context, ownerUserID string, filter ListStoreDirectoryFilter) (StorePage, error) {
+	return r.listStoreDirectory(ctx, storeDirectoryQuery{
+		joins: []string{},
+		clauses: []string{
+			"s.deleted_at IS NULL",
+			"s.owner_user_id = $1",
+		},
+		args: []any{ownerUserID},
+	}, filter)
+}
+
+func (r *Repository) ListStoreDirectoryForStaff(ctx context.Context, userID string, filter ListStoreDirectoryFilter) (StorePage, error) {
+	return r.listStoreDirectory(ctx, storeDirectoryQuery{
+		joins: []string{
+			"INNER JOIN store_staff access_ss ON access_ss.store_id = s.id AND access_ss.user_id = $1",
+		},
+		clauses: []string{
+			"s.deleted_at IS NULL",
+		},
+		args: []any{userID},
+	}, filter)
+}
+
+func (r *Repository) ListStoreDirectoryForPlatform(ctx context.Context, filter ListStoreDirectoryFilter) (StorePage, error) {
+	return r.listStoreDirectory(ctx, storeDirectoryQuery{
+		joins: []string{},
+		clauses: []string{
+			"s.deleted_at IS NULL",
+		},
+		args: []any{},
+	}, filter)
+}
+
 func (r *Repository) GetStoreByID(ctx context.Context, storeID string) (Store, error) {
 	var store Store
 	err := r.pool.QueryRow(ctx, `
@@ -535,6 +568,51 @@ func (r *Repository) ListEmployeesByOwner(ctx context.Context, ownerUserID strin
 	return users, nil
 }
 
+func (r *Repository) ListEmployeeDirectoryByOwner(ctx context.Context, ownerUserID string, filter ListEmployeesFilter) (StaffUserPage, error) {
+	whereClause, args := buildEmployeeDirectoryWhere(ownerUserID, filter)
+
+	var totalCount int
+	if err := r.pool.QueryRow(ctx, `
+		SELECT count(*)::int
+		FROM users
+		WHERE `+whereClause, args...).Scan(&totalCount); err != nil {
+		return StaffUserPage{}, fmt.Errorf("count employee directory: %w", err)
+	}
+
+	listArgs := append(append([]any{}, args...), filter.Limit, filter.Offset)
+	rows, err := r.pool.Query(ctx, `
+		SELECT
+			id,
+			email,
+			username,
+			role,
+			created_by_user_id,
+			created_at,
+			last_login_at,
+			NULL::timestamptz
+		FROM users
+		WHERE `+whereClause+`
+		ORDER BY created_at DESC, id DESC
+		LIMIT $`+fmt.Sprint(len(args)+1)+`
+		OFFSET $`+fmt.Sprint(len(args)+2), listArgs...)
+	if err != nil {
+		return StaffUserPage{}, fmt.Errorf("list employee directory: %w", err)
+	}
+	defer rows.Close()
+
+	users, err := collectStaffUsers(rows)
+	if err != nil {
+		return StaffUserPage{}, err
+	}
+
+	return StaffUserPage{
+		Items:      users,
+		TotalCount: totalCount,
+		Limit:      filter.Limit,
+		Offset:     filter.Offset,
+	}, nil
+}
+
 func (r *Repository) GetEmployeeByID(ctx context.Context, userID string) (StaffUser, error) {
 	var user StaffUser
 	err := r.pool.QueryRow(ctx, `
@@ -614,6 +692,53 @@ func (r *Repository) ListStoreStaff(ctx context.Context, storeID string) ([]Staf
 	return staff, nil
 }
 
+func (r *Repository) ListStoreStaffPage(ctx context.Context, filter ListStoreStaffFilter) (StaffUserPage, error) {
+	whereClause, args := buildStoreStaffWhere(filter)
+
+	var totalCount int
+	if err := r.pool.QueryRow(ctx, `
+		SELECT count(*)::int
+		FROM store_staff ss
+		INNER JOIN users u ON u.id = ss.user_id
+		WHERE `+whereClause, args...).Scan(&totalCount); err != nil {
+		return StaffUserPage{}, fmt.Errorf("count store staff directory: %w", err)
+	}
+
+	listArgs := append(append([]any{}, args...), filter.Limit, filter.Offset)
+	rows, err := r.pool.Query(ctx, `
+		SELECT
+			u.id,
+			u.email,
+			u.username,
+			u.role,
+			u.created_by_user_id,
+			u.created_at,
+			u.last_login_at,
+			ss.created_at
+		FROM store_staff ss
+		INNER JOIN users u ON u.id = ss.user_id
+		WHERE `+whereClause+`
+		ORDER BY ss.created_at DESC, u.id DESC
+		LIMIT $`+fmt.Sprint(len(args)+1)+`
+		OFFSET $`+fmt.Sprint(len(args)+2), listArgs...)
+	if err != nil {
+		return StaffUserPage{}, fmt.Errorf("list store staff directory: %w", err)
+	}
+	defer rows.Close()
+
+	staff, err := collectStaffUsers(rows)
+	if err != nil {
+		return StaffUserPage{}, err
+	}
+
+	return StaffUserPage{
+		Items:      staff,
+		TotalCount: totalCount,
+		Limit:      filter.Limit,
+		Offset:     filter.Offset,
+	}, nil
+}
+
 func (r *Repository) AssignStaff(ctx context.Context, params AssignStaffParams) error {
 	_, err := r.pool.Exec(ctx, `
 		INSERT INTO store_staff (
@@ -691,6 +816,94 @@ func (r *Repository) InsertAuditLog(
 	return nil
 }
 
+type storeDirectoryQuery struct {
+	joins   []string
+	clauses []string
+	args    []any
+}
+
+func (r *Repository) listStoreDirectory(ctx context.Context, query storeDirectoryQuery, filter ListStoreDirectoryFilter) (StorePage, error) {
+	whereClause, args := buildStoreDirectoryWhere(query, filter)
+	joinClause := strings.Join(query.joins, "\n")
+
+	var summary StoreDirectorySummary
+	summarySQL := `
+		SELECT
+			count(*)::int AS total_count,
+			COALESCE(count(*) FILTER (WHERE s.status = 'active'), 0)::int AS active_count,
+			COALESCE(count(*) FILTER (WHERE s.status = 'inactive'), 0)::int AS inactive_count,
+			COALESCE(count(*) FILTER (WHERE s.status = 'banned'), 0)::int AS banned_count,
+			COALESCE(count(*) FILTER (WHERE s.status = 'deleted'), 0)::int AS deleted_count,
+			COALESCE(count(*) FILTER (
+				WHERE s.low_balance_threshold IS NOT NULL
+					AND s.current_balance <= s.low_balance_threshold
+			), 0)::int AS low_balance_count
+		FROM stores s
+	`
+	if joinClause != "" {
+		summarySQL += joinClause + "\n"
+	}
+	summarySQL += `WHERE ` + whereClause
+
+	if err := r.pool.QueryRow(ctx, summarySQL, args...).Scan(
+		&summary.TotalCount,
+		&summary.ActiveCount,
+		&summary.InactiveCount,
+		&summary.BannedCount,
+		&summary.DeletedCount,
+		&summary.LowBalanceCount,
+	); err != nil {
+		return StorePage{}, fmt.Errorf("summarize store directory: %w", err)
+	}
+
+	listArgs := append(append([]any{}, args...), filter.Limit, filter.Offset)
+	listSQL := `
+		SELECT
+			s.id,
+			s.owner_user_id,
+			s.name,
+			s.slug,
+			s.status,
+			s.callback_url,
+			s.current_balance::text,
+			s.low_balance_threshold::text,
+			(
+				SELECT COUNT(*)
+				FROM store_staff ss
+				WHERE ss.store_id = s.id
+			)::int AS staff_count,
+			s.created_at,
+			s.updated_at,
+			s.deleted_at
+		FROM stores s
+	`
+	if joinClause != "" {
+		listSQL += joinClause + "\n"
+	}
+	listSQL += `WHERE ` + whereClause + `
+		ORDER BY s.created_at DESC, s.id DESC
+		LIMIT $` + fmt.Sprint(len(args)+1) + `
+		OFFSET $` + fmt.Sprint(len(args)+2)
+
+	rows, err := r.pool.Query(ctx, listSQL, listArgs...)
+	if err != nil {
+		return StorePage{}, fmt.Errorf("list store directory: %w", err)
+	}
+	defer rows.Close()
+
+	items, err := collectStores(rows)
+	if err != nil {
+		return StorePage{}, err
+	}
+
+	return StorePage{
+		Items:   items,
+		Summary: summary,
+		Limit:   filter.Limit,
+		Offset:  filter.Offset,
+	}, nil
+}
+
 func collectStores(rows pgx.Rows) ([]Store, error) {
 	var stores []Store
 	for rows.Next() {
@@ -720,6 +933,33 @@ func collectStores(rows pgx.Rows) ([]Store, error) {
 	}
 
 	return stores, nil
+}
+
+func collectStaffUsers(rows pgx.Rows) ([]StaffUser, error) {
+	var users []StaffUser
+	for rows.Next() {
+		var user StaffUser
+		if err := rows.Scan(
+			&user.ID,
+			&user.Email,
+			&user.Username,
+			&user.Role,
+			&user.CreatedByUserID,
+			&user.CreatedAt,
+			&user.LastLoginAt,
+			&user.AssignedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan staff user: %w", err)
+		}
+
+		users = append(users, user)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate staff users: %w", err)
+	}
+
+	return users, nil
 }
 
 type repositoryLowBalanceSweepLock struct {
@@ -759,6 +999,104 @@ func duplicateIdentity(err error) bool {
 	}
 
 	return pgErr.ConstraintName == "users_email_key" || pgErr.ConstraintName == "users_username_key"
+}
+
+func buildStoreDirectoryWhere(query storeDirectoryQuery, filter ListStoreDirectoryFilter) (string, []any) {
+	clauses := append([]string{}, query.clauses...)
+	args := append([]any{}, query.args...)
+	next := len(args) + 1
+
+	if filter.Query != "" {
+		args = append(args, "%"+filter.Query+"%")
+		placeholder := fmt.Sprintf("$%d", next)
+		clauses = append(clauses,
+			"(s.name ILIKE "+placeholder+" OR s.slug::text ILIKE "+placeholder+" OR s.callback_url ILIKE "+placeholder+")",
+		)
+		next++
+	}
+
+	if filter.Status != nil {
+		args = append(args, *filter.Status)
+		clauses = append(clauses, fmt.Sprintf("s.status = $%d", next))
+		next++
+	}
+
+	switch filter.LowBalanceState {
+	case LowBalanceStateOnlyLow:
+		clauses = append(clauses, "s.low_balance_threshold IS NOT NULL AND s.current_balance <= s.low_balance_threshold")
+	case LowBalanceStateOnlyHealth:
+		clauses = append(clauses, "(s.low_balance_threshold IS NULL OR s.current_balance > s.low_balance_threshold)")
+	}
+
+	if filter.CreatedFrom != nil {
+		args = append(args, *filter.CreatedFrom)
+		clauses = append(clauses, fmt.Sprintf("s.created_at >= $%d", next))
+		next++
+	}
+
+	if filter.CreatedTo != nil {
+		args = append(args, *filter.CreatedTo)
+		clauses = append(clauses, fmt.Sprintf("s.created_at <= $%d", next))
+	}
+
+	return strings.Join(clauses, " AND "), args
+}
+
+func buildEmployeeDirectoryWhere(ownerUserID string, filter ListEmployeesFilter) (string, []any) {
+	clauses := []string{
+		"role = 'karyawan'",
+		"created_by_user_id = $1",
+	}
+	args := []any{ownerUserID}
+	next := 2
+
+	if filter.Query != "" {
+		args = append(args, "%"+filter.Query+"%")
+		placeholder := fmt.Sprintf("$%d", next)
+		clauses = append(clauses, "(username::text ILIKE "+placeholder+" OR email::text ILIKE "+placeholder+")")
+		next++
+	}
+
+	if filter.CreatedFrom != nil {
+		args = append(args, *filter.CreatedFrom)
+		clauses = append(clauses, fmt.Sprintf("created_at >= $%d", next))
+		next++
+	}
+
+	if filter.CreatedTo != nil {
+		args = append(args, *filter.CreatedTo)
+		clauses = append(clauses, fmt.Sprintf("created_at <= $%d", next))
+	}
+
+	return strings.Join(clauses, " AND "), args
+}
+
+func buildStoreStaffWhere(filter ListStoreStaffFilter) (string, []any) {
+	clauses := []string{
+		"ss.store_id = $1",
+	}
+	args := []any{filter.StoreID}
+	next := 2
+
+	if filter.Query != "" {
+		args = append(args, "%"+filter.Query+"%")
+		placeholder := fmt.Sprintf("$%d", next)
+		clauses = append(clauses, "(u.username::text ILIKE "+placeholder+" OR u.email::text ILIKE "+placeholder+")")
+		next++
+	}
+
+	if filter.AssignedFrom != nil {
+		args = append(args, *filter.AssignedFrom)
+		clauses = append(clauses, fmt.Sprintf("ss.created_at >= $%d", next))
+		next++
+	}
+
+	if filter.AssignedTo != nil {
+		args = append(args, *filter.AssignedTo)
+		clauses = append(clauses, fmt.Sprintf("ss.created_at <= $%d", next))
+	}
+
+	return strings.Join(clauses, " AND "), args
 }
 
 func duplicateStaff(err error) bool {

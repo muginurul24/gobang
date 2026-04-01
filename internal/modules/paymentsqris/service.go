@@ -26,7 +26,7 @@ type RepositoryContract interface {
 	UpdateGeneratedTransaction(ctx context.Context, params UpdateGeneratedTransactionParams) (QRISTransaction, error)
 	UpdateTransactionStatus(ctx context.Context, params UpdateTransactionStatusParams) (QRISTransaction, error)
 	FinalizeQRISTransaction(ctx context.Context, params FinalizeQRISTransactionParams) (QRISTransaction, error)
-	ListQRISTransactions(ctx context.Context, storeID string, transactionType TransactionType) ([]QRISTransaction, error)
+	ListQRISTransactionsPage(ctx context.Context, filter ListTransactionsFilter) (QRISTransactionPage, error)
 	InsertAuditLog(
 		ctx context.Context,
 		actorUserID *string,
@@ -59,7 +59,7 @@ type TransferWebhookHandler interface {
 }
 
 type Service interface {
-	ListStoreTopups(ctx context.Context, subject auth.Subject, storeID string) ([]QRISTransaction, error)
+	ListStoreTopups(ctx context.Context, subject auth.Subject, filter ListTransactionsFilter) (QRISTransactionPage, error)
 	CreateStoreTopup(ctx context.Context, subject auth.Subject, storeID string, input CreateStoreTopupInput, metadata auth.RequestMetadata) (QRISTransaction, error)
 	CreateMemberPayment(ctx context.Context, storeToken string, input CreateMemberPaymentInput, metadata auth.RequestMetadata) (QRISTransaction, error)
 	HandlePaymentWebhook(ctx context.Context, payload qris.PaymentWebhook, metadata auth.RequestMetadata) (WebhookDispatchResult, error)
@@ -142,19 +142,30 @@ func NewService(options Options) Service {
 	}
 }
 
-func (s *service) ListStoreTopups(ctx context.Context, subject auth.Subject, storeID string) ([]QRISTransaction, error) {
-	store, err := s.repository.GetStoreScope(ctx, storeID)
+func (s *service) ListStoreTopups(ctx context.Context, subject auth.Subject, filter ListTransactionsFilter) (QRISTransactionPage, error) {
+	store, err := s.repository.GetStoreScope(ctx, filter.StoreID)
 	if err != nil {
-		return nil, err
+		return QRISTransactionPage{}, err
 	}
 	if store.DeletedAt != nil {
-		return nil, ErrNotFound
+		return QRISTransactionPage{}, ErrNotFound
 	}
 	if !canAccessStore(subject, store) {
-		return nil, ErrForbidden
+		return QRISTransactionPage{}, ErrForbidden
 	}
 
-	return s.repository.ListQRISTransactions(ctx, store.ID, TransactionTypeStoreTopup)
+	if filter.Type == "" {
+		filter.Type = TransactionTypeStoreTopup
+	}
+
+	switch filter.Type {
+	case TransactionTypeStoreTopup, TransactionTypeMemberPayment:
+	default:
+		return QRISTransactionPage{}, ErrNotFound
+	}
+
+	filter.StoreID = store.ID
+	return s.repository.ListQRISTransactionsPage(ctx, filter)
 }
 
 func (s *service) CreateStoreTopup(ctx context.Context, subject auth.Subject, storeID string, input CreateStoreTopupInput, metadata auth.RequestMetadata) (QRISTransaction, error) {

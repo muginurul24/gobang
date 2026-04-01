@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -60,7 +61,26 @@ func (r *Repository) IsStoreStaff(ctx context.Context, storeID string, userID st
 	return exists, nil
 }
 
-func (r *Repository) ListStoreMembers(ctx context.Context, storeID string) ([]StoreMember, error) {
+func (r *Repository) ListStoreMembers(ctx context.Context, filter ListStoreMembersFilter) (StoreMemberPage, error) {
+	whereClause, args := buildListMembersWhere(filter)
+	summaryQuery := `
+		SELECT
+			count(*)::int AS total_count,
+			COALESCE(count(*) FILTER (WHERE status = 'active'), 0)::int AS active_count,
+			COALESCE(count(*) FILTER (WHERE status = 'inactive'), 0)::int AS inactive_count
+		FROM store_members
+		WHERE ` + whereClause
+
+	var summary StoreMemberSummary
+	if err := r.pool.QueryRow(ctx, summaryQuery, args...).Scan(
+		&summary.TotalCount,
+		&summary.ActiveCount,
+		&summary.InactiveCount,
+	); err != nil {
+		return StoreMemberPage{}, fmt.Errorf("summarize store members: %w", err)
+	}
+
+	listArgs := append(append([]any{}, args...), filter.Limit, filter.Offset)
 	rows, err := r.pool.Query(ctx, `
 		SELECT
 			id,
@@ -71,11 +91,12 @@ func (r *Repository) ListStoreMembers(ctx context.Context, storeID string) ([]St
 			created_at,
 			updated_at
 		FROM store_members
-		WHERE store_id = $1
-		ORDER BY created_at DESC
-	`, storeID)
+		WHERE `+whereClause+`
+		ORDER BY created_at DESC, id DESC
+		LIMIT $`+fmt.Sprint(len(args)+1)+`
+		OFFSET $`+fmt.Sprint(len(args)+2), listArgs...)
 	if err != nil {
-		return nil, fmt.Errorf("list store members: %w", err)
+		return StoreMemberPage{}, fmt.Errorf("list store members: %w", err)
 	}
 	defer rows.Close()
 
@@ -91,17 +112,22 @@ func (r *Repository) ListStoreMembers(ctx context.Context, storeID string) ([]St
 			&member.CreatedAt,
 			&member.UpdatedAt,
 		); err != nil {
-			return nil, fmt.Errorf("scan store member: %w", err)
+			return StoreMemberPage{}, fmt.Errorf("scan store member: %w", err)
 		}
 
 		members = append(members, member)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate store members: %w", err)
+		return StoreMemberPage{}, fmt.Errorf("iterate store members: %w", err)
 	}
 
-	return members, nil
+	return StoreMemberPage{
+		Items:   members,
+		Summary: summary,
+		Limit:   filter.Limit,
+		Offset:  filter.Offset,
+	}, nil
 }
 
 func (r *Repository) CreateStoreMember(ctx context.Context, params CreateStoreMemberParams) (StoreMember, error) {
@@ -197,4 +223,36 @@ func nullableString(value string) *string {
 	}
 
 	return &value
+}
+
+func buildListMembersWhere(filter ListStoreMembersFilter) (string, []any) {
+	clauses := []string{"store_id = $1"}
+	args := []any{filter.StoreID}
+	next := 2
+
+	if filter.Query != "" {
+		search := "%" + filter.Query + "%"
+		clauses = append(clauses, fmt.Sprintf("(real_username ILIKE $%d OR upstream_user_code ILIKE $%d)", next, next))
+		args = append(args, search)
+		next++
+	}
+
+	if filter.Status != nil {
+		clauses = append(clauses, fmt.Sprintf("status = $%d", next))
+		args = append(args, *filter.Status)
+		next++
+	}
+
+	if filter.CreatedFrom != nil {
+		clauses = append(clauses, fmt.Sprintf("created_at >= $%d", next))
+		args = append(args, *filter.CreatedFrom)
+		next++
+	}
+
+	if filter.CreatedTo != nil {
+		clauses = append(clauses, fmt.Sprintf("created_at <= $%d", next))
+		args = append(args, *filter.CreatedTo)
+	}
+
+	return strings.Join(clauses, " AND "), args
 }

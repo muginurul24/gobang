@@ -35,11 +35,20 @@ type StaffUser struct {
 	CreatedByUserID *string    `json:"created_by_user_id"`
 	CreatedAt       time.Time  `json:"created_at"`
 	LastLoginAt     *time.Time `json:"last_login_at"`
+	AssignedAt      *time.Time `json:"assigned_at,omitempty"`
 }
 
 type StoreToken struct {
 	Token string `json:"token"`
 }
+
+type LowBalanceState string
+
+const (
+	LowBalanceStateAll        LowBalanceState = ""
+	LowBalanceStateOnlyLow    LowBalanceState = "low_balance"
+	LowBalanceStateOnlyHealth LowBalanceState = "healthy"
+)
 
 type AuditLog struct {
 	ID          string    `json:"id"`
@@ -79,6 +88,56 @@ type CreateEmployeeInput struct {
 
 type AssignStaffInput struct {
 	UserID string `json:"user_id"`
+}
+
+type ListStoreDirectoryFilter struct {
+	Query           string
+	Status          *StoreStatus
+	LowBalanceState LowBalanceState
+	Limit           int
+	Offset          int
+	CreatedFrom     *time.Time
+	CreatedTo       *time.Time
+}
+
+type StoreDirectorySummary struct {
+	TotalCount      int `json:"total_count"`
+	ActiveCount     int `json:"active_count"`
+	InactiveCount   int `json:"inactive_count"`
+	BannedCount     int `json:"banned_count"`
+	DeletedCount    int `json:"deleted_count"`
+	LowBalanceCount int `json:"low_balance_count"`
+}
+
+type StorePage struct {
+	Items   []Store               `json:"items"`
+	Summary StoreDirectorySummary `json:"summary"`
+	Limit   int                   `json:"limit"`
+	Offset  int                   `json:"offset"`
+}
+
+type ListEmployeesFilter struct {
+	Query       string
+	Limit       int
+	Offset      int
+	CreatedFrom *time.Time
+	CreatedTo   *time.Time
+}
+
+type StaffUserPage struct {
+	Items      []StaffUser `json:"items"`
+	TotalCount int         `json:"total_count"`
+	Limit      int         `json:"limit"`
+	Offset     int         `json:"offset"`
+}
+
+type ListStoreStaffFilter struct {
+	StoreID      string
+	Query        string
+	Limit        int
+	Offset       int
+	AssignedFrom *time.Time
+	AssignedTo   *time.Time
 }
 
 type AuditFilter struct {

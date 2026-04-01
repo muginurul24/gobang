@@ -12,7 +12,7 @@ import (
 )
 
 type RepositoryContract interface {
-	ListMessages(ctx context.Context, cutoff time.Time, limit int) ([]Message, error)
+	ListMessages(ctx context.Context, cutoff time.Time, filter ListMessagesFilter) (ListMessagesResult, error)
 	CreateMessage(ctx context.Context, params CreateMessageParams) (Message, error)
 	DeleteMessage(ctx context.Context, params DeleteMessageParams) (Message, error)
 	PruneMessages(ctx context.Context, cutoff time.Time) (int64, error)
@@ -26,34 +26,72 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool}
 }
 
-func (r *Repository) ListMessages(ctx context.Context, cutoff time.Time, limit int) ([]Message, error) {
+func (r *Repository) ListMessages(ctx context.Context, cutoff time.Time, filter ListMessagesFilter) (ListMessagesResult, error) {
+	limit := filter.Limit
 	if limit <= 0 {
 		limit = 50
 	}
+	if limit > 200 {
+		limit = 200
+	}
 
+	clauses := []string{
+		"m.deleted_at IS NULL",
+		"m.created_at >= $1",
+	}
+	args := []any{cutoff}
+
+	if role := strings.TrimSpace(filter.Role); role != "" {
+		args = append(args, role)
+		clauses = append(clauses, fmt.Sprintf("u.role = $%d", len(args)))
+	}
+
+	if query := strings.TrimSpace(filter.Query); query != "" {
+		args = append(args, "%"+query+"%")
+		placeholder := fmt.Sprintf("$%d", len(args))
+		clauses = append(clauses, fmt.Sprintf("(u.username ILIKE %s OR m.body ILIKE %s)", placeholder, placeholder))
+	}
+
+	if filter.CreatedFrom != nil {
+		args = append(args, *filter.CreatedFrom)
+		clauses = append(clauses, fmt.Sprintf("m.created_at >= $%d", len(args)))
+	}
+
+	if filter.CreatedTo != nil {
+		args = append(args, *filter.CreatedTo)
+		clauses = append(clauses, fmt.Sprintf("m.created_at <= $%d", len(args)))
+	}
+
+	whereClause := strings.Join(clauses, " AND ")
+
+	var totalCount int
+	countQuery := `
+		SELECT count(*)
+		FROM chat_messages m
+		INNER JOIN users u ON u.id = m.sender_user_id
+		WHERE ` + whereClause
+	if err := r.pool.QueryRow(ctx, countQuery, args...).Scan(&totalCount); err != nil {
+		return ListMessagesResult{}, fmt.Errorf("count chat messages: %w", err)
+	}
+
+	args = append(args, limit, filter.Offset)
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, sender_user_id, sender_username, sender_role, body, deleted_by_dev_user_id, deleted_at, created_at
-		FROM (
-			SELECT
-				m.id,
-				m.sender_user_id,
-				u.username AS sender_username,
-				u.role AS sender_role,
-				m.body,
-				m.deleted_by_dev_user_id,
-				m.deleted_at,
-				m.created_at
-			FROM chat_messages m
-			INNER JOIN users u ON u.id = m.sender_user_id
-			WHERE m.deleted_at IS NULL
-				AND m.created_at >= $1
-			ORDER BY m.created_at DESC
-			LIMIT $2
-		) recent
-		ORDER BY created_at ASC
-	`, cutoff, limit)
+		SELECT
+			m.id,
+			m.sender_user_id,
+			u.username AS sender_username,
+			u.role AS sender_role,
+			m.body,
+			m.deleted_by_dev_user_id,
+			m.deleted_at,
+			m.created_at
+		FROM chat_messages m
+		INNER JOIN users u ON u.id = m.sender_user_id
+		WHERE `+whereClause+`
+		ORDER BY m.created_at DESC
+		LIMIT $`+fmt.Sprintf("%d", len(args)-1)+` OFFSET $`+fmt.Sprintf("%d", len(args)))
 	if err != nil {
-		return nil, fmt.Errorf("list chat messages: %w", err)
+		return ListMessagesResult{}, fmt.Errorf("list chat messages: %w", err)
 	}
 	defer rows.Close()
 
@@ -70,16 +108,19 @@ func (r *Repository) ListMessages(ctx context.Context, cutoff time.Time, limit i
 			&message.DeletedAt,
 			&message.CreatedAt,
 		); err != nil {
-			return nil, fmt.Errorf("scan chat message: %w", err)
+			return ListMessagesResult{}, fmt.Errorf("scan chat message: %w", err)
 		}
 		messages = append(messages, message)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate chat messages: %w", err)
+		return ListMessagesResult{}, fmt.Errorf("iterate chat messages: %w", err)
 	}
 
-	return messages, nil
+	return ListMessagesResult{
+		Items:      messages,
+		TotalCount: totalCount,
+	}, nil
 }
 
 func (r *Repository) CreateMessage(ctx context.Context, params CreateMessageParams) (Message, error) {

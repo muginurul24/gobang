@@ -114,6 +114,7 @@ func NewHandler(cfg config.Config, deps Dependencies) http.Handler {
 		dashboard.NewHandler(
 			dashboard.NewService(dashboard.Options{
 				Repository: dashboard.NewRepository(deps.DB),
+				Cache:      dashboard.NewRedisSummaryCache(deps.Redis),
 			}),
 			authService,
 		).Register(mux)

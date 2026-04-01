@@ -10,14 +10,14 @@ import (
 )
 
 type RepositoryContract interface {
-	ListGlobal(ctx context.Context, filter Filter) ([]LogEntry, error)
-	ListOwnerScoped(ctx context.Context, ownerUserID string, filter Filter) ([]LogEntry, error)
+	ListGlobal(ctx context.Context, filter Filter) (ListResult, error)
+	ListOwnerScoped(ctx context.Context, ownerUserID string, filter Filter) (ListResult, error)
 	OwnerHasStore(ctx context.Context, ownerUserID string, storeID string) (bool, error)
 	PruneBefore(ctx context.Context, cutoff time.Time) (int64, error)
 }
 
 type Service interface {
-	ListLogs(ctx context.Context, subject auth.Subject, filter Filter) ([]LogEntry, error)
+	ListLogs(ctx context.Context, subject auth.Subject, filter Filter) (ListResult, error)
 	PruneExpired(ctx context.Context) (int64, error)
 }
 
@@ -51,7 +51,7 @@ func NewService(options Options) Service {
 	}
 }
 
-func (s *service) ListLogs(ctx context.Context, subject auth.Subject, filter Filter) ([]LogEntry, error) {
+func (s *service) ListLogs(ctx context.Context, subject auth.Subject, filter Filter) (ListResult, error) {
 	filter = normalizeFilter(filter)
 
 	switch subject.Role {
@@ -61,17 +61,17 @@ func (s *service) ListLogs(ctx context.Context, subject auth.Subject, filter Fil
 		if filter.StoreID != nil {
 			allowed, err := s.repository.OwnerHasStore(ctx, subject.UserID, *filter.StoreID)
 			if err != nil {
-				return nil, err
+				return ListResult{}, err
 			}
 
 			if !allowed {
-				return nil, auth.ErrUnauthorized
+				return ListResult{}, auth.ErrUnauthorized
 			}
 		}
 
 		return s.repository.ListOwnerScoped(ctx, subject.UserID, filter)
 	default:
-		return nil, auth.ErrUnauthorized
+		return ListResult{}, auth.ErrUnauthorized
 	}
 }
 

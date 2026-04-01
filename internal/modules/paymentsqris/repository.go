@@ -658,7 +658,49 @@ func (r *Repository) FinalizeQRISTransaction(ctx context.Context, params Finaliz
 	return transaction, nil
 }
 
-func (r *Repository) ListQRISTransactions(ctx context.Context, storeID string, transactionType TransactionType) ([]QRISTransaction, error) {
+func (r *Repository) ListQRISTransactionsPage(ctx context.Context, filter ListTransactionsFilter) (QRISTransactionPage, error) {
+	whereClause, args := buildQrisListWhere(filter)
+
+	var summary QRISTransactionSummary
+	summaryQuery := `
+		SELECT
+			COUNT(*)::int,
+			COUNT(*) FILTER (WHERE status = 'pending')::int,
+			COUNT(*) FILTER (WHERE status = 'success')::int,
+			COUNT(*) FILTER (WHERE status = 'expired')::int,
+			COUNT(*) FILTER (WHERE status = 'failed')::int,
+			COALESCE(SUM(amount_gross), 0)::text,
+			COALESCE(SUM(amount_gross) FILTER (WHERE status = 'pending'), 0)::text
+		FROM qris_transactions
+	` + whereClause
+	if err := r.pool.QueryRow(ctx, summaryQuery, args...).Scan(
+		&summary.TotalCount,
+		&summary.PendingCount,
+		&summary.SuccessCount,
+		&summary.ExpiredCount,
+		&summary.FailedCount,
+		&summary.TotalGross,
+		&summary.PendingGross,
+	); err != nil {
+		return QRISTransactionPage{}, fmt.Errorf("summarize qris transactions: %w", err)
+	}
+
+	page := QRISTransactionPage{
+		Items:   []QRISTransaction{},
+		Summary: summary,
+		Limit:   filter.Limit,
+		Offset:  filter.Offset,
+	}
+	if summary.TotalCount == 0 {
+		return page, nil
+	}
+
+	queryArgs := append([]any{}, args...)
+	limitPlaceholder := len(queryArgs) + 1
+	queryArgs = append(queryArgs, filter.Limit)
+	offsetPlaceholder := len(queryArgs) + 1
+	queryArgs = append(queryArgs, filter.Offset)
+
 	rows, err := r.pool.Query(ctx, `
 		SELECT
 			id,
@@ -677,15 +719,14 @@ func (r *Repository) ListQRISTransactions(ctx context.Context, storeID string, t
 			created_at,
 			updated_at
 		FROM qris_transactions
-		WHERE store_id = $1 AND type = $2
+	`+whereClause+`
 		ORDER BY created_at DESC
-	`, storeID, transactionType)
+		LIMIT $`+fmt.Sprint(limitPlaceholder)+` OFFSET $`+fmt.Sprint(offsetPlaceholder), queryArgs...)
 	if err != nil {
-		return nil, fmt.Errorf("list qris transactions: %w", err)
+		return QRISTransactionPage{}, fmt.Errorf("list qris transactions: %w", err)
 	}
 	defer rows.Close()
 
-	var transactions []QRISTransaction
 	for rows.Next() {
 		var transaction QRISTransaction
 		var storeMemberID *string
@@ -709,20 +750,52 @@ func (r *Repository) ListQRISTransactions(ctx context.Context, storeID string, t
 			&transaction.CreatedAt,
 			&transaction.UpdatedAt,
 		); err != nil {
-			return nil, fmt.Errorf("scan qris transaction: %w", err)
+			return QRISTransactionPage{}, fmt.Errorf("scan qris transaction: %w", err)
 		}
 
 		transaction.StoreMemberID = storeMemberID
 		transaction.ProviderTrxID = providerTrxID
 		applyPayloadFields(&transaction, payloadRaw)
-		transactions = append(transactions, transaction)
+		page.Items = append(page.Items, transaction)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate qris transactions: %w", err)
+		return QRISTransactionPage{}, fmt.Errorf("iterate qris transactions: %w", err)
 	}
 
-	return transactions, nil
+	return page, nil
+}
+
+func buildQrisListWhere(filter ListTransactionsFilter) (string, []any) {
+	clauses := []string{"store_id = $1", "type = $2"}
+	args := []any{strings.TrimSpace(filter.StoreID), filter.Type}
+
+	if filter.Status != nil {
+		clauses = append(clauses, fmt.Sprintf("status = $%d", len(args)+1))
+		args = append(args, *filter.Status)
+	}
+
+	if query := strings.TrimSpace(filter.Query); query != "" {
+		placeholder := fmt.Sprintf("$%d", len(args)+1)
+		args = append(args, "%"+query+"%")
+		clauses = append(clauses, "("+strings.Join([]string{
+			"custom_ref ILIKE " + placeholder,
+			"external_username ILIKE " + placeholder,
+			"COALESCE(provider_trx_id, '') ILIKE " + placeholder,
+		}, " OR ")+")")
+	}
+
+	if filter.CreatedFrom != nil {
+		clauses = append(clauses, fmt.Sprintf("created_at >= $%d", len(args)+1))
+		args = append(args, *filter.CreatedFrom)
+	}
+
+	if filter.CreatedTo != nil {
+		clauses = append(clauses, fmt.Sprintf("created_at <= $%d", len(args)+1))
+		args = append(args, *filter.CreatedTo)
+	}
+
+	return " WHERE " + strings.Join(clauses, " AND "), args
 }
 
 func (r *Repository) InsertAuditLog(

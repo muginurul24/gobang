@@ -20,8 +20,58 @@ export type StoreWithdrawal = {
   updated_at: string;
 };
 
-export async function fetchStoreWithdrawals(storeID: string) {
-  return apiRequest<StoreWithdrawal[]>(`/v1/stores/${storeID}/withdrawals`);
+export type StoreWithdrawalSummary = {
+  total_count: number;
+  pending_count: number;
+  success_count: number;
+  failed_count: number;
+  total_net_amount: string;
+  total_platform_fee: string;
+  total_external_fee: string;
+};
+
+export type StoreWithdrawalPage = {
+  items: StoreWithdrawal[];
+  summary: StoreWithdrawalSummary;
+  limit: number;
+  offset: number;
+};
+
+export async function fetchStoreWithdrawals(
+  storeID: string,
+  params: {
+    status?: StoreWithdrawal['status'] | 'all';
+    query?: string;
+    limit?: number;
+    offset?: number;
+    createdFrom?: string;
+    createdTo?: string;
+  } = {},
+) {
+  const search = new URLSearchParams();
+  if (params.status && params.status !== 'all') {
+    search.set('status', params.status);
+  }
+  if ((params.query ?? '').trim() !== '') {
+    search.set('query', params.query!.trim());
+  }
+  if (params.limit) {
+    search.set('limit', String(params.limit));
+  }
+  if (params.offset && params.offset > 0) {
+    search.set('offset', String(params.offset));
+  }
+  if ((params.createdFrom ?? '').trim() !== '') {
+    search.set('created_from', new Date(params.createdFrom!).toISOString());
+  }
+  if ((params.createdTo ?? '').trim() !== '') {
+    search.set('created_to', new Date(params.createdTo!).toISOString());
+  }
+
+  const suffix = search.toString();
+  return apiRequest<StoreWithdrawalPage>(
+    `/v1/stores/${storeID}/withdrawals${suffix === '' ? '' : `?${suffix}`}`,
+  );
 }
 
 export async function createStoreWithdrawal(

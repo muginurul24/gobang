@@ -11,8 +11,8 @@ import (
 
 type RepositoryContract interface {
 	ApplySnapshot(ctx context.Context, snapshot catalogSnapshot) (SyncSummary, error)
-	ListProviders(ctx context.Context, filter ListProvidersFilter) ([]Provider, error)
-	ListGames(ctx context.Context, filter ListGamesFilter) ([]Game, error)
+	ListProviders(ctx context.Context, filter ListProvidersFilter) (ProviderPage, error)
+	ListGames(ctx context.Context, filter ListGamesFilter) (GamePage, error)
 }
 
 type UpstreamClient interface {
@@ -22,8 +22,8 @@ type UpstreamClient interface {
 
 type Service interface {
 	Sync(ctx context.Context) (SyncSummary, error)
-	ListProviders(ctx context.Context, filter ListProvidersFilter) ([]Provider, error)
-	ListGames(ctx context.Context, filter ListGamesFilter) ([]Game, error)
+	ListProviders(ctx context.Context, filter ListProvidersFilter) (ProviderPage, error)
+	ListGames(ctx context.Context, filter ListGamesFilter) (GamePage, error)
 }
 
 type Options struct {
@@ -108,16 +108,22 @@ func (s *service) Sync(ctx context.Context) (SyncSummary, error) {
 	return s.repository.ApplySnapshot(ctx, snapshot)
 }
 
-func (s *service) ListProviders(ctx context.Context, filter ListProvidersFilter) ([]Provider, error) {
+func (s *service) ListProviders(ctx context.Context, filter ListProvidersFilter) (ProviderPage, error) {
 	filter.Query = strings.TrimSpace(filter.Query)
 	filter.Limit = normalizeLimit(filter.Limit, 20, 100)
+	if filter.Offset < 0 {
+		filter.Offset = 0
+	}
 	return s.repository.ListProviders(ctx, filter)
 }
 
-func (s *service) ListGames(ctx context.Context, filter ListGamesFilter) ([]Game, error) {
+func (s *service) ListGames(ctx context.Context, filter ListGamesFilter) (GamePage, error) {
 	filter.ProviderCode = normalizeProviderCode(filter.ProviderCode)
 	filter.Query = strings.TrimSpace(filter.Query)
 	filter.Limit = normalizeLimit(filter.Limit, 50, 200)
+	if filter.Offset < 0 {
+		filter.Offset = 0
+	}
 	return s.repository.ListGames(ctx, filter)
 }
 

@@ -1,22 +1,30 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
+  import type { ChartConfiguration } from 'chart.js';
   import QRCode from 'qrcode';
 
   import { authSession, initializeAuthSession } from '$lib/auth/client';
+  import ChartCanvas from '$lib/components/app/chart-canvas.svelte';
+  import DateRangeFilter from '$lib/components/app/date-range-filter.svelte';
   import EmptyState from '$lib/components/app/empty-state.svelte';
+  import ExportActions from '$lib/components/app/export-actions.svelte';
+  import MetricCard from '$lib/components/app/metric-card.svelte';
   import Notice from '$lib/components/app/notice.svelte';
+  import PaginationControls from '$lib/components/app/pagination-controls.svelte';
   import PageSkeleton from '$lib/components/app/page-skeleton.svelte';
+  import StoreScopePicker from '$lib/components/app/store-scope-picker.svelte';
   import Button from '$lib/components/ui/button/button.svelte';
+  import { exportRowsToCSV, exportRowsToPDF, exportRowsToXLSX } from '$lib/exporters';
+  import { formatCurrency, formatDateTime, formatNumber } from '$lib/formatters';
   import {
     createStoreTopup,
     fetchStoreTopups,
     type StoreTopup
   } from '$lib/payments-qris/client';
-  import { fetchStores, isStoreLowBalance, type Store } from '$lib/stores/client';
+  import { isStoreLowBalance, type Store } from '$lib/stores/client';
   import {
     hydratePreferredStoreID,
-    pickPreferredStoreID,
     preferredStoreID,
     setPreferredStoreID
   } from '$lib/stores/preferences';
@@ -25,42 +33,52 @@
   let busy = false;
   let errorMessage = '';
   let successMessage = '';
-  let stores: Store[] = [];
+  let storeScopeLoading = true;
+  let storeScopeTotalCount = 0;
   let selectedStoreID = '';
+  let selectedStore: Store | null = null;
   let topups: StoreTopup[] = [];
+  let transactionType: StoreTopup['type'] = 'store_topup';
   let selectedTopupID = '';
   let statusFilter: StoreTopup['status'] | 'all' = 'all';
   let amountInput = '';
   let topupSearchTerm = '';
+  let topupCreatedFrom = '';
+  let topupCreatedTo = '';
+  let topupPage = 1;
+  let topupPageSize = 6;
+  let topupTotalCount = 0;
   let qrCodeDataURL = '';
   let qrRequestID = 0;
   let selectedTopup: StoreTopup | null = null;
+  let lastTopupPaginationKey = '';
 
-  $: normalizedTopupSearch = topupSearchTerm.trim().toLowerCase();
+  let pendingCount = 0;
+  let successCount = 0;
+  let expiredCount = 0;
+  let failedCount = 0;
+  let totalGross = 0;
+  let pendingGross = 0;
+  $: topupMixChart = buildTopupMixChart([
+    pendingCount,
+    successCount,
+    expiredCount,
+    failedCount
+  ]);
   $: amountError =
     amountInput.trim() !== '' && !/^[1-9][0-9]*$/.test(amountInput.trim())
       ? 'Nominal topup harus angka bulat lebih dari nol.'
       : '';
-  $: filteredTopups = topups.filter((topup) => {
-    const matchesStatus = statusFilter === 'all' || topup.status === statusFilter;
-    const matchesSearch =
-      normalizedTopupSearch === '' ||
-      topup.custom_ref.toLowerCase().includes(normalizedTopupSearch) ||
-      topup.external_username.toLowerCase().includes(normalizedTopupSearch) ||
-      (topup.provider_trx_id ?? '').toLowerCase().includes(normalizedTopupSearch);
-
-    return matchesStatus && matchesSearch;
-  });
 
   onMount(() => {
     let active = true;
     hydratePreferredStoreID();
     const unsubscribe = preferredStoreID.subscribe(async (storeID) => {
-      if (!active || loading || stores.length === 0) {
+      if (!active || loading || storeScopeLoading) {
         return;
       }
 
-      if (storeID !== '' && storeID !== selectedStoreID && stores.some((store) => store.id === storeID)) {
+      if (storeID !== '' && storeID !== selectedStoreID) {
         selectedStoreID = storeID;
         errorMessage = '';
         successMessage = '';
@@ -76,7 +94,7 @@
         return;
       }
 
-      await loadStoresAndTopups();
+      loading = false;
     })();
 
     return () => {
@@ -91,45 +109,38 @@
     void updateQRCode(selectedTopup?.qr_code_value ?? null);
   }
 
-  async function loadStoresAndTopups() {
-    loading = true;
-    errorMessage = '';
-
-    const storesResponse = await fetchStores();
-    if (!(await ensureAuthorized(storesResponse.message))) {
-      return;
+  $: if (!loading && selectedStoreID !== '') {
+    const nextKey = `${selectedStoreID}:${topupPage}:${topupPageSize}`;
+    if (nextKey !== lastTopupPaginationKey) {
+      lastTopupPaginationKey = nextKey;
+      void loadTopups(selectedTopupID);
     }
-
-    if (!storesResponse.status || storesResponse.message !== 'SUCCESS') {
-      errorMessage = toMessage(storesResponse.message);
-      loading = false;
-      return;
-    }
-
-    stores = storesResponse.data ?? [];
-    if (stores.length === 0) {
-      selectedStoreID = '';
-      topups = [];
-      selectedTopupID = '';
-      loading = false;
-      return;
-    }
-
-    selectedStoreID = pickPreferredStoreID(stores, selectedStoreID);
-    setPreferredStoreID(selectedStoreID);
-
-    await loadTopups();
-    loading = false;
   }
 
   async function loadTopups(preferredTopupID = '') {
     if (selectedStoreID === '') {
       topups = [];
+      topupTotalCount = 0;
+      pendingCount = 0;
+      successCount = 0;
+      expiredCount = 0;
+      failedCount = 0;
+      totalGross = 0;
+      pendingGross = 0;
       selectedTopupID = '';
+      lastTopupPaginationKey = '';
       return;
     }
 
-    const response = await fetchStoreTopups(selectedStoreID);
+    const response = await fetchStoreTopups(selectedStoreID, {
+      type: transactionType,
+      status: statusFilter,
+      query: topupSearchTerm,
+      limit: topupPageSize,
+      offset: (topupPage - 1) * topupPageSize,
+      createdFrom: topupCreatedFrom,
+      createdTo: topupCreatedTo
+    });
     if (!(await ensureAuthorized(response.message))) {
       return;
     }
@@ -137,11 +148,27 @@
     if (!response.status || response.message !== 'SUCCESS') {
       errorMessage = toMessage(response.message);
       topups = [];
+      topupTotalCount = 0;
+      pendingCount = 0;
+      successCount = 0;
+      expiredCount = 0;
+      failedCount = 0;
+      totalGross = 0;
+      pendingGross = 0;
       selectedTopupID = '';
+      lastTopupPaginationKey = `${selectedStoreID}:${topupPage}:${topupPageSize}`;
       return;
     }
 
-    topups = response.data ?? [];
+    topups = response.data.items ?? [];
+    topupTotalCount = response.data.summary?.total_count ?? 0;
+    pendingCount = response.data.summary?.pending_count ?? 0;
+    successCount = response.data.summary?.success_count ?? 0;
+    expiredCount = response.data.summary?.expired_count ?? 0;
+    failedCount = response.data.summary?.failed_count ?? 0;
+    totalGross = Number(response.data.summary?.total_gross ?? 0);
+    pendingGross = Number(response.data.summary?.pending_gross ?? 0);
+    lastTopupPaginationKey = `${selectedStoreID}:${topupPage}:${topupPageSize}`;
 
     if (preferredTopupID !== '' && topups.some((topup) => topup.id === preferredTopupID)) {
       selectedTopupID = preferredTopupID;
@@ -151,9 +178,12 @@
     selectedTopupID = pickPreferredTopup(topups)?.id ?? '';
   }
 
-  async function changeStore(storeID: string) {
-    selectedStoreID = storeID;
+  async function handleStoreScopeChange(event: CustomEvent<{ storeID: string; store: Store | null }>) {
+    selectedStoreID = event.detail.storeID;
+    selectedStore = event.detail.store;
     setPreferredStoreID(selectedStoreID);
+    topupPage = 1;
+    lastTopupPaginationKey = '';
     errorMessage = '';
     successMessage = '';
     await loadTopups();
@@ -196,7 +226,28 @@
       response.message === 'SUCCESS'
         ? 'Topup QRIS dibuat. QR code aktif bisa langsung dipindai.'
         : 'Transaksi pending dibuat, tetapi respons generate provider masih ambigu.';
+    transactionType = 'store_topup';
+    statusFilter = 'all';
+    topupPage = 1;
+    lastTopupPaginationKey = '';
     await loadTopups(response.data.id);
+  }
+
+  async function applyFilters() {
+    topupPage = 1;
+    lastTopupPaginationKey = '';
+    await loadTopups(selectedTopupID);
+  }
+
+  async function resetFilters() {
+    transactionType = 'store_topup';
+    statusFilter = 'all';
+    topupSearchTerm = '';
+    topupCreatedFrom = '';
+    topupCreatedTo = '';
+    topupPage = 1;
+    lastTopupPaginationKey = '';
+    await loadTopups(selectedTopupID);
   }
 
   async function updateQRCode(rawValue: string | null) {
@@ -238,7 +289,7 @@
   }
 
   function currentStore() {
-    return stores.find((store) => store.id === selectedStoreID) ?? null;
+    return selectedStore;
   }
 
   function hasLowBalanceStore() {
@@ -312,36 +363,127 @@
         return 'Terjadi kesalahan. Coba ulangi.';
     }
   }
+
+  function buildTopupMixChart(values: number[]): ChartConfiguration<'doughnut'> {
+    return {
+      type: 'doughnut',
+      data: {
+        labels: ['Pending', 'Success', 'Expired', 'Failed'],
+        datasets: [
+          {
+            data: values,
+            backgroundColor: ['#efc86d', '#22c977', '#92826c', '#d66b5a'],
+            borderWidth: 0,
+            hoverOffset: 6
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '72%',
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              color: '#6b5d45',
+              usePointStyle: true,
+              boxWidth: 10,
+              padding: 18
+            }
+          }
+        }
+      }
+    };
+  }
+
+  function exportTopupsToCSV() {
+    exportRowsToCSV(
+      `${selectedStoreID || 'store'}-qris-topups`,
+      [
+        { label: 'Status', value: (topup) => statusLabel(topup.status) },
+        { label: 'Type', value: (topup) => topup.type },
+        { label: 'Custom Ref', value: (topup) => topup.custom_ref },
+        { label: 'External Username', value: (topup) => topup.external_username },
+        { label: 'Amount Gross', value: (topup) => topup.amount_gross },
+        { label: 'Store Credit Amount', value: (topup) => topup.store_credit_amount },
+        { label: 'Platform Fee', value: (topup) => topup.platform_fee_amount },
+        { label: 'Provider Trx ID', value: (topup) => topup.provider_trx_id ?? '-' },
+        { label: 'Provider State', value: (topup) => topup.provider_state ?? '-' },
+        { label: 'Created At', value: (topup) => formatDateTime(topup.created_at) },
+        { label: 'Expires At', value: (topup) => formatDateTime(topup.expires_at) }
+      ],
+      topups,
+    );
+  }
+
+  function exportTopupsToXLSX() {
+    exportRowsToXLSX(
+      `${selectedStoreID || 'store'}-qris-topups`,
+      'Topups',
+      [
+        { label: 'Status', value: (topup) => statusLabel(topup.status) },
+        { label: 'Type', value: (topup) => topup.type },
+        { label: 'Custom Ref', value: (topup) => topup.custom_ref },
+        { label: 'External Username', value: (topup) => topup.external_username },
+        { label: 'Amount Gross', value: (topup) => topup.amount_gross },
+        { label: 'Store Credit Amount', value: (topup) => topup.store_credit_amount },
+        { label: 'Platform Fee', value: (topup) => topup.platform_fee_amount },
+        { label: 'Provider Trx ID', value: (topup) => topup.provider_trx_id ?? '-' },
+        { label: 'Provider State', value: (topup) => topup.provider_state ?? '-' },
+        { label: 'Created At', value: (topup) => formatDateTime(topup.created_at) },
+        { label: 'Expires At', value: (topup) => formatDateTime(topup.expires_at) }
+      ],
+      topups,
+    );
+  }
+
+  function exportTopupsToPDF() {
+    exportRowsToPDF(
+      `${selectedStoreID || 'store'}-qris-topups`,
+      'QRIS Topup History',
+      [
+        { label: 'Status', value: (topup) => statusLabel(topup.status) },
+        { label: 'Ref', value: (topup) => topup.custom_ref },
+        { label: 'Username', value: (topup) => topup.external_username },
+        { label: 'Gross', value: (topup) => formatCurrency(topup.amount_gross) },
+        { label: 'Credit', value: (topup) => formatCurrency(topup.store_credit_amount) },
+        { label: 'Provider', value: (topup) => topup.provider_trx_id ?? '-' },
+        { label: 'Created', value: (topup) => formatDateTime(topup.created_at) }
+      ],
+      topups,
+    );
+  }
 </script>
 
 <svelte:head>
-  <title>Topups | onixggr</title>
+  <title>QRIS Desk | onixggr</title>
 </svelte:head>
 
 {#if loading}
   <PageSkeleton blocks={5} />
 {:else}
   <div class="space-y-6">
-    <section class="glass-panel rounded-4xl p-6">
-      <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+    <section class="surface-dark surface-grid overflow-hidden rounded-[2.4rem] px-6 py-6 text-white sm:px-7 sm:py-7">
+      <div class="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
         <div class="space-y-2">
-          <p class="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
-            Store Topup QRIS
+          <p class="section-kicker">
+            QRIS desk
           </p>
-          <h1 class="font-display text-3xl font-bold tracking-tight text-ink-900">
-            Tambah saldo toko via QRIS dashboard
+          <h1 class="font-display text-4xl font-bold tracking-tight sm:text-5xl">
+            Command surface untuk store topup dan member payment QRIS.
           </h1>
-          <p class="max-w-3xl text-sm leading-6 text-ink-700">
-            Hari 24 hanya menyelesaikan generate `store_topup` QRIS. Dashboard ini membuat
-            transaksi pending, menyimpan `provider_trx_id`, merender QR image, dan menampilkan
-            histori pending, success, failed, atau expired per toko.
+          <p class="max-w-3xl text-sm leading-7 text-white/72 sm:text-base">
+            Dashboard ini tetap membuat `store_topup` dari browser, sambil juga membaca histori
+            `member_payment` dari website owner yang memukul store API. Kedua jalur memakai domain
+            transaksi terpisah, tetapi berbagi engine QRIS, webhook, dan reconcile yang sama.
           </p>
         </div>
 
-        <div class="rounded-3xl bg-canvas-100 px-4 py-3 text-sm text-ink-700">
-          <p class="font-semibold text-ink-900">Scope</p>
-          <p>Role: {$authSession?.user.role ?? '-'}</p>
-          <p>Toko tersedia: {stores.length}</p>
+        <div class="rounded-[1.8rem] border border-white/12 bg-white/7 px-4 py-4 text-sm text-white/72 backdrop-blur">
+          <p class="font-semibold text-white">Scope</p>
+          <p class="mt-2">Role: {$authSession?.user.role ?? '-'}</p>
+          <p>Toko tersedia: {formatNumber(storeScopeTotalCount)}</p>
         </div>
       </div>
     </section>
@@ -360,7 +502,9 @@
         title="Role ini tidak bisa mengelola topup QRIS"
         body="Topup dashboard hanya tersedia untuk owner, dev, dan superadmin agar flow uang tidak dipicu dari role yang salah."
       />
-    {:else if stores.length === 0}
+    {:else if storeScopeLoading}
+      <PageSkeleton blocks={2} />
+    {:else if storeScopeTotalCount === 0}
       <EmptyState
         eyebrow="Store Topup"
         title="Belum ada toko untuk di-topup"
@@ -369,6 +513,36 @@
         actionLabel="Buka Stores"
       />
     {:else}
+      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          eyebrow="Queue"
+          title="Pending topups"
+          value={formatNumber(pendingCount)}
+          detail="Generate QR yang belum final atau masih menunggu pembayaran."
+          tone="accent"
+        />
+        <MetricCard
+          eyebrow="Success"
+          title="Settled QRIS"
+          value={formatNumber(successCount)}
+          detail="Histori QRIS sukses untuk tipe transaksi yang sedang difilter."
+          tone="brand"
+        />
+        <MetricCard
+          eyebrow="Gross"
+          title="Total requested"
+          value={formatCurrency(totalGross)}
+          detail="Akumulasi nominal gross di histori topup store aktif."
+        />
+        <MetricCard
+          eyebrow="Pending Gross"
+          title="Open QR value"
+          value={formatCurrency(pendingGross)}
+          detail="Nominal gross yang masih terbuka di QR pending."
+          tone="accent"
+        />
+      </div>
+
       <div class="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
         <section class="glass-panel rounded-4xl p-6">
           <h2 class="font-display text-2xl font-bold text-ink-900">Buat topup baru</h2>
@@ -378,24 +552,28 @@
           </p>
 
           <div class="mt-5 space-y-4">
-            <label class="space-y-2">
-              <span class="text-sm font-medium text-ink-700">Toko</span>
-              <select
-                bind:value={selectedStoreID}
-                class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300"
-                onchange={(event) => changeStore((event.currentTarget as HTMLSelectElement).value)}
-              >
-                {#each stores as store}
-                  <option value={store.id}>{store.name} · {store.slug}</option>
-                {/each}
-              </select>
-            </label>
+            <StoreScopePicker
+              bind:selectedStoreID
+              bind:selectedStore
+              bind:loading={storeScopeLoading}
+              bind:totalCount={storeScopeTotalCount}
+              compact
+              title="Store scope untuk topup QRIS"
+              description="Selector ini memakai store directory backend yang sudah dipaginasi, jadi tetap cepat saat roster store membesar."
+              placeholder="Cari store untuk generate topup"
+              on:change={handleStoreScopeChange}
+            />
 
             {#if currentStore()}
-              <div class="rounded-3xl border border-ink-100 bg-canvas-50 px-4 py-4 text-sm text-ink-700">
+              <div class="rounded-[1.7rem] border border-ink-100 bg-canvas-50 px-4 py-4 text-sm text-ink-700">
                 <p class="font-semibold text-ink-900">{currentStore()?.name}</p>
-                <p>Balance sekarang: {currentStore()?.current_balance}</p>
-                <p>Low balance threshold: {currentStore()?.low_balance_threshold ?? '-'}</p>
+                <p>Balance sekarang: {formatCurrency(currentStore()?.current_balance)}</p>
+                <p>
+                  Low balance threshold:
+                  {currentStore()?.low_balance_threshold
+                    ? formatCurrency(currentStore()?.low_balance_threshold)
+                    : '-'}
+                </p>
               </div>
             {/if}
 
@@ -431,7 +609,7 @@
             </Button>
           </div>
 
-          <div class="mt-8 rounded-3xl border border-dashed border-ink-200 bg-white p-5">
+          <div class="mt-8 rounded-[1.9rem] border border-dashed border-ink-200 bg-white p-5">
             <div class="flex items-start justify-between gap-4">
               <div>
                 <h3 class="font-semibold text-ink-900">QR aktif</h3>
@@ -453,7 +631,7 @@
 
             {#if selectedTopup && selectedTopup.qr_code_value && qrCodeDataURL !== ''}
               <div class="mt-5 flex flex-col items-center gap-4">
-                <img alt="QRIS topup" class="w-full max-w-[320px] rounded-3xl border border-ink-100 bg-white p-4" src={qrCodeDataURL} />
+                <img alt="QRIS topup" class="w-full max-w-[320px] rounded-[1.8rem] border border-ink-100 bg-white p-4" src={qrCodeDataURL} />
                 <p class="text-center text-sm leading-6 text-ink-700">
                   Scan QR ini untuk menyelesaikan topup. History transaksi tetap tersedia walau owner
                   membuat beberapa pending topup sekaligus.
@@ -472,21 +650,40 @@
         </section>
 
         <section class="glass-panel rounded-4xl p-6">
-          <div class="flex items-start justify-between gap-4">
+          <div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <h2 class="font-display text-2xl font-bold text-ink-900">History topup</h2>
+              <h2 class="font-display text-2xl font-bold text-ink-900">History QRIS</h2>
               <p class="mt-2 text-sm leading-6 text-ink-700">
-                List ini memisahkan status pending, success, failed, dan expired untuk transaksi
-                `store_topup`.
+                List ini ditarik langsung dari backend dengan pagination server-side, search, status
+                filter, dan date range supaya histori tetap ringan saat row sudah besar.
               </p>
             </div>
 
-            <Button variant="outline" size="lg" onclick={() => loadTopups(selectedTopupID)} disabled={busy}>
-              Refresh
-            </Button>
+            <div class="grid gap-4 sm:grid-cols-[minmax(0,1fr)_220px] lg:w-[420px]">
+              <article class="rounded-[1.7rem] bg-canvas-50 px-4 py-4">
+                <p class="text-sm font-semibold text-ink-900">Status distribution</p>
+                <ChartCanvas class="mt-4 h-[220px]" config={topupMixChart} />
+              </article>
+              <div class="flex items-start justify-end">
+                <Button variant="outline" size="lg" onclick={() => loadTopups(selectedTopupID)} disabled={busy}>
+                  Refresh
+                </Button>
+              </div>
+            </div>
           </div>
 
-          <div class="mt-5 grid gap-4 md:grid-cols-[12rem_minmax(0,1fr)]">
+          <div class="mt-5 grid gap-4 xl:grid-cols-[12rem_12rem_minmax(0,1fr)]">
+            <label class="space-y-2">
+              <span class="text-sm font-medium text-ink-700">Type</span>
+              <select
+                bind:value={transactionType}
+                class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300"
+              >
+                <option value="store_topup">Store topup</option>
+                <option value="member_payment">Member payment</option>
+              </select>
+            </label>
+
             <label class="space-y-2">
               <span class="text-sm font-medium text-ink-700">Status</span>
               <select
@@ -511,23 +708,47 @@
             </label>
           </div>
 
-          <div class="mt-5 space-y-4">
-            {#if topups.length === 0}
-              <EmptyState
-                eyebrow="Topup History"
-                title="Belum ada histori topup"
-                body="Toko ini belum punya transaksi `store_topup`. Generate QR pertama akan langsung tampil di panel aktif dan histori di sisi kanan."
+          <div class="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+            <DateRangeFilter bind:start={topupCreatedFrom} bind:end={topupCreatedTo} />
+            <div class="grid gap-4">
+              <div class="flex flex-wrap items-center justify-end gap-3">
+                <Button variant="outline" size="lg" onclick={resetFilters} disabled={busy}>
+                  Reset Filter
+                </Button>
+                <Button variant="brand" size="lg" onclick={applyFilters} disabled={busy}>
+                  Apply Filter
+                </Button>
+              </div>
+
+              <ExportActions
+                count={topups.length}
+                disabled={topups.length === 0}
+                onCsv={exportTopupsToCSV}
+                onXlsx={exportTopupsToXLSX}
+                onPdf={exportTopupsToPDF}
               />
-            {:else if filteredTopups.length === 0}
+            </div>
+          </div>
+
+          <div class="mt-5 space-y-4">
+            {#if topupTotalCount === 0}
+              <EmptyState
+                eyebrow="QRIS History"
+                title="Belum ada histori QRIS"
+                body={transactionType === 'store_topup'
+                  ? 'Toko ini belum punya transaksi `store_topup`. Generate QR pertama akan langsung tampil di panel aktif dan histori di sisi kanan.'
+                  : 'Belum ada histori `member_payment` untuk toko ini. Event akan muncul setelah website owner mulai memakai store API QRIS.'}
+              />
+            {:else if topups.length === 0}
               <EmptyState
                 eyebrow="Filter Result"
-                title="Tidak ada topup yang cocok"
-                body={`Filter status ${statusFilter} dan kata kunci "${topupSearchTerm}" tidak menemukan transaksi yang sesuai.`}
+                title="Tidak ada transaksi yang cocok"
+                body={`Filter tipe ${transactionType}, status ${statusFilter}, kata kunci "${topupSearchTerm}", dan rentang waktu aktif belum menemukan transaksi yang sesuai.`}
               />
             {:else}
-              {#each filteredTopups as topup}
+              {#each topups as topup}
                 <button
-                  class={`w-full rounded-3xl border p-4 text-left transition ${
+                  class={`w-full rounded-[1.7rem] border p-4 text-left transition ${
                     selectedTopupID === topup.id
                       ? 'border-brand-300 bg-brand-100/40'
                       : 'border-ink-100 bg-white hover:border-accent-300 hover:bg-canvas-50'
@@ -543,25 +764,22 @@
                         <span class={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${statusClass(topup.status)}`}>
                           {statusLabel(topup.status)}
                         </span>
+                        <span class="rounded-full bg-brand-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-brand-700">
+                          {topup.type === 'member_payment' ? 'Member payment' : 'Store topup'}
+                        </span>
                         <span class="rounded-full bg-canvas-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-ink-700">
                           {topup.external_username}
                         </span>
                       </div>
 
-                      <h3 class="font-semibold text-ink-900">{topup.amount_gross}</h3>
+                      <h3 class="font-semibold text-ink-900">{formatCurrency(topup.amount_gross)}</h3>
                       <p class="font-mono text-xs text-ink-700">{topup.custom_ref}</p>
                       <p class="text-sm leading-6 text-ink-700">{providerNote(topup)}</p>
                     </div>
 
-                    <div class="rounded-3xl bg-canvas-100 px-4 py-3 text-sm text-ink-700">
-                      <p>
-                        Created:
-                        {new Date(topup.created_at).toLocaleString('id-ID')}
-                      </p>
-                      <p>
-                        Expires:
-                        {topup.expires_at ? new Date(topup.expires_at).toLocaleString('id-ID') : '-'}
-                      </p>
+                    <div class="rounded-[1.5rem] bg-canvas-100 px-4 py-3 text-sm text-ink-700">
+                      <p>Created: {formatDateTime(topup.created_at)}</p>
+                      <p>Expires: {topup.expires_at ? formatDateTime(topup.expires_at) : '-'}</p>
                       <p>Provider trx: {topup.provider_trx_id ?? '-'}</p>
                     </div>
                   </div>
@@ -569,6 +787,12 @@
               {/each}
             {/if}
           </div>
+
+          {#if topupTotalCount > 0}
+            <div class="mt-5">
+              <PaginationControls bind:page={topupPage} bind:pageSize={topupPageSize} totalItems={topupTotalCount} />
+            </div>
+          {/if}
         </section>
       </div>
     {/if}

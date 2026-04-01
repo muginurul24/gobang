@@ -45,7 +45,26 @@ func (r *Repository) GetStoreScope(ctx context.Context, storeID string) (StoreSc
 	return store, nil
 }
 
-func (r *Repository) ListBankAccounts(ctx context.Context, storeID string) ([]BankAccount, error) {
+func (r *Repository) ListBankAccounts(ctx context.Context, filter ListBankAccountsFilter) (BankAccountPage, error) {
+	whereClause, args := buildListBankAccountsWhere(filter)
+	summaryQuery := `
+		SELECT
+			count(*)::int AS total_count,
+			COALESCE(count(*) FILTER (WHERE is_active = TRUE), 0)::int AS active_count,
+			COALESCE(count(*) FILTER (WHERE is_active = FALSE), 0)::int AS inactive_count
+		FROM store_bank_accounts
+		WHERE ` + whereClause
+
+	var summary BankAccountSummary
+	if err := r.pool.QueryRow(ctx, summaryQuery, args...).Scan(
+		&summary.TotalCount,
+		&summary.ActiveCount,
+		&summary.InactiveCount,
+	); err != nil {
+		return BankAccountPage{}, fmt.Errorf("summarize bank accounts: %w", err)
+	}
+
+	listArgs := append(append([]any{}, args...), filter.Limit, filter.Offset)
 	rows, err := r.pool.Query(ctx, `
 		SELECT
 			id,
@@ -59,15 +78,26 @@ func (r *Repository) ListBankAccounts(ctx context.Context, storeID string) ([]Ba
 			created_at,
 			updated_at
 		FROM store_bank_accounts
-		WHERE store_id = $1
-		ORDER BY created_at DESC
-	`, storeID)
+		WHERE `+whereClause+`
+		ORDER BY COALESCE(verified_at, created_at) DESC, id DESC
+		LIMIT $`+fmt.Sprint(len(args)+1)+`
+		OFFSET $`+fmt.Sprint(len(args)+2), listArgs...)
 	if err != nil {
-		return nil, fmt.Errorf("list bank accounts: %w", err)
+		return BankAccountPage{}, fmt.Errorf("list bank accounts: %w", err)
 	}
 	defer rows.Close()
 
-	return collectBankAccounts(rows)
+	items, err := collectBankAccounts(rows)
+	if err != nil {
+		return BankAccountPage{}, err
+	}
+
+	return BankAccountPage{
+		Items:   items,
+		Summary: summary,
+		Limit:   filter.Limit,
+		Offset:  filter.Offset,
+	}, nil
 }
 
 func (r *Repository) CreateBankAccount(ctx context.Context, params CreateBankAccountParams) (BankAccount, error) {
@@ -263,6 +293,38 @@ func collectBankAccounts(rows pgx.Rows) ([]BankAccount, error) {
 	}
 
 	return bankAccounts, nil
+}
+
+func buildListBankAccountsWhere(filter ListBankAccountsFilter) (string, []any) {
+	clauses := []string{"store_id = $1"}
+	args := []any{filter.StoreID}
+	next := 2
+
+	if filter.Query != "" {
+		search := "%" + filter.Query + "%"
+		clauses = append(clauses, fmt.Sprintf("(bank_code ILIKE $%d OR bank_name ILIKE $%d OR account_name ILIKE $%d OR account_number_masked ILIKE $%d)", next, next, next, next))
+		args = append(args, search)
+		next++
+	}
+
+	if filter.IsActive != nil {
+		clauses = append(clauses, fmt.Sprintf("is_active = $%d", next))
+		args = append(args, *filter.IsActive)
+		next++
+	}
+
+	if filter.VerifiedFrom != nil {
+		clauses = append(clauses, fmt.Sprintf("COALESCE(verified_at, created_at) >= $%d", next))
+		args = append(args, *filter.VerifiedFrom)
+		next++
+	}
+
+	if filter.VerifiedTo != nil {
+		clauses = append(clauses, fmt.Sprintf("COALESCE(verified_at, created_at) <= $%d", next))
+		args = append(args, *filter.VerifiedTo)
+	}
+
+	return strings.Join(clauses, " AND "), args
 }
 
 func nullableString(value string) any {

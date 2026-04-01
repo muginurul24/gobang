@@ -195,7 +195,50 @@ func (r *Repository) AcquireProcessingLock(ctx context.Context, withdrawalID str
 	}, true, nil
 }
 
-func (r *Repository) ListStoreWithdrawals(ctx context.Context, storeID string) ([]StoreWithdrawal, error) {
+func (r *Repository) ListStoreWithdrawalsPage(ctx context.Context, filter ListWithdrawalsFilter) (StoreWithdrawalPage, error) {
+	whereClause, args := buildWithdrawalListWhere(filter)
+
+	var summary StoreWithdrawalSummary
+	summaryQuery := `
+		SELECT
+			COUNT(*)::int,
+			COUNT(*) FILTER (WHERE status = 'pending')::int,
+			COUNT(*) FILTER (WHERE status = 'success')::int,
+			COUNT(*) FILTER (WHERE status = 'failed')::int,
+			COALESCE(SUM(net_requested_amount), 0)::text,
+			COALESCE(SUM(platform_fee_amount), 0)::text,
+			COALESCE(SUM(external_fee_amount), 0)::text
+		FROM store_withdrawals w
+		INNER JOIN store_bank_accounts a ON a.id = w.store_bank_account_id
+	` + whereClause
+	if err := r.pool.QueryRow(ctx, summaryQuery, args...).Scan(
+		&summary.TotalCount,
+		&summary.PendingCount,
+		&summary.SuccessCount,
+		&summary.FailedCount,
+		&summary.TotalNetAmount,
+		&summary.TotalPlatformFee,
+		&summary.TotalExternalFee,
+	); err != nil {
+		return StoreWithdrawalPage{}, fmt.Errorf("summarize store withdrawals: %w", err)
+	}
+
+	page := StoreWithdrawalPage{
+		Items:   []StoreWithdrawal{},
+		Summary: summary,
+		Limit:   filter.Limit,
+		Offset:  filter.Offset,
+	}
+	if summary.TotalCount == 0 {
+		return page, nil
+	}
+
+	queryArgs := append([]any{}, args...)
+	limitPlaceholder := len(queryArgs) + 1
+	queryArgs = append(queryArgs, filter.Limit)
+	offsetPlaceholder := len(queryArgs) + 1
+	queryArgs = append(queryArgs, filter.Offset)
+
 	rows, err := r.pool.Query(ctx, `
 		SELECT
 			w.id,
@@ -217,29 +260,62 @@ func (r *Repository) ListStoreWithdrawals(ctx context.Context, storeID string) (
 			w.updated_at
 		FROM store_withdrawals w
 		INNER JOIN store_bank_accounts a ON a.id = w.store_bank_account_id
-		WHERE w.store_id = $1
+	`+whereClause+`
 		ORDER BY w.created_at DESC
-	`, strings.TrimSpace(storeID))
+		LIMIT $`+fmt.Sprint(limitPlaceholder)+` OFFSET $`+fmt.Sprint(offsetPlaceholder), queryArgs...)
 	if err != nil {
-		return nil, fmt.Errorf("list store withdrawals: %w", err)
+		return StoreWithdrawalPage{}, fmt.Errorf("list store withdrawals: %w", err)
 	}
 	defer rows.Close()
 
-	var withdrawals []StoreWithdrawal
 	for rows.Next() {
 		withdrawal, err := scanWithdrawal(rows)
 		if err != nil {
-			return nil, err
+			return StoreWithdrawalPage{}, err
 		}
 
-		withdrawals = append(withdrawals, withdrawal)
+		page.Items = append(page.Items, withdrawal)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate store withdrawals: %w", err)
+		return StoreWithdrawalPage{}, fmt.Errorf("iterate store withdrawals: %w", err)
 	}
 
-	return withdrawals, nil
+	return page, nil
+}
+
+func buildWithdrawalListWhere(filter ListWithdrawalsFilter) (string, []any) {
+	clauses := []string{"w.store_id = $1"}
+	args := []any{strings.TrimSpace(filter.StoreID)}
+
+	if filter.Status != nil {
+		clauses = append(clauses, fmt.Sprintf("w.status = $%d", len(args)+1))
+		args = append(args, *filter.Status)
+	}
+
+	if query := strings.TrimSpace(filter.Query); query != "" {
+		placeholder := fmt.Sprintf("$%d", len(args)+1)
+		args = append(args, "%"+query+"%")
+		clauses = append(clauses, "("+strings.Join([]string{
+			"a.bank_code ILIKE " + placeholder,
+			"a.bank_name ILIKE " + placeholder,
+			"a.account_name ILIKE " + placeholder,
+			"COALESCE(w.provider_partner_ref_no, '') ILIKE " + placeholder,
+			"w.idempotency_key ILIKE " + placeholder,
+		}, " OR ")+")")
+	}
+
+	if filter.CreatedFrom != nil {
+		clauses = append(clauses, fmt.Sprintf("w.created_at >= $%d", len(args)+1))
+		args = append(args, *filter.CreatedFrom)
+	}
+
+	if filter.CreatedTo != nil {
+		clauses = append(clauses, fmt.Sprintf("w.created_at <= $%d", len(args)+1))
+		args = append(args, *filter.CreatedTo)
+	}
+
+	return " WHERE " + strings.Join(clauses, " AND "), args
 }
 
 func (r *Repository) NextStatusCheckAttemptNo(ctx context.Context, withdrawalID string) (int, error) {
