@@ -272,7 +272,7 @@
 
 <section class="space-y-6">
   <section class="surface-dark surface-grid overflow-hidden rounded-[2.4rem] px-6 py-6 text-white sm:px-7 sm:py-7">
-    <div class="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
+    <div class="grid gap-6 2xl:grid-cols-[1.08fr_0.92fr]">
       <div class="space-y-4">
         <span class="status-chip w-fit">Owner integration docs</span>
         <div class="space-y-3">
@@ -308,7 +308,7 @@
     </div>
   </section>
 
-  <div class="grid gap-6 xl:grid-cols-[0.82fr_1.18fr]">
+  <div class="grid gap-6 2xl:grid-cols-[0.82fr_1.18fr]">
       <section class="space-y-6">
         <article class="glass-panel rounded-[2.2rem] p-5 sm:p-6">
           <div class="flex items-end justify-between gap-4">

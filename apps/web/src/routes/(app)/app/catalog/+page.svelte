@@ -188,7 +188,7 @@
 
 <div class="space-y-6">
   <section class="surface-dark surface-grid overflow-hidden rounded-[2.4rem] px-6 py-6 text-white sm:px-7 sm:py-7">
-    <div class="grid gap-6 xl:grid-cols-[1.12fr_0.88fr]">
+    <div class="grid gap-6 2xl:grid-cols-[1.12fr_0.88fr]">
       <div class="space-y-4">
         <div class="flex flex-wrap gap-3">
           <span class="status-chip">provider sync</span>
@@ -261,7 +261,7 @@
     />
   </div>
 
-  <section class="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
+  <section class="grid gap-6 2xl:grid-cols-[minmax(17rem,20rem)_minmax(0,1fr)]">
     <div class="glass-panel rounded-[2.2rem] px-5 py-5">
         <div class="grid gap-3">
           <label class="text-sm font-medium text-ink-800" for="provider-query">Cari provider</label>

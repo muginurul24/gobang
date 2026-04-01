@@ -211,7 +211,7 @@
         {/if}
       </div>
     {:else}
-      <div class="grid gap-3 sm:grid-cols-2 xl:min-w-[22rem]">
+      <div class="grid gap-3 sm:grid-cols-2">
         <article class="rounded-[1.35rem] border border-white/65 bg-white/72 px-4 py-4 shadow-[0_14px_28px_rgba(7,16,12,0.08)]">
           <p class="text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-ink-300">Visible</p>
           <p class="mt-2 font-display text-2xl font-semibold tracking-tight text-ink-900">{formatNumber(totalCount)}</p>
@@ -236,22 +236,22 @@
     {/if}
   </div>
 
-  <div class={`mt-5 grid gap-4 ${compact ? 'lg:grid-cols-[minmax(0,1fr)_220px_auto]' : 'xl:grid-cols-[minmax(0,1fr)_260px_auto]'}`}>
-    <label class="space-y-2">
-      <span class="text-sm font-medium text-ink-700">Search directory</span>
+  <div class={`mt-5 grid gap-4 ${compact ? 'xl:grid-cols-[minmax(0,1fr)_12rem] 2xl:grid-cols-[minmax(0,1fr)_12rem_auto] xl:items-end' : '2xl:grid-cols-[minmax(0,1fr)_14rem_auto] 2xl:items-end'}`}>
+    <label class="field-stack">
+      <span class="field-label">Search directory</span>
       <input
         bind:value={query}
-        class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300"
+        class="field-input"
         placeholder={placeholder}
         disabled={disabled}
       />
     </label>
 
-    <label class="space-y-2">
-      <span class="text-sm font-medium text-ink-700">Page size</span>
+    <label class="field-stack">
+      <span class="field-label">Page size</span>
       <select
         bind:value={pageSize}
-        class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300"
+        class="field-select"
         disabled={disabled}
       >
         <option value={6}>6</option>
@@ -261,7 +261,7 @@
       </select>
     </label>
 
-    <div class="flex items-end gap-3">
+    <div class="toolbar-actions">
       <Button variant="brand" onclick={applySearch} disabled={disabled || loading}>
         Search
       </Button>
@@ -271,12 +271,12 @@
     </div>
   </div>
 
-  <div class={`mt-4 grid gap-4 ${compact ? 'lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end' : 'xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end'}`}>
-    <label class="space-y-2">
-      <span class="text-sm font-medium text-ink-700">Store aktif</span>
+  <div class={`mt-4 grid gap-4 ${compact ? 'xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end' : '2xl:grid-cols-[minmax(0,1fr)_auto] 2xl:items-end'}`}>
+    <label class="field-stack">
+      <span class="field-label">Store aktif</span>
       <select
         bind:value={selectedStoreID}
-        class="w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-accent-300"
+        class="field-select"
         disabled={disabled || loading || visibleItems.length === 0}
         onchange={(event) => chooseStore((event.currentTarget as HTMLSelectElement).value)}
       >

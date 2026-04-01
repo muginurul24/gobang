@@ -414,7 +414,7 @@
         />
       </div>
 
-      <div class="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+      <div class="grid gap-6 2xl:grid-cols-[1.05fr_0.95fr]">
         <section class="glass-panel rounded-4xl p-6">
           <h2 class="font-display text-2xl font-bold text-ink-900">Tambah rekening tujuan</h2>
           <p class="mt-2 text-sm leading-6 text-ink-700">
@@ -530,7 +530,7 @@
             />
           </label>
 
-          <div class="mt-4 grid gap-4 xl:grid-cols-[12rem_minmax(0,1fr)]">
+          <div class="mt-4 grid gap-4 2xl:grid-cols-[12rem_minmax(0,1fr)]">
             <label class="space-y-2">
               <span class="text-sm font-medium text-ink-700">Status</span>
               <select

@@ -260,7 +260,7 @@
 
 <section class="space-y-6">
   <section class="surface-dark surface-grid overflow-hidden rounded-[2.4rem] px-6 py-6 text-white sm:px-7 sm:py-7">
-    <div class="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
+    <div class="grid gap-6 2xl:grid-cols-[1.08fr_0.92fr]">
       <div class="space-y-4">
         <div class="flex flex-wrap gap-3">
           <span class="status-chip">global_chat</span>
@@ -301,22 +301,22 @@
   </section>
 
   <section class="glass-panel overflow-hidden rounded-[2.3rem]">
-    <div class="grid gap-4 p-6 lg:grid-cols-[1fr_18rem]">
-    <div class="space-y-3">
-      <article class="rounded-[1.8rem] bg-canvas-100 px-5 py-4 text-sm leading-6 text-ink-700">
-        Chat ini hanya punya satu room: `global_chat`. Tidak ada DM, tidak ada edit, dan history
-        dibersihkan otomatis setelah 7 hari.
-      </article>
-      <article class="surface-dark rounded-[1.8rem] px-5 py-4 text-sm leading-6 text-white">
-        Pengiriman message lewat HTTP, distribusi realtime lewat WebSocket `global_chat`. Saat dev
-        menghapus message, item akan hilang untuk semua peserta.
-      </article>
+    <div class="grid gap-4 p-6 2xl:grid-cols-[minmax(0,1fr)_18rem]">
+      <div class="space-y-3">
+        <article class="rounded-[1.8rem] bg-canvas-100 px-5 py-4 text-sm leading-6 text-ink-700">
+          Chat ini hanya punya satu room: `global_chat`. Tidak ada DM, tidak ada edit, dan history
+          dibersihkan otomatis setelah 7 hari.
+        </article>
+        <article class="surface-dark rounded-[1.8rem] px-5 py-4 text-sm leading-6 text-white">
+          Pengiriman message lewat HTTP, distribusi realtime lewat WebSocket `global_chat`. Saat dev
+          menghapus message, item akan hilang untuk semua peserta.
+        </article>
 
-      {#if errorMessage}
-        <Notice tone="error" title="Chat Error" message={errorMessage} />
-      {/if}
+        {#if errorMessage}
+          <Notice tone="error" title="Chat Error" message={errorMessage} />
+        {/if}
 
-      <article class="rounded-[1.9rem] border border-ink-100 px-5 py-4 text-sm leading-6 text-ink-700">
+        <article class="rounded-[1.9rem] border border-ink-100 px-5 py-4 text-sm leading-6 text-ink-700">
         <div class="flex items-center justify-between gap-4">
           <div>
             <p class="font-semibold text-ink-900">Room Timeline</p>
@@ -329,8 +329,8 @@
           </p>
         </div>
 
-        <div class="mt-4 max-h-[32rem] space-y-3 overflow-y-auto pr-1">
-          <div class="grid gap-4 xl:grid-cols-[12rem_minmax(0,1fr)]">
+        <div class="mt-4 space-y-3">
+          <div class="grid gap-4 2xl:grid-cols-[12rem_minmax(0,1fr)]">
             <label class="space-y-2">
               <span class="text-sm font-medium text-ink-700">Role</span>
               <select
@@ -354,16 +354,16 @@
             </label>
           </div>
 
-          <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div class="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]">
             <DateRangeFilter bind:start={createdFrom} bind:end={createdTo} label="Created at" />
-          <ExportActions
-            count={messages.length}
-            disabled={messages.length === 0}
-            onCsv={exportMessagesToCSV}
-            onXlsx={exportMessagesToXLSX}
-            onPdf={exportMessagesToPDF}
-          />
-        </div>
+            <ExportActions
+              count={messages.length}
+              disabled={messages.length === 0}
+              onCsv={exportMessagesToCSV}
+              onXlsx={exportMessagesToXLSX}
+              onPdf={exportMessagesToPDF}
+            />
+          </div>
 
           <div class="flex flex-wrap gap-3">
             <Button variant="brand" size="sm" onclick={applyFilters} disabled={refreshing}>
@@ -374,41 +374,43 @@
             </Button>
           </div>
 
-          {#if loading}
-            <p class="rounded-[1.4rem] bg-canvas-100 px-4 py-3 text-sm text-ink-600">
-              Memuat room global...
-            </p>
-          {:else if totalMessageCount === 0}
-            <EmptyState
-              eyebrow="Global Chat"
-              title="Belum ada message"
-              body="Belum ada message di room global. Kirim message pertama untuk memulai percakapan operasional."
-            />
-          {:else}
-            {#each messages as message}
-              <div class="rounded-[1.5rem] bg-canvas-100 px-4 py-4">
-                <div class="flex items-start justify-between gap-3">
-                  <div>
-                    <p class="text-sm font-semibold text-ink-900">{message.sender_username}</p>
-                    <p class="text-xs uppercase tracking-[0.18em] text-ink-500">
-                      {message.sender_role} • {formatTimestamp(message.created_at)}
-                    </p>
+          <div class="max-h-[32rem] space-y-3 overflow-y-auto pr-1 soft-scroll">
+            {#if loading}
+              <p class="rounded-[1.4rem] bg-canvas-100 px-4 py-3 text-sm text-ink-600">
+                Memuat room global...
+              </p>
+            {:else if totalMessageCount === 0}
+              <EmptyState
+                eyebrow="Global Chat"
+                title="Belum ada message"
+                body="Belum ada message di room global. Kirim message pertama untuk memulai percakapan operasional."
+              />
+            {:else}
+              {#each messages as message}
+                <div class="rounded-[1.5rem] bg-canvas-100 px-4 py-4">
+                  <div class="flex items-start justify-between gap-3">
+                    <div>
+                      <p class="text-sm font-semibold text-ink-900">{message.sender_username}</p>
+                      <p class="text-xs uppercase tracking-[0.18em] text-ink-500">
+                        {message.sender_role} • {formatTimestamp(message.created_at)}
+                      </p>
+                    </div>
+                    {#if canModerate}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={deletingID === message.id}
+                        onclick={() => moderateDelete(message.id)}
+                      >
+                        {deletingID === message.id ? 'Deleting...' : 'Delete'}
+                      </Button>
+                    {/if}
                   </div>
-                  {#if canModerate}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={deletingID === message.id}
-                      onclick={() => moderateDelete(message.id)}
-                    >
-                      {deletingID === message.id ? 'Deleting...' : 'Delete'}
-                    </Button>
-                  {/if}
+                  <p class="mt-3 whitespace-pre-wrap text-sm leading-6 text-ink-800">{message.body}</p>
                 </div>
-                <p class="mt-3 whitespace-pre-wrap text-sm leading-6 text-ink-800">{message.body}</p>
-              </div>
-            {/each}
-          {/if}
+              {/each}
+            {/if}
+          </div>
         </div>
 
         {#if totalMessageCount > 0}
@@ -418,43 +420,43 @@
         {/if}
       </article>
 
-      <form
-        class="rounded-[1.9rem] border border-ink-100 px-5 py-4"
-        on:submit|preventDefault={submitMessage}
-      >
-        <label class="block text-sm font-semibold text-ink-900" for="chat-body">Kirim Message</label>
-        <textarea
-          id="chat-body"
-          class="mt-3 min-h-28 w-full rounded-2xl border border-ink-100 bg-canvas-100 px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-brand-500"
-          bind:value={body}
-          maxlength="1000"
-          placeholder="Tulis message untuk room global..."
-        ></textarea>
-        <div class="mt-3 flex items-center justify-between gap-3">
-          <p class="text-xs text-ink-500">Maksimum 1000 karakter. Message tidak bisa diedit.</p>
-          <Button variant="default" size="lg" type="submit" disabled={sending || body.trim() === ''}>
-            {sending ? 'Sending...' : 'Send Message'}
-          </Button>
-        </div>
-      </form>
-    </div>
+        <form
+          class="rounded-[1.9rem] border border-ink-100 px-5 py-4"
+          on:submit|preventDefault={submitMessage}
+        >
+          <label class="block text-sm font-semibold text-ink-900" for="chat-body">Kirim Message</label>
+          <textarea
+            id="chat-body"
+            class="mt-3 min-h-28 w-full rounded-2xl border border-ink-100 bg-canvas-100 px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-brand-500"
+            bind:value={body}
+            maxlength="1000"
+            placeholder="Tulis message untuk room global..."
+          ></textarea>
+          <div class="mt-3 flex items-center justify-between gap-3">
+            <p class="text-xs text-ink-500">Maksimum 1000 karakter. Message tidak bisa diedit.</p>
+            <Button variant="default" size="lg" type="submit" disabled={sending || body.trim() === ''}>
+              {sending ? 'Sending...' : 'Send Message'}
+            </Button>
+          </div>
+        </form>
+      </div>
 
-    <aside class="rounded-[1.9rem] border border-dashed border-ink-100 px-4 py-4 text-sm leading-6 text-ink-700">
-      <p class="font-semibold text-ink-900">Connection Detail</p>
-      <p class="mt-3">Connection ID: {$realtimeState.connection_id ?? '-'}</p>
-      <p class="mt-2">Global channel ready: {channelReady ? 'ya' : 'belum'}</p>
-      <p class="mt-2">
-        Last heartbeat:
-        {$realtimeState.last_heartbeat_at ?? 'belum ada'}
-      </p>
-      <p class="mt-2">Reconnect attempt: {$realtimeState.reconnect_attempt}</p>
-      <p class="mt-2">Last error: {$realtimeState.last_error ?? '-'}</p>
-      {#if canModerate}
-        <div class="mt-4 rounded-[1.4rem] bg-canvas-100 px-4 py-3 text-xs text-ink-600">
-          Role `dev` dapat menghapus message untuk moderasi room global.
-        </div>
-      {/if}
-    </aside>
-  </div>
-</section>
+      <aside class="rounded-[1.9rem] border border-dashed border-ink-100 px-4 py-4 text-sm leading-6 text-ink-700">
+        <p class="font-semibold text-ink-900">Connection Detail</p>
+        <p class="mt-3">Connection ID: {$realtimeState.connection_id ?? '-'}</p>
+        <p class="mt-2">Global channel ready: {channelReady ? 'ya' : 'belum'}</p>
+        <p class="mt-2">
+          Last heartbeat:
+          {$realtimeState.last_heartbeat_at ?? 'belum ada'}
+        </p>
+        <p class="mt-2">Reconnect attempt: {$realtimeState.reconnect_attempt}</p>
+        <p class="mt-2">Last error: {$realtimeState.last_error ?? '-'}</p>
+        {#if canModerate}
+          <div class="mt-4 rounded-[1.4rem] bg-canvas-100 px-4 py-3 text-xs text-ink-600">
+            Role `dev` dapat menghapus message untuk moderasi room global.
+          </div>
+        {/if}
+      </aside>
+    </div>
+  </section>
 </section>

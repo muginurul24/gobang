@@ -365,7 +365,7 @@
   <div class="matrix-page" data-app-shell="ready">
     <div class="shell-width mx-auto flex min-h-screen flex-col gap-6 pb-10 pt-4 sm:pt-6">
       <section class="shell-command-bar surface-dark surface-grid overflow-hidden rounded-[2.8rem] px-5 py-5 text-white sm:px-7 sm:py-6">
-        <div class="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_420px]">
+        <div class="grid gap-6 2xl:grid-cols-[minmax(0,1.2fr)_minmax(18rem,24rem)]">
           <div class="space-y-5">
             <div class="flex flex-wrap items-center gap-3">
               <span class="status-chip">role {role || 'guest'}</span>
@@ -657,7 +657,7 @@
           {/if}
 
           <section class="page-presence glass-panel rounded-[2.2rem] p-5 sm:p-6">
-            <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-center">
+            <div class="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_18rem] 2xl:items-center">
               <div class="space-y-3">
                 <p class="section-kicker !text-brand-700">Current Page</p>
                 <div class="space-y-2">

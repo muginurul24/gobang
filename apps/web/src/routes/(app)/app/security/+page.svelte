@@ -410,7 +410,7 @@
           </p>
         </div>
 
-        <div class="rounded-[1.6rem] bg-canvas-50 px-4 py-4 text-sm text-ink-700 lg:w-[320px]">
+        <div class="w-full rounded-[1.6rem] bg-canvas-50 px-4 py-4 text-sm text-ink-700 lg:max-w-[21rem]">
           <p class="font-semibold text-ink-900">Aksi ini akan</p>
           <ul class="mt-2 space-y-1">
             <li>merevoke semua session browser aktif</li>

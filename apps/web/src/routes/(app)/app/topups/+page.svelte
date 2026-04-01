@@ -546,7 +546,7 @@
         />
       </div>
 
-      <div class="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+      <div class="grid gap-6 2xl:grid-cols-[0.95fr_1.05fr]">
         <section class="glass-panel rounded-4xl p-6">
           <h2 class="font-display text-2xl font-bold text-ink-900">Buat topup baru</h2>
           <p class="mt-2 text-sm leading-6 text-ink-700">
@@ -662,7 +662,7 @@
               </p>
             </div>
 
-            <div class="grid gap-4 sm:grid-cols-[minmax(0,1fr)_220px] lg:w-[420px]">
+            <div class="grid w-full gap-4 xl:grid-cols-[minmax(0,1fr)_14rem] 2xl:max-w-[26rem]">
               <article class="rounded-[1.7rem] bg-canvas-50 px-4 py-4">
                 <p class="text-sm font-semibold text-ink-900">Status distribution</p>
                 <ChartCanvas class="mt-4 h-[220px]" config={topupMixChart} />
@@ -675,7 +675,7 @@
             </div>
           </div>
 
-          <div class="mt-5 grid gap-4 xl:grid-cols-[12rem_12rem_minmax(0,1fr)]">
+          <div class="mt-5 grid gap-4 2xl:grid-cols-[12rem_12rem_minmax(0,1fr)]">
             <label class="space-y-2">
               <span class="text-sm font-medium text-ink-700">Type</span>
               <select
@@ -711,7 +711,7 @@
             </label>
           </div>
 
-          <div class="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div class="mt-4 grid gap-4 2xl:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]">
             <DateRangeFilter bind:start={topupCreatedFrom} bind:end={topupCreatedTo} />
             <div class="grid gap-4">
               <div class="flex flex-wrap items-center justify-end gap-3">

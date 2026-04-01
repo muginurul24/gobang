@@ -9,8 +9,8 @@
   export let onPdf: (() => void) | undefined = undefined;
 </script>
 
-<div class="rounded-[1.6rem] border border-ink-100 bg-white/82 px-4 py-4 shadow-[0_16px_34px_rgba(7,16,12,0.08)]">
-  <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+<div class="toolbar-panel">
+  <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
     <div>
       <p class="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-ink-300">
         Export
@@ -20,7 +20,7 @@
       </p>
     </div>
 
-    <div class="flex flex-wrap gap-2">
+    <div class="toolbar-actions">
       <Button variant="outline" size="sm" onclick={() => onCsv?.()} disabled={disabled}>
         CSV
       </Button>

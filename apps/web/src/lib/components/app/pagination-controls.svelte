@@ -13,42 +13,44 @@
   $: endIndex = Math.min(totalItems, page * pageSize);
 </script>
 
-<div class="flex flex-col gap-3 rounded-[1.7rem] border border-ink-100 bg-canvas-50 px-4 py-4 md:flex-row md:items-center md:justify-between">
-  <div class="space-y-1 text-sm text-ink-700">
-    <p class="font-semibold text-ink-900">Pagination</p>
-    <p>
-      Menampilkan {formatNumber(startIndex)}-{formatNumber(endIndex)} dari {formatNumber(totalItems)} row.
-    </p>
-  </div>
+<div class="toolbar-panel">
+  <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+    <div class="space-y-1 text-sm text-ink-700">
+      <p class="font-semibold text-ink-900">Pagination</p>
+      <p>
+        Menampilkan {formatNumber(startIndex)}-{formatNumber(endIndex)} dari {formatNumber(totalItems)} row.
+      </p>
+    </div>
 
-  <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-    <label class="flex items-center gap-2 text-sm text-ink-700">
-      <span>Per page</span>
-      <select
-        bind:value={pageSize}
-        class="rounded-2xl border border-ink-100 bg-white px-3 py-2 text-sm text-ink-900 outline-none transition focus:border-accent-300"
-      >
-        {#each pageSizeOptions as option}
-          <option value={option}>{option}</option>
-        {/each}
-      </select>
-    </label>
+    <div class="toolbar-actions">
+      <label class="field-stack min-w-0 text-sm text-ink-700">
+        <span class="field-label">Per page</span>
+        <select
+          bind:value={pageSize}
+          class="field-select min-w-[6.5rem] px-3 py-2 text-sm"
+        >
+          {#each pageSizeOptions as option}
+            <option value={option}>{option}</option>
+          {/each}
+        </select>
+      </label>
 
-    <div class="flex items-center gap-2">
-      <Button variant="outline" size="sm" onclick={() => (page = Math.max(1, page - 1))} disabled={page <= 1}>
-        Prev
-      </Button>
-      <span class="min-w-28 text-center text-sm font-medium text-ink-700">
-        Page {formatNumber(page)} / {formatNumber(totalPages)}
-      </span>
-      <Button
-        variant="outline"
-        size="sm"
-        onclick={() => (page = Math.min(totalPages, page + 1))}
-        disabled={page >= totalPages}
-      >
-        Next
-      </Button>
+      <div class="flex flex-wrap items-center gap-2">
+        <Button variant="outline" size="sm" onclick={() => (page = Math.max(1, page - 1))} disabled={page <= 1}>
+          Prev
+        </Button>
+        <span class="min-w-[7rem] flex-1 text-center text-sm font-medium text-ink-700 sm:flex-none">
+          Page {formatNumber(page)} / {formatNumber(totalPages)}
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          onclick={() => (page = Math.min(totalPages, page + 1))}
+          disabled={page >= totalPages}
+        >
+          Next
+        </Button>
+      </div>
     </div>
   </div>
 </div>
