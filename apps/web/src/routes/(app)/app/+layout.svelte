@@ -81,6 +81,9 @@
     { href: '/app/chat', label: 'Global Chat', description: 'ops room' },
     { href: '/', label: 'Public', description: 'marketing shell' },
   ];
+  $: currentNavItem = nav.find((item) => isActive(item.href)) ?? nav[0];
+  $: currentPageTitle = currentNavItem?.label ?? 'Dashboard';
+  $: currentPageDescription = currentNavItem?.description ?? 'realtime cards';
 
   async function loadAccessibleStores() {
     storeDirectoryLoading = true;
@@ -304,6 +307,10 @@
 
   function isActive(href: string) {
     const pathname = $page.url.pathname;
+    if (href === '/') {
+      return pathname === '/';
+    }
+
     return href === '/app' ? pathname === '/app' : pathname.startsWith(href);
   }
 
@@ -338,86 +345,129 @@
 {#if ready}
   <div class="matrix-page" data-app-shell="ready">
     <div class="shell-width mx-auto flex min-h-screen flex-col gap-6 pb-10 pt-4 sm:pt-6">
-      <section class="surface-dark surface-grid overflow-hidden rounded-[2.6rem] px-5 py-5 text-white sm:px-7 sm:py-6">
-        <div class="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+      <section class="shell-command-bar surface-dark surface-grid overflow-hidden rounded-[2.8rem] px-5 py-5 text-white sm:px-7 sm:py-6">
+        <div class="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_420px]">
           <div class="space-y-5">
             <div class="flex flex-wrap items-center gap-3">
               <span class="status-chip">role {role || 'guest'}</span>
               <span class="status-chip">realtime {realtimeLabel()}</span>
+              <span class="status-chip">view {currentPageTitle}</span>
               {#if notificationBadge !== ''}
                 <span class="status-chip">{notificationBadge} unread</span>
               {/if}
             </div>
 
             <div class="space-y-3">
-              <p class="section-kicker">Command Matrix</p>
-              <h1 class="font-display text-4xl font-bold tracking-tight text-white sm:text-5xl">
-                Operasional toko, transaksi, dan integrasi dalam satu shell.
-              </h1>
-              <p class="max-w-3xl text-sm leading-7 text-white/70 sm:text-base">
+              <p class="section-kicker">Onixggr Matrix</p>
+              <div class="space-y-2">
+                <p class="font-mono text-[0.72rem] uppercase tracking-[0.32em] text-white/42">
+                  Current lane / {currentPageDescription}
+                </p>
+                <h1 class="font-display text-4xl font-bold tracking-tight text-white sm:text-5xl">
+                  Enterprise control plane untuk transaksi, store ops, dan integrasi API.
+                </h1>
+              </div>
+              <p class="max-w-3xl text-sm leading-7 text-white/72 sm:text-base">
                 {pageSummary()}
               </p>
             </div>
+
+            <div class="metric-strip">
+              <article class="metric-strip__item">
+                <span class="metric-strip__label">Session</span>
+                <strong class="metric-strip__value">{$authSession?.user.username ?? '-'}</strong>
+                <span class="metric-strip__meta">{$authSession?.user.role ?? '-'}</span>
+              </article>
+              <article class="metric-strip__item">
+                <span class="metric-strip__label">Realtime</span>
+                <strong class="metric-strip__value">{$realtimeState.channels.length}</strong>
+                <span class="metric-strip__meta">channel aktif</span>
+              </article>
+              <article class="metric-strip__item">
+                <span class="metric-strip__label">Store Focus</span>
+                <strong class="metric-strip__value">{currentStore?.name ?? 'No store'}</strong>
+                <span class="metric-strip__meta">
+                  {currentStore ? formatCurrency(currentStore.current_balance) : 'waiting directory'}
+                </span>
+              </article>
+            </div>
           </div>
 
-          <div class="grid gap-3 sm:grid-cols-2">
-            <article class="rounded-[1.8rem] border border-white/12 bg-white/7 p-5 backdrop-blur">
-              <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-white/45">
-                Session
-              </p>
-              <p class="mt-3 text-lg font-semibold text-white">
-                {$authSession?.user.username ?? '-'}
-              </p>
-              <p class="mt-1 text-sm text-white/62">{$authSession?.user.role ?? '-'}</p>
-              <p class="mt-4 text-xs leading-6 text-white/52">
-                {$realtimeState.channels.length} realtime channel aktif di sesi ini.
-              </p>
-            </article>
-
-            <article class="rounded-[1.8rem] border border-white/12 bg-white/7 p-5 backdrop-blur">
-              <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-white/45">
-                Active Store
-              </p>
-              {#if currentStore}
-                <p class="mt-3 text-lg font-semibold text-white">{currentStore.name}</p>
-                <p class="mt-1 text-sm text-white/62">{currentStore.slug}</p>
-                <p class="mt-4 text-xs leading-6 text-white/52">
-                  Balance {formatCurrency(currentStore.current_balance)}{#if currentStore.low_balance_threshold}
-                    {' '}· threshold {formatCurrency(currentStore.low_balance_threshold)}
-                  {/if}
+          <div class="shell-command-bar__stats">
+            <article class="shell-command-card">
+              <div class="shell-command-card__header">
+                <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-white/45">
+                  Current View
                 </p>
-              {:else if storeDirectoryLoading}
-                <p class="mt-3 text-sm text-white/60">Memuat store directory...</p>
-              {:else}
-                <p class="mt-3 text-sm text-white/60">Belum ada store aktif untuk sesi ini.</p>
-              {/if}
+                <span class="status-chip">{$page.url.pathname}</span>
+              </div>
+              <h2 class="mt-4 font-display text-3xl font-semibold tracking-tight text-white">
+                {currentPageTitle}
+              </h2>
+              <p class="mt-2 text-sm leading-6 text-white/68">
+                {currentPageDescription}. Active page identity sekarang selalu terlihat jelas di shell.
+              </p>
+            </article>
+
+            <article class="shell-command-card">
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-white/45">
+                    Display
+                  </p>
+                  <p class="mt-3 text-lg font-semibold text-white">Theme runtime</p>
+                </div>
+                <span class="surface-chip !bg-white/10 !text-white/90">desktop + mobile</span>
+              </div>
+              <div class="mt-4">
+                <ThemeToggle />
+              </div>
             </article>
           </div>
-        </div>
-
-        <div class="mt-6 overflow-x-auto soft-scroll">
-          <nav class="flex min-w-max gap-3 pb-1">
-            {#each nav as item}
-              <a
-                aria-current={isActive(item.href) ? 'page' : undefined}
-                class="app-nav-link"
-                data-active={isActive(item.href)}
-                href={item.href}
-              >
-                <span>{item.label}</span>
-                {#if item.badge}
-                  <span class="rounded-full bg-white/10 px-2 py-1 text-[0.68rem] font-semibold">
-                    {item.badge}
-                  </span>
-                {/if}
-              </a>
-            {/each}
-          </nav>
         </div>
       </section>
 
-      <div class="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <aside class="space-y-6">
+      <div class="dashboard-shell">
+        <aside class="dashboard-sidebar space-y-6">
+          <section class="glass-panel rounded-[2rem] p-5 dashboard-sidebar__sticky">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <p class="section-kicker !text-brand-700">Navigation</p>
+                <h2 class="mt-3 font-display text-2xl font-bold tracking-tight text-ink-900">
+                  Command lanes
+                </h2>
+              </div>
+
+              <span class="surface-chip">{$authSession?.user.role ?? '-'}</span>
+            </div>
+
+            <nav class="nav-cluster mt-5">
+              {#each nav as item}
+                <a
+                  aria-current={isActive(item.href) ? 'page' : undefined}
+                  class="app-nav-link"
+                  data-active={isActive(item.href)}
+                  href={item.href}
+                >
+                  <span class="app-nav-link__marker" aria-hidden="true"></span>
+                  <span class="app-nav-link__content">
+                    <span class="app-nav-link__label">{item.label}</span>
+                    <span class="app-nav-link__meta">{item.description}</span>
+                  </span>
+                  {#if item.badge}
+                    <span class="app-nav-link__badge">{item.badge}</span>
+                  {/if}
+                </a>
+              {/each}
+            </nav>
+
+            <div class="mt-5">
+              <Button variant="outline" size="lg" class="w-full" onclick={signOut}>
+                Logout
+              </Button>
+            </div>
+          </section>
+
           <section class="glass-panel rounded-[2rem] p-5">
             <div class="flex items-start justify-between gap-4">
               <div>
@@ -441,15 +491,6 @@
               </div>
             </div>
 
-            <div class="mt-4">
-              <ThemeToggle />
-            </div>
-
-            <div class="mt-4">
-              <Button variant="outline" size="lg" class="w-full" onclick={signOut}>
-                Logout
-              </Button>
-            </div>
           </section>
 
           <section class="glass-panel rounded-[2rem] p-5">
@@ -585,6 +626,36 @@
         </aside>
 
         <main class="min-w-0 space-y-6" id="app-main" tabindex="-1">
+          <section class="page-presence glass-panel rounded-[2.2rem] p-5 sm:p-6">
+            <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-center">
+              <div class="space-y-3">
+                <p class="section-kicker !text-brand-700">Current Page</p>
+                <div class="space-y-2">
+                  <h2 class="font-display text-3xl font-bold tracking-tight text-ink-900 sm:text-4xl">
+                    {currentPageTitle}
+                  </h2>
+                  <p class="max-w-3xl text-sm leading-7 text-ink-700 sm:text-base">
+                    {currentPageDescription}. Halaman aktif selalu punya identity strip yang konsisten untuk desktop maupun mobile.
+                  </p>
+                </div>
+              </div>
+
+              <div class="page-presence__stack">
+                <article class="page-presence__chip">
+                  <span class="page-presence__chip-label">Store focus</span>
+                  <strong class="page-presence__chip-value">{currentStore?.slug ?? 'platform-wide'}</strong>
+                </article>
+                <article class="page-presence__chip">
+                  <span class="page-presence__chip-label">Notifications</span>
+                  <strong class="page-presence__chip-value">{notificationBadge === '' ? '0' : notificationBadge}</strong>
+                </article>
+                <article class="page-presence__chip">
+                  <span class="page-presence__chip-label">Transport</span>
+                  <strong class="page-presence__chip-value">{realtimeLabel()}</strong>
+                </article>
+              </div>
+            </div>
+          </section>
           <slot />
         </main>
       </div>

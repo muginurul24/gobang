@@ -26,6 +26,16 @@
 
   const chartTextColor = '#6b5d45';
   const chartGridColor = 'rgba(98, 84, 49, 0.12)';
+  const dashboardEventTypes = [
+    'member_payment.success',
+    'store_topup.success',
+    'withdraw.success',
+    'withdraw.failed',
+    'callback.delivery_failed',
+    'game.deposit.success',
+    'game.withdraw.success',
+    'store.low_balance',
+  ];
 
   let loading = true;
   let errorMessage = '';
@@ -40,6 +50,7 @@
   $: recentEvents = safeList($realtimeState.events)
     .filter((event) => relevantRealtimeEvents.has(event.type))
     .slice(0, 5);
+  $: marqueeEvents = recentEvents.length > 0 ? [...recentEvents, ...recentEvents] : [];
   $: storeMixValues = storeMetrics
     ? [
         storeMetrics.pending_qris_count,
@@ -61,6 +72,26 @@
     ],
     ['#22c977', '#0f7242'],
   );
+  $: storeRadarChart = buildRadarChart(
+    ['Accessible', 'Active', 'Low Balance', 'Pending', 'Success', 'Expired'],
+    [
+      storeMetrics?.accessible_store_count ?? 0,
+      storeMetrics?.active_store_count ?? 0,
+      storeMetrics?.low_balance_store_count ?? 0,
+      storeMetrics?.pending_qris_count ?? 0,
+      storeMetrics?.success_today_count ?? 0,
+      storeMetrics?.expired_today_count ?? 0,
+    ],
+    '#22c977',
+    'rgba(34, 201, 119, 0.16)',
+  );
+  $: liveEventChart = buildHorizontalBarChart(
+    dashboardEventTypes.map((type) => type.replace('.', ' ')),
+    dashboardEventTypes.map(
+      (type) => recentEvents.filter((event) => event.type === type).length,
+    ),
+    '#d7a236',
+  );
   $: platformFinanceChart = buildBarChart(
     ['Today', 'Month'],
     [
@@ -77,6 +108,19 @@
       platformMetrics?.low_balance_store_count ?? 0,
     ],
     ['#efc86d', '#22c977', '#d66b5a'],
+  );
+  $: platformRadarChart = buildRadarChart(
+    ['Total Stores', 'Active', 'Low Balance', 'Pending Withdraw', 'Upstream Error', 'Callback Failure'],
+    [
+      platformMetrics?.total_store_count ?? 0,
+      platformMetrics?.active_store_count ?? 0,
+      platformMetrics?.low_balance_store_count ?? 0,
+      platformMetrics?.pending_withdraw_count ?? 0,
+      platformMetrics?.upstream_error_rate_24h ?? 0,
+      platformMetrics?.callback_failure_rate_24h ?? 0,
+    ],
+    '#efc86d',
+    'rgba(239, 200, 109, 0.16)',
   );
 
   onMount(() => {
@@ -248,6 +292,121 @@
       },
     };
   }
+
+  function buildHorizontalBarChart(
+    labels: string[],
+    values: number[],
+    color: string,
+  ): ChartConfiguration<'bar'> {
+    return {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            data: values.map((value) => Math.max(0, value)),
+            backgroundColor: color,
+            borderRadius: 999,
+            borderSkipped: false,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: 'y',
+        plugins: {
+          legend: {
+            display: false,
+          },
+          tooltip: {
+            callbacks: {
+              label: (context) => formatNumber(Number(context.parsed.x ?? 0)),
+            },
+          },
+        },
+        scales: {
+          x: {
+            ticks: {
+              color: chartTextColor,
+              precision: 0,
+            },
+            grid: {
+              color: chartGridColor,
+            },
+          },
+          y: {
+            ticks: {
+              color: chartTextColor,
+            },
+            grid: {
+              display: false,
+            },
+          },
+        },
+      },
+    };
+  }
+
+  function buildRadarChart(
+    labels: string[],
+    values: number[],
+    borderColor: string,
+    backgroundColor: string,
+  ): ChartConfiguration<'radar'> {
+    return {
+      type: 'radar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Signal',
+            data: values.map((value) => Math.max(0, value)),
+            borderColor,
+            backgroundColor,
+            pointBackgroundColor: borderColor,
+            pointRadius: 3,
+            borderWidth: 2,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false,
+          },
+          tooltip: {
+            callbacks: {
+              label: (context) => formatNumber(Number(context.parsed.r ?? 0)),
+            },
+          },
+        },
+        scales: {
+          r: {
+            angleLines: {
+              color: chartGridColor,
+            },
+            grid: {
+              color: chartGridColor,
+            },
+            pointLabels: {
+              color: chartTextColor,
+              font: {
+                size: 11,
+              },
+            },
+            ticks: {
+              color: chartTextColor,
+              backdropColor: 'transparent',
+              precision: 0,
+            },
+          },
+        },
+      },
+    };
+  }
 </script>
 
 <svelte:head>
@@ -307,6 +466,75 @@
       {/each}
     </div>
   {:else if storeMetrics}
+    <section class="dashboard-chart-card dashboard-chart-card--dark surface-grid">
+      <div class="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_360px]">
+        <div class="space-y-5">
+          <div class="space-y-3">
+            <p class="section-kicker">Store Matrix</p>
+            <h2 class="font-display text-3xl font-bold tracking-tight sm:text-4xl">
+              Matrix lantai transaksi untuk scope store yang sedang aktif.
+            </h2>
+            <p class="max-w-3xl text-sm leading-7 text-white/72 sm:text-base">
+              Dashboard store menonjolkan komposisi pending, success, expired, balance pool, dan
+              tekanan low balance tanpa menebak data baru di frontend.
+            </p>
+          </div>
+
+          {#if marqueeEvents.length > 0}
+            <div class="event-marquee">
+              <div class="event-marquee__track">
+                {#each marqueeEvents as event}
+                  <span class="event-marquee__pill">
+                    <span>{event.type}</span>
+                    <span>{event.channel}</span>
+                  </span>
+                {/each}
+              </div>
+            </div>
+          {/if}
+
+          <div class="grid gap-4 lg:grid-cols-[1fr_1fr]">
+            <article class="rounded-[1.7rem] border border-white/10 bg-white/6 p-5 backdrop-blur">
+              <p class="text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-white/46">
+                Capital pool
+              </p>
+              <p class="mt-4 font-display text-4xl font-semibold tracking-tight text-white">
+                {formatCurrency(storeMetrics.balance_total)}
+              </p>
+              <p class="mt-3 text-sm leading-6 text-white/66">
+                Live balance pool untuk store yang bisa diakses role saat ini.
+              </p>
+            </article>
+
+            <article class="rounded-[1.7rem] border border-white/10 bg-white/6 p-5 backdrop-blur">
+              <p class="text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-white/46">
+                Monthly intake
+              </p>
+              <p class="mt-4 font-display text-4xl font-semibold tracking-tight text-white">
+                {formatCurrency(storeMetrics.monthly_store_income)}
+              </p>
+              <p class="mt-3 text-sm leading-6 text-white/66">
+                Inflow bulan berjalan dari member payment yang sudah final.
+              </p>
+            </article>
+          </div>
+        </div>
+
+        <article class="rounded-[1.9rem] border border-white/10 bg-white/6 p-5 backdrop-blur">
+          <p class="text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-white/46">
+            Operations radar
+          </p>
+          <h3 class="mt-3 font-display text-2xl font-semibold tracking-tight text-white">
+            Store pressure map
+          </h3>
+          <p class="mt-2 text-sm leading-6 text-white/66">
+            Accessible stores, active stores, low-balance pressure, QRIS queue, dan outcome hari ini.
+          </p>
+          <ChartCanvas class="mt-5 h-[320px]" config={storeRadarChart} />
+        </article>
+      </div>
+    </section>
+
     <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
       <MetricCard
         eyebrow="Store Balance"
@@ -350,7 +578,7 @@
     </div>
 
     <div class="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-      <section class="glass-panel rounded-[2.2rem] p-5 sm:p-6">
+      <section class="dashboard-chart-card rounded-[2.2rem] p-5 sm:p-6">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p class="section-kicker !text-brand-700">Signal mix</p>
@@ -408,7 +636,21 @@
       </section>
 
       <section class="space-y-6">
-        <div class="glass-panel rounded-[2.2rem] p-5 sm:p-6">
+        <div class="dashboard-chart-card rounded-[2.2rem] p-5 sm:p-6">
+          <div class="flex items-end justify-between gap-4">
+            <div>
+              <p class="section-kicker !text-brand-700">Flow intensity</p>
+              <h2 class="mt-3 font-display text-3xl font-bold tracking-tight text-ink-900">
+                Live event density
+              </h2>
+            </div>
+            <span class="surface-chip">{formatNumber(recentEvents.length)} event</span>
+          </div>
+
+          <ChartCanvas class="mt-6 h-[310px]" config={liveEventChart} />
+        </div>
+
+        <div class="dashboard-chart-card rounded-[2.2rem] p-5 sm:p-6">
           <div class="flex items-end justify-between gap-4">
             <div>
               <p class="section-kicker !text-brand-700">Realtime rail</p>
@@ -426,7 +668,7 @@
               </div>
             {:else}
               {#each recentEvents as event}
-                <article class="rounded-[1.6rem] border border-ink-100 bg-white/78 px-4 py-4">
+                <article class="rounded-[1.6rem] border border-ink-100 bg-white/78 px-4 py-4 transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_36px_rgba(22,38,31,0.08)]">
                   <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <p class="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-brand-700">
@@ -442,7 +684,7 @@
           </div>
         </div>
 
-        <div class="glass-panel rounded-[2.2rem] p-5 sm:p-6">
+        <div class="dashboard-chart-card rounded-[2.2rem] p-5 sm:p-6">
           <div class="flex items-end justify-between gap-4">
             <div>
               <p class="section-kicker !text-brand-700">Scope telemetry</p>
@@ -475,6 +717,75 @@
       </section>
     </div>
   {:else if platformMetrics}
+    <section class="dashboard-chart-card dashboard-chart-card--dark surface-grid">
+      <div class="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_360px]">
+        <div class="space-y-5">
+          <div class="space-y-3">
+            <p class="section-kicker">Platform Matrix</p>
+            <h2 class="font-display text-3xl font-bold tracking-tight sm:text-4xl">
+              Telemetry platform untuk tenant, callback queue, dan health pressure.
+            </h2>
+            <p class="max-w-3xl text-sm leading-7 text-white/72 sm:text-base">
+              View ini menaruh platform fee, withdraw queue, risk rate, dan tenant pressure dalam
+              satu frame supaya role platform cepat membaca incident surface.
+            </p>
+          </div>
+
+          {#if marqueeEvents.length > 0}
+            <div class="event-marquee">
+              <div class="event-marquee__track">
+                {#each marqueeEvents as event}
+                  <span class="event-marquee__pill">
+                    <span>{event.type}</span>
+                    <span>{event.channel}</span>
+                  </span>
+                {/each}
+              </div>
+            </div>
+          {/if}
+
+          <div class="grid gap-4 lg:grid-cols-[1fr_1fr]">
+            <article class="rounded-[1.7rem] border border-white/10 bg-white/6 p-5 backdrop-blur">
+              <p class="text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-white/46">
+                Fee today
+              </p>
+              <p class="mt-4 font-display text-4xl font-semibold tracking-tight text-white">
+                {formatCurrency(platformMetrics.platform_income_today)}
+              </p>
+              <p class="mt-3 text-sm leading-6 text-white/66">
+                Akumulasi fee platform dari flow final hari ini.
+              </p>
+            </article>
+
+            <article class="rounded-[1.7rem] border border-white/10 bg-white/6 p-5 backdrop-blur">
+              <p class="text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-white/46">
+                Fee month
+              </p>
+              <p class="mt-4 font-display text-4xl font-semibold tracking-tight text-white">
+                {formatCurrency(platformMetrics.platform_income_month)}
+              </p>
+              <p class="mt-3 text-sm leading-6 text-white/66">
+                Akumulasi fee platform bulan berjalan.
+              </p>
+            </article>
+          </div>
+        </div>
+
+        <article class="rounded-[1.9rem] border border-white/10 bg-white/6 p-5 backdrop-blur">
+          <p class="text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-white/46">
+            Platform radar
+          </p>
+          <h3 class="mt-3 font-display text-2xl font-semibold tracking-tight text-white">
+            Risk pressure map
+          </h3>
+          <p class="mt-2 text-sm leading-6 text-white/66">
+            Total stores, active stores, low balance, pending withdraw, dan error rate 24 jam.
+          </p>
+          <ChartCanvas class="mt-5 h-[320px]" config={platformRadarChart} />
+        </article>
+      </div>
+    </section>
+
     <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
       <MetricCard
         eyebrow="Platform Fee"
@@ -512,7 +823,7 @@
     </div>
 
     <div class="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
-      <section class="glass-panel rounded-[2.2rem] p-5 sm:p-6">
+      <section class="dashboard-chart-card rounded-[2.2rem] p-5 sm:p-6">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p class="section-kicker !text-brand-700">Platform finance</p>
@@ -558,7 +869,21 @@
           />
         </div>
 
-        <div class="glass-panel rounded-[2.2rem] p-5 sm:p-6">
+        <div class="dashboard-chart-card rounded-[2.2rem] p-5 sm:p-6">
+          <div class="flex items-end justify-between gap-4">
+            <div>
+              <p class="section-kicker !text-brand-700">Event pressure</p>
+              <h2 class="mt-3 font-display text-3xl font-bold tracking-tight text-ink-900">
+                Recent event density
+              </h2>
+            </div>
+            <span class="surface-chip">{formatNumber(recentEvents.length)} event</span>
+          </div>
+
+          <ChartCanvas class="mt-6 h-[300px]" config={liveEventChart} />
+        </div>
+
+        <div class="dashboard-chart-card rounded-[2.2rem] p-5 sm:p-6">
           <div class="flex items-end justify-between gap-4">
             <div>
               <p class="section-kicker !text-brand-700">Live operations</p>
