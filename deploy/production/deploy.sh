@@ -219,10 +219,22 @@ wait_for_redis() {
 
 service_container_names() {
 	service_name="$1"
-	podman ps -a \
-		--filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}" \
-		--filter "label=com.docker.compose.service=${service_name}" \
-		--format '{{.Names}}'
+	container_name="${COMPOSE_PROJECT_NAME}_${service_name}_1"
+	if podman container exists "${container_name}" >/dev/null 2>&1; then
+		printf '%s\n' "${container_name}"
+	fi
+}
+
+ensure_service_started() {
+	service_name="$1"
+	container_name="${COMPOSE_PROJECT_NAME}_${service_name}_1"
+
+	if podman container exists "${container_name}" >/dev/null 2>&1; then
+		podman start "${container_name}" >/dev/null 2>&1 || true
+		return 0
+	fi
+
+	compose up -d "${service_name}"
 }
 
 service_running() {
@@ -332,7 +344,8 @@ if podman container exists "${COMPOSE_PROJECT_NAME}_postgres_1"; then
 fi
 
 log_step 1 "starting postgres and redis"
-compose up -d postgres redis
+ensure_service_started postgres
+ensure_service_started redis
 wait_for_postgres
 wait_for_redis
 
@@ -349,7 +362,7 @@ log_step 4 "building api worker scheduler web"
 compose build api worker scheduler web
 
 log_step 5 "starting api worker scheduler web proxy"
-recreate_services api worker scheduler web proxy
+recreate_services proxy web scheduler worker api
 compose up -d api worker scheduler web proxy
 wait_for_service_running api
 wait_for_service_running web
