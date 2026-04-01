@@ -5,6 +5,7 @@
   import QRCode from 'qrcode';
 
   import { authSession, initializeAuthSession } from '$lib/auth/client';
+  import { chartTextColor as resolveChartTextColor } from '$lib/chart-theme';
   import ChartCanvas from '$lib/components/app/chart-canvas.svelte';
   import DateRangeFilter from '$lib/components/app/date-range-filter.svelte';
   import EmptyState from '$lib/components/app/empty-state.svelte';
@@ -28,6 +29,7 @@
     preferredStoreID,
     setPreferredStoreID
   } from '$lib/stores/preferences';
+  import { resolvedTheme } from '$lib/theme';
 
   let loading = true;
   let busy = false;
@@ -59,6 +61,7 @@
   let failedCount = 0;
   let totalGross = 0;
   let pendingGross = 0;
+  $: chartTextColor = resolveChartTextColor($resolvedTheme);
   $: topupMixChart = buildTopupMixChart([
     pendingCount,
     successCount,
@@ -386,7 +389,7 @@
           legend: {
             position: 'bottom',
             labels: {
-              color: '#6b5d45',
+              color: chartTextColor,
               usePointStyle: true,
               boxWidth: 10,
               padding: 18

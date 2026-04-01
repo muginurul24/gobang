@@ -4,6 +4,7 @@
   import type { ChartConfiguration } from 'chart.js';
 
   import ChartCanvas from '$lib/components/app/chart-canvas.svelte';
+  import { chartTextColor as resolveChartTextColor } from '$lib/chart-theme';
   import DateRangeFilter from '$lib/components/app/date-range-filter.svelte';
   import EmptyState from '$lib/components/app/empty-state.svelte';
   import ExportActions from '$lib/components/app/export-actions.svelte';
@@ -28,6 +29,7 @@
     fetchStoreWithdrawals,
     type StoreWithdrawal
   } from '$lib/withdrawals/client';
+  import { resolvedTheme } from '$lib/theme';
 
   let loading = true;
   let busy = false;
@@ -57,6 +59,7 @@
   let totalNet = 0;
   let totalPlatformFee = 0;
   let totalExternalFee = 0;
+  $: chartTextColor = resolveChartTextColor($resolvedTheme);
   $: feeMixChart = buildFeeMixChart([totalPlatformFee, totalExternalFee]);
 
   $: amountError =
@@ -353,7 +356,7 @@
           legend: {
             position: 'bottom',
             labels: {
-              color: '#6b5d45',
+              color: chartTextColor,
               usePointStyle: true,
               boxWidth: 10,
               padding: 18

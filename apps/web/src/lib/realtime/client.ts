@@ -1,7 +1,11 @@
 import { browser } from '$app/environment';
 import { get, writable } from 'svelte/store';
 
-import { authSession, refreshStoredSession } from '$lib/auth/client';
+import {
+  authSession,
+  canAttemptSessionRefresh,
+  refreshStoredSession,
+} from '$lib/auth/client';
 
 export type RealtimeStatus =
   | 'idle'
@@ -212,7 +216,9 @@ function scheduleReconnect() {
   reconnectTimer = window.setTimeout(async () => {
     reconnectTimer = null;
 
-    await refreshStoredSession();
+    if (canAttemptSessionRefresh()) {
+      await refreshStoredSession();
+    }
     connectRealtime();
   }, delay);
 }

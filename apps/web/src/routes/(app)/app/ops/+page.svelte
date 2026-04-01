@@ -4,6 +4,10 @@
   import type { ChartConfiguration } from 'chart.js';
 
   import { authSession } from '$lib/auth/client';
+  import {
+    chartGridColor as resolveChartGridColor,
+    chartTextColor as resolveChartTextColor,
+  } from '$lib/chart-theme';
   import type {
     CallbackAttemptRecord,
     CallbackQueueItem,
@@ -43,6 +47,7 @@
     preferredStoreID,
     setPreferredStoreID,
   } from '$lib/stores/preferences';
+  import { resolvedTheme } from '$lib/theme';
 
   const emptySummary: CallbackQueueSummary = {
     total_count: 0,
@@ -115,6 +120,8 @@
           queueSummary.failed_count) /
           queueSummary.total_count) *
         100;
+  $: chartTextColor = resolveChartTextColor($resolvedTheme);
+  $: chartGridColor = resolveChartGridColor($resolvedTheme);
   $: queueChart = buildQueueChart(queueSummary);
   $: dependencyChart = buildDependencyChart(readyHealth);
   $: healthCards = [
@@ -428,7 +435,7 @@
           legend: {
             position: 'bottom',
             labels: {
-              color: '#5b5142',
+              color: chartTextColor,
               boxWidth: 12,
               padding: 18,
             },
@@ -476,7 +483,7 @@
         scales: {
           x: {
             ticks: {
-              color: '#6b5d45',
+              color: chartTextColor,
             },
             grid: {
               display: false,
@@ -486,7 +493,7 @@
             min: 0,
             max: 1,
             ticks: {
-              color: '#6b5d45',
+              color: chartTextColor,
               callback(value) {
                 if (value === 1) {
                   return 'ok';
@@ -501,7 +508,7 @@
               },
             },
             grid: {
-              color: 'rgba(98, 84, 49, 0.12)',
+              color: chartGridColor,
             },
           },
         },

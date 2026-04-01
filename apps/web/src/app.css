@@ -40,6 +40,9 @@
 
 :root {
   color-scheme: dark;
+  --page-text: #f8f1df;
+  --page-text-secondary: rgba(248, 241, 223, 0.76);
+  --page-text-muted: rgba(219, 210, 193, 0.6);
   --page-background:
     radial-gradient(
       circle at 18% 12%,
@@ -67,14 +70,25 @@
   --chrome-border: rgba(255, 255, 255, 0.16);
   --chrome-panel: rgba(7, 16, 12, 0.78);
   --grid-line: rgba(88, 128, 113, 0.14);
-  --glass-panel-bg: rgba(255, 255, 255, 0.78);
-  --glass-panel-border: rgba(255, 255, 255, 0.5);
+  --glass-panel-bg:
+    linear-gradient(180deg, rgba(13, 21, 17, 0.94), rgba(9, 16, 13, 0.92)),
+    linear-gradient(135deg, rgba(34, 201, 119, 0.08), transparent 42%);
+  --glass-panel-border: rgba(255, 255, 255, 0.1);
   --surface-dark-background:
     linear-gradient(180deg, rgba(16, 26, 21, 0.92), rgba(7, 14, 11, 0.88)),
     linear-gradient(135deg, rgba(34, 201, 119, 0.08), transparent 42%);
   --surface-dark-shadow:
     0 20px 50px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   --surface-dark-text: #fff8ef;
+  --panel-surface-background:
+    linear-gradient(180deg, rgba(14, 23, 18, 0.96), rgba(10, 18, 14, 0.92)),
+    linear-gradient(135deg, rgba(239, 200, 109, 0.06), transparent 40%);
+  --panel-surface-border: rgba(255, 255, 255, 0.08);
+  --panel-surface-shadow:
+    0 26px 58px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --panel-surface-text: #f8f1df;
+  --panel-surface-text-secondary: rgba(248, 241, 223, 0.78);
+  --panel-surface-text-muted: rgba(214, 204, 186, 0.58);
   --status-chip-background: rgba(255, 255, 255, 0.06);
   --status-chip-border: rgba(255, 255, 255, 0.12);
   --status-chip-text: #f8f1df;
@@ -86,6 +100,21 @@
   --nav-link-hover-text: #fff8ee;
   --surface-chip-background: rgba(10, 16, 12, 0.06);
   --surface-chip-text: #6b5d45;
+  --field-background:
+    linear-gradient(180deg, rgba(13, 22, 17, 0.94), rgba(10, 18, 14, 0.92)),
+    rgba(10, 18, 14, 0.88);
+  --field-border: rgba(255, 255, 255, 0.1);
+  --field-text: #f7f0de;
+  --field-placeholder: rgba(212, 203, 186, 0.56);
+  --button-outline-background: rgba(255, 255, 255, 0.04);
+  --button-outline-border: rgba(255, 255, 255, 0.1);
+  --button-outline-text: #f8f1df;
+  --button-outline-hover-background: rgba(255, 255, 255, 0.08);
+  --button-outline-hover-border: rgba(239, 200, 109, 0.26);
+  --button-outline-hover-text: #fff7e6;
+  --button-ghost-text: rgba(248, 241, 223, 0.78);
+  --button-ghost-hover-background: rgba(255, 255, 255, 0.06);
+  --button-ghost-hover-text: #fff7e8;
   --theme-toggle-background: rgba(255, 255, 255, 0.05);
   --theme-toggle-border: rgba(255, 255, 255, 0.08);
   --theme-toggle-kicker: rgba(247, 238, 222, 0.72);
@@ -109,6 +138,9 @@
 
 :root[data-theme='light'] {
   color-scheme: light;
+  --page-text: #17140f;
+  --page-text-secondary: #544c3d;
+  --page-text-muted: #8f846f;
   --page-background:
     radial-gradient(
       circle at 14% 8%,
@@ -136,6 +168,19 @@
     linear-gradient(135deg, rgba(34, 201, 119, 0.08), transparent 42%);
   --surface-dark-shadow:
     0 24px 54px rgba(28, 39, 33, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --panel-surface-background:
+    linear-gradient(
+      180deg,
+      rgba(255, 253, 247, 0.98),
+      rgba(246, 239, 224, 0.94)
+    ),
+    linear-gradient(135deg, rgba(34, 201, 119, 0.04), transparent 42%);
+  --panel-surface-border: rgba(255, 255, 255, 0.48);
+  --panel-surface-shadow:
+    0 18px 40px rgba(10, 24, 19, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  --panel-surface-text: #17140f;
+  --panel-surface-text-secondary: #544c3d;
+  --panel-surface-text-muted: #8f846f;
   --status-chip-background: rgba(18, 31, 24, 0.08);
   --status-chip-border: rgba(18, 31, 24, 0.12);
   --status-chip-text: #25382f;
@@ -147,6 +192,19 @@
   --nav-link-hover-text: #102019;
   --surface-chip-background: rgba(18, 31, 24, 0.08);
   --surface-chip-text: #4d5e57;
+  --field-background: rgba(255, 255, 255, 0.96);
+  --field-border: rgba(217, 204, 179, 0.9);
+  --field-text: #17140f;
+  --field-placeholder: #877e6f;
+  --button-outline-background: rgba(255, 255, 255, 0.82);
+  --button-outline-border: rgba(255, 255, 255, 0.6);
+  --button-outline-text: #17140f;
+  --button-outline-hover-background: rgba(255, 255, 255, 1);
+  --button-outline-hover-border: rgba(239, 200, 109, 0.46);
+  --button-outline-hover-text: #17140f;
+  --button-ghost-text: #544c3d;
+  --button-ghost-hover-background: rgba(255, 255, 255, 0.7);
+  --button-ghost-hover-text: #17140f;
   --theme-toggle-background: rgba(255, 255, 255, 0.72);
   --theme-toggle-border: rgba(18, 31, 24, 0.12);
   --theme-toggle-kicker: rgba(28, 45, 36, 0.66);
@@ -187,6 +245,7 @@
     margin: 0;
     background: var(--page-background);
     background-attachment: fixed;
+    color: var(--page-text);
   }
 
   :focus-visible {
@@ -208,7 +267,7 @@
 
   input::placeholder,
   textarea::placeholder {
-    color: #877e6f;
+    color: var(--field-placeholder);
   }
 
   ::selection {
@@ -227,6 +286,7 @@
     border-color: var(--glass-panel-border);
     background: var(--glass-panel-bg);
     box-shadow: var(--shadow-panel);
+    color: var(--panel-surface-text);
   }
 
   .surface-dark {
@@ -501,15 +561,10 @@
 
   .metric-card {
     @apply relative overflow-hidden rounded-[2rem] border px-5 py-5 sm:px-6 sm:py-6;
-    border-color: rgba(255, 255, 255, 0.48);
-    background:
-      linear-gradient(
-        180deg,
-        rgba(255, 253, 247, 0.96),
-        rgba(246, 239, 224, 0.92)
-      ),
-      linear-gradient(120deg, rgba(34, 201, 119, 0.04), transparent 42%);
-    box-shadow: var(--shadow-soft);
+    border-color: var(--panel-surface-border);
+    background: var(--panel-surface-background);
+    box-shadow: var(--panel-surface-shadow);
+    color: var(--panel-surface-text);
     transition:
       transform 180ms ease,
       box-shadow 180ms ease,
@@ -538,8 +593,8 @@
 
   .metric-card__badge {
     @apply inline-flex rounded-full px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.24em];
-    background: rgba(10, 20, 15, 0.06);
-    color: #6f6248;
+    background: rgba(10, 20, 15, 0.08);
+    color: var(--panel-surface-text-secondary);
   }
 
   .metric-card--brand {
@@ -583,8 +638,11 @@
   }
 
   .gauge-card {
-    @apply flex items-center gap-4 rounded-[2rem] border border-white/50 bg-white/76 p-5 backdrop-blur-2xl;
-    box-shadow: var(--shadow-panel);
+    @apply flex items-center gap-4 rounded-[2rem] border p-5 backdrop-blur-2xl;
+    border-color: var(--panel-surface-border);
+    background: var(--panel-surface-background);
+    box-shadow: var(--panel-surface-shadow);
+    color: var(--panel-surface-text);
   }
 
   .gauge-card__ring {
@@ -595,7 +653,12 @@
   }
 
   .gauge-card__core {
-    @apply grid h-full w-full place-items-center rounded-full bg-canvas-50 text-center;
+    @apply grid h-full w-full place-items-center rounded-full text-center;
+    background: color-mix(
+      in srgb,
+      var(--panel-surface-background) 72%,
+      transparent
+    );
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
   }
 
@@ -831,6 +894,28 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.18);
   }
 
+  .button-surface-outline {
+    border: 1px solid var(--button-outline-border);
+    background: var(--button-outline-background);
+    color: var(--button-outline-text);
+    box-shadow: 0 12px 28px rgba(7, 16, 12, 0.12);
+  }
+
+  .button-surface-outline:hover {
+    border-color: var(--button-outline-hover-border);
+    background: var(--button-outline-hover-background);
+    color: var(--button-outline-hover-text);
+  }
+
+  .button-surface-ghost {
+    color: var(--button-ghost-text);
+  }
+
+  .button-surface-ghost:hover {
+    background: var(--button-ghost-hover-background);
+    color: var(--button-ghost-hover-text);
+  }
+
   .page-presence {
     position: relative;
     overflow: hidden;
@@ -860,16 +945,10 @@
     position: relative;
     overflow: hidden;
     border-radius: 1.45rem;
-    border: 1px solid rgba(18, 31, 24, 0.08);
-    background:
-      linear-gradient(
-        180deg,
-        rgba(255, 255, 255, 0.8),
-        rgba(246, 239, 224, 0.76)
-      ),
-      rgba(255, 255, 255, 0.56);
+    border: 1px solid var(--panel-surface-border);
+    background: var(--panel-surface-background);
     padding: 0.95rem 1rem;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+    box-shadow: var(--panel-surface-shadow);
   }
 
   .page-presence__chip-label {
@@ -878,7 +957,7 @@
     font-weight: 700;
     letter-spacing: 0.24em;
     text-transform: uppercase;
-    color: #75684f;
+    color: var(--panel-surface-text-muted);
   }
 
   .page-presence__chip-value {
@@ -887,23 +966,18 @@
     font-size: 1rem;
     font-weight: 700;
     line-height: 1.25;
-    color: #12211a;
+    color: var(--panel-surface-text);
   }
 
   .dashboard-chart-card {
     position: relative;
     overflow: hidden;
     border-radius: 2rem;
-    border: 1px solid rgba(255, 255, 255, 0.48);
-    background:
-      linear-gradient(
-        180deg,
-        rgba(255, 253, 247, 0.98),
-        rgba(246, 239, 224, 0.93)
-      ),
-      linear-gradient(120deg, rgba(34, 201, 119, 0.04), transparent 42%);
+    border: 1px solid var(--panel-surface-border);
+    background: var(--panel-surface-background);
     padding: 1.35rem;
-    box-shadow: var(--shadow-soft);
+    box-shadow: var(--panel-surface-shadow);
+    color: var(--panel-surface-text);
   }
 
   .dashboard-chart-card--dark {
@@ -927,9 +1001,14 @@
     position: relative;
     overflow: hidden;
     border-radius: 1.4rem;
-    border: 1px solid rgba(18, 31, 24, 0.08);
-    background: rgba(255, 255, 255, 0.76);
+    border: 1px solid var(--panel-surface-border);
+    background: color-mix(
+      in srgb,
+      var(--panel-surface-background) 92%,
+      transparent
+    );
     padding: 0.9rem 1rem;
+    box-shadow: var(--panel-surface-shadow);
   }
 
   .event-marquee__track {
@@ -944,14 +1023,18 @@
     align-items: center;
     gap: 0.55rem;
     border-radius: 999px;
-    border: 1px solid rgba(18, 31, 24, 0.08);
-    background: rgba(255, 255, 255, 0.78);
+    border: 1px solid var(--panel-surface-border);
+    background: color-mix(
+      in srgb,
+      var(--panel-surface-background) 92%,
+      transparent
+    );
     padding: 0.45rem 0.72rem;
     font-size: 0.72rem;
     font-weight: 700;
     letter-spacing: 0.18em;
     text-transform: uppercase;
-    color: #1a2c24;
+    color: var(--panel-surface-text);
   }
 }
 
@@ -1032,6 +1115,183 @@
     linear-gradient(135deg, rgba(44, 28, 8, 0.94), rgba(26, 18, 7, 0.9)),
     linear-gradient(120deg, rgba(245, 158, 11, 0.14), transparent 42%);
   color: #ffe4b5;
+}
+
+:root[data-theme='dark'] .glass-panel,
+:root[data-theme='dark'] .metric-card,
+:root[data-theme='dark'] .dashboard-chart-card:not(.dashboard-chart-card--dark),
+:root[data-theme='dark'] .gauge-card,
+:root[data-theme='dark'] .page-presence__chip,
+:root[data-theme='dark'] .event-marquee {
+  color: var(--panel-surface-text);
+}
+
+:root[data-theme='dark'] .metric-card--brand {
+  background:
+    linear-gradient(180deg, rgba(10, 32, 22, 0.96), rgba(8, 23, 16, 0.92)),
+    linear-gradient(135deg, rgba(34, 201, 119, 0.14), transparent 40%);
+}
+
+:root[data-theme='dark'] .metric-card--accent {
+  background:
+    linear-gradient(180deg, rgba(35, 26, 10, 0.96), rgba(22, 17, 7, 0.92)),
+    linear-gradient(135deg, rgba(239, 200, 109, 0.18), transparent 38%);
+}
+
+:root[data-theme='dark'] .metric-card--danger {
+  background:
+    linear-gradient(180deg, rgba(40, 17, 13, 0.96), rgba(24, 11, 9, 0.92)),
+    linear-gradient(135deg, rgba(214, 107, 90, 0.16), transparent 38%);
+}
+
+:root[data-theme='dark'] .metric-card--default {
+  background:
+    linear-gradient(180deg, rgba(14, 23, 18, 0.96), rgba(10, 18, 14, 0.92)),
+    linear-gradient(135deg, rgba(239, 200, 109, 0.05), transparent 42%);
+}
+
+:root[data-theme='dark'] .matrix-page .text-ink-900 {
+  color: var(--panel-surface-text) !important;
+}
+
+:root[data-theme='dark'] .matrix-page .text-ink-700 {
+  color: var(--panel-surface-text-secondary) !important;
+}
+
+:root[data-theme='dark'] .matrix-page :is(.text-ink-500, .text-ink-300) {
+  color: var(--panel-surface-text-muted) !important;
+}
+
+:root[data-theme='dark']
+  :is(
+    .glass-panel,
+    .metric-card,
+    .dashboard-chart-card:not(.dashboard-chart-card--dark),
+    .gauge-card,
+    .page-presence__chip,
+    .event-marquee
+  )
+  [class*='border-ink-100'],
+:root[data-theme='dark']
+  :is(
+    .glass-panel,
+    .metric-card,
+    .dashboard-chart-card:not(.dashboard-chart-card--dark),
+    .gauge-card,
+    .page-presence__chip,
+    .event-marquee
+  )
+  [class*='border-white/'] {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+:root[data-theme='dark']
+  .matrix-page
+  :is(
+    article,
+    section,
+    div,
+    aside,
+    form,
+    header,
+    footer,
+    li
+  )[class*='bg-white'],
+:root[data-theme='dark']
+  .matrix-page
+  :is(
+    article,
+    section,
+    div,
+    aside,
+    form,
+    header,
+    footer,
+    li
+  )[class*='bg-canvas-50'] {
+  background:
+    linear-gradient(180deg, rgba(17, 26, 21, 0.94), rgba(11, 19, 15, 0.9)),
+    linear-gradient(135deg, rgba(34, 201, 119, 0.05), transparent 38%) !important;
+  color: var(--panel-surface-text) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 14px 32px rgba(0, 0, 0, 0.18);
+}
+
+:root[data-theme='dark']
+  .surface-dark
+  :is(
+    article,
+    section,
+    div,
+    aside,
+    form,
+    header,
+    footer,
+    li
+  )[class*='bg-white'],
+:root[data-theme='dark']
+  .surface-dark
+  :is(
+    article,
+    section,
+    div,
+    aside,
+    form,
+    header,
+    footer,
+    li
+  )[class*='bg-canvas-50'] {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.08),
+      rgba(255, 255, 255, 0.04)
+    ),
+    rgba(255, 255, 255, 0.04) !important;
+  color: inherit !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: none;
+}
+
+:root[data-theme='dark']
+  :is(
+    .glass-panel,
+    .metric-card,
+    .dashboard-chart-card:not(.dashboard-chart-card--dark),
+    .gauge-card,
+    .page-presence__chip,
+    .event-marquee
+  )
+  :is(.bg-canvas-50, [class*='bg-white']) {
+  background:
+    linear-gradient(180deg, rgba(17, 26, 21, 0.94), rgba(11, 19, 15, 0.9)),
+    linear-gradient(135deg, rgba(34, 201, 119, 0.05), transparent 38%) !important;
+  color: var(--panel-surface-text) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 14px 32px rgba(0, 0, 0, 0.18);
+}
+
+:root[data-theme='dark']
+  .matrix-page
+  :is(input, select, textarea):not([type='checkbox']):not([type='radio']) {
+  background: var(--field-background) !important;
+  border-color: var(--field-border) !important;
+  color: var(--field-text) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 10px 24px rgba(0, 0, 0, 0.16);
+}
+
+:root[data-theme='dark'] .matrix-page :is(input, textarea)::placeholder {
+  color: var(--field-placeholder) !important;
+}
+
+:root[data-theme='dark'] .matrix-page select option {
+  background: #0d1512;
+  color: #f7f0de;
 }
 
 :root[data-theme='light'] .app-nav-link[data-active='true'] {

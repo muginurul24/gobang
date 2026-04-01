@@ -3,6 +3,10 @@
   import type { ChartConfiguration } from 'chart.js';
 
   import { authSession } from '$lib/auth/client';
+  import {
+    chartGridColor as resolveChartGridColor,
+    chartTextColor as resolveChartTextColor,
+  } from '$lib/chart-theme';
   import ChartCanvas from '$lib/components/app/chart-canvas.svelte';
   import DateRangeFilter from '$lib/components/app/date-range-filter.svelte';
   import EmptyState from '$lib/components/app/empty-state.svelte';
@@ -26,6 +30,7 @@
   } from '$lib/notifications/client';
   import { realtimeState } from '$lib/realtime/client';
   import { preferredStoreID } from '$lib/stores/preferences';
+  import { resolvedTheme } from '$lib/theme';
 
   let notifications: NotificationRecord[] = [];
   let unreadCount = 0;
@@ -55,6 +60,8 @@
     scope.key.startsWith('store:') ||
     (canSelectPlatformScope && platformScopeMode === 'store' && !scope.ready);
   $: unreadRatio = totalCount === 0 ? 0 : (unreadCount / totalCount) * 100;
+  $: chartTextColor = resolveChartTextColor($resolvedTheme);
+  $: chartGridColor = resolveChartGridColor($resolvedTheme);
   $: eventMix = buildEventMix(notifications);
   $: eventMixChart = buildEventMixChart(eventMix);
 
@@ -246,7 +253,7 @@
         scales: {
           x: {
             ticks: {
-              color: '#6b5d45',
+              color: chartTextColor,
             },
             grid: {
               display: false,
@@ -254,10 +261,10 @@
           },
           y: {
             ticks: {
-              color: '#6b5d45',
+              color: chartTextColor,
             },
             grid: {
-              color: 'rgba(98, 84, 49, 0.12)',
+              color: chartGridColor,
             },
           },
         },

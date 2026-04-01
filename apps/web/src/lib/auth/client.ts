@@ -88,8 +88,7 @@ export async function initializeAuthSession() {
     return null;
   }
 
-  if (!hasRefreshBootstrapHint()) {
-    clearAuthSession();
+  if (!canAttemptSessionRefresh()) {
     return null;
   }
 
@@ -136,8 +135,7 @@ export async function login(payload: {
 }
 
 export async function refreshStoredSession() {
-  if (browser && !hasRefreshBootstrapHint()) {
-    clearAuthSession();
+  if (browser && !canAttemptSessionRefresh()) {
     return null;
   }
 
@@ -279,9 +277,11 @@ async function request<T>(
     options.allowRefresh !== false &&
     retryOnUnauthorized
   ) {
-    const refreshed = await refreshStoredSession();
-    if (refreshed) {
-      return request<T>(path, { ...options, allowRefresh: false }, false);
+    if (canAttemptSessionRefresh()) {
+      const refreshed = await refreshStoredSession();
+      if (refreshed) {
+        return request<T>(path, { ...options, allowRefresh: false }, false);
+      }
     }
   }
 
@@ -329,7 +329,7 @@ function clearLegacyAuthStorage() {
   window.localStorage.removeItem(storageKey);
 }
 
-function hasRefreshBootstrapHint() {
+export function canAttemptSessionRefresh() {
   if (!browser) {
     return false;
   }

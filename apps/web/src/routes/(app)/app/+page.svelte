@@ -3,6 +3,10 @@
   import type { ChartConfiguration } from 'chart.js';
 
   import { authSession } from '$lib/auth/client';
+  import {
+    chartGridColor as resolveChartGridColor,
+    chartTextColor as resolveChartTextColor,
+  } from '$lib/chart-theme';
   import EmptyState from '$lib/components/app/empty-state.svelte';
   import ChartCanvas from '$lib/components/app/chart-canvas.svelte';
   import GaugeRing from '$lib/components/app/gauge-ring.svelte';
@@ -12,6 +16,7 @@
   import { formatCurrency, formatDateTime, formatNumber, formatPercent, safeList } from '$lib/formatters';
   import { realtimeState } from '$lib/realtime/client';
   import { parseMoney } from '$lib/stores/client';
+  import { resolvedTheme } from '$lib/theme';
 
   const relevantRealtimeEvents = new Set([
     'member_payment.success',
@@ -24,8 +29,6 @@
     'store.low_balance',
   ]);
 
-  const chartTextColor = '#6b5d45';
-  const chartGridColor = 'rgba(98, 84, 49, 0.12)';
   const dashboardEventTypes = [
     'member_payment.success',
     'store_topup.success',
@@ -47,6 +50,8 @@
   let lastConnectionID: string | null = null;
 
   $: role = $authSession?.user.role ?? '';
+  $: chartTextColor = resolveChartTextColor($resolvedTheme);
+  $: chartGridColor = resolveChartGridColor($resolvedTheme);
   $: recentEvents = safeList($realtimeState.events)
     .filter((event) => relevantRealtimeEvents.has(event.type))
     .slice(0, 5);
