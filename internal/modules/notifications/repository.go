@@ -92,7 +92,7 @@ func (r *Repository) ListByScope(ctx context.Context, params ListParams) (ListRe
 		FROM notifications
 		WHERE `+whereClause+`
 		ORDER BY created_at DESC
-		LIMIT $`+fmt.Sprintf("%d", len(args)-1)+` OFFSET $`+fmt.Sprintf("%d", len(args)))
+		LIMIT $`+fmt.Sprintf("%d", len(args)-1)+` OFFSET $`+fmt.Sprintf("%d", len(args)), args...)
 	if err != nil {
 		return ListResult{}, fmt.Errorf("list notifications: %w", err)
 	}

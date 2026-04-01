@@ -47,6 +47,8 @@ export type RequestOptions = {
   allowRefresh?: boolean;
 };
 
+type RefreshAttemptResult = 'refreshed' | 'invalid' | 'unavailable';
+
 let hydrated = false;
 let initializePromise: Promise<AuthSession | null> | null = null;
 
@@ -139,23 +141,16 @@ export async function refreshStoredSession() {
     return null;
   }
 
-  const response = await request<AuthSession>(
-    '/v1/auth/refresh',
-    {
-      method: 'POST',
-      authenticated: false,
-      allowRefresh: false,
-    },
-    false,
-  );
-
-  if (!response.status || response.message !== 'SUCCESS') {
-    clearAuthSession();
+  const result = await attemptSessionRefresh();
+  if (result.kind !== 'refreshed') {
+    if (result.kind === 'invalid') {
+      clearAuthSession();
+    }
     return null;
   }
 
-  saveAuthSession(response.data);
-  return response.data;
+  saveAuthSession(result.session);
+  return result.session;
 }
 
 export async function fetchProfile() {
@@ -278,14 +273,60 @@ async function request<T>(
     retryOnUnauthorized
   ) {
     if (canAttemptSessionRefresh()) {
-      const refreshed = await refreshStoredSession();
-      if (refreshed) {
+      const refreshResult = await attemptSessionRefresh();
+      if (refreshResult.kind === 'refreshed') {
+        saveAuthSession(refreshResult.session);
         return request<T>(path, { ...options, allowRefresh: false }, false);
+      }
+
+      if (refreshResult.kind === 'unavailable') {
+        return {
+          status: false,
+          message: 'SESSION_RECOVERY_FAILED',
+          data: null as T,
+        };
       }
     }
   }
 
   return readEnvelope<T>(response);
+}
+
+async function attemptSessionRefresh(): Promise<
+  | { kind: 'refreshed'; session: AuthSession }
+  | { kind: Exclude<RefreshAttemptResult, 'refreshed'> }
+> {
+  const headers = new Headers({
+    'Content-Type': 'application/json',
+  });
+  const csrfToken = mutationCSRFToken('POST');
+  if (csrfToken !== '') {
+    headers.set('X-CSRF-Token', csrfToken);
+  }
+
+  try {
+    const response = await fetch(resolveURL('/v1/auth/refresh'), {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+    });
+    const envelope = await readEnvelope<AuthSession>(response);
+
+    if (response.ok && envelope.status && envelope.message === 'SUCCESS') {
+      return {
+        kind: 'refreshed',
+        session: envelope.data,
+      };
+    }
+
+    if (response.status === 401) {
+      return { kind: 'invalid' };
+    }
+
+    return { kind: 'unavailable' };
+  } catch {
+    return { kind: 'unavailable' };
+  }
 }
 
 function mutationCSRFToken(method: string) {

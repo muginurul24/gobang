@@ -22,6 +22,7 @@
   let ready = false;
   let storeDirectoryLoading = true;
   let storeDirectoryError = '';
+  let sessionBootstrapWarning = '';
   let accessibleStores: Store[] = [];
   let storeDirectorySummary: StoreDirectorySummary = {
     total_count: 0,
@@ -188,9 +189,16 @@
       }
 
       if (!profile.status || profile.message !== 'SUCCESS') {
-        disconnectRealtime();
-        await goto('/login');
-        return;
+        if (profile.message === 'UNAUTHORIZED') {
+          disconnectRealtime();
+          await goto('/login');
+          return;
+        }
+
+        sessionBootstrapWarning =
+          'Profile sesi belum tersinkron penuh. Dashboard tetap memakai sesi lokal dan akan mencoba sinkron lagi saat request berikutnya.';
+      } else {
+        sessionBootstrapWarning = '';
       }
 
       connectRealtime();
@@ -640,6 +648,14 @@
         </aside>
 
         <main class="min-w-0 space-y-6" id="app-main" tabindex="-1">
+          {#if sessionBootstrapWarning !== ''}
+            <Notice
+              tone="warning"
+              title="Session Sync"
+              message={sessionBootstrapWarning}
+            />
+          {/if}
+
           <section class="page-presence glass-panel rounded-[2.2rem] p-5 sm:p-6">
             <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-center">
               <div class="space-y-3">
