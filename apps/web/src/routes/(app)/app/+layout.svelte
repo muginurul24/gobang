@@ -55,6 +55,7 @@
     : unreadNotificationCount > 0
       ? String(unreadNotificationCount)
       : '';
+  $: currentPath = normalizePath($page.url.pathname);
   $: nav = [
     { href: '/app', label: 'Dashboard', description: 'realtime cards' },
     { href: '/app/notifications', label: 'Notifications', description: 'event stream', badge: notificationBadge },
@@ -80,8 +81,11 @@
     { href: '/app/security', label: 'Security', description: '2fa + allowlist' },
     { href: '/app/chat', label: 'Global Chat', description: 'ops room' },
     { href: '/', label: 'Public', description: 'marketing shell' },
-  ];
-  $: currentNavItem = nav.find((item) => isActive(item.href)) ?? nav[0];
+  ].map((item) => ({
+    ...item,
+    active: isActivePath(currentPath, item.href)
+  }));
+  $: currentNavItem = nav.find((item) => item.active) ?? nav[0];
   $: currentPageTitle = currentNavItem?.label ?? 'Dashboard';
   $: currentPageDescription = currentNavItem?.description ?? 'realtime cards';
 
@@ -305,8 +309,15 @@
     await loadAccessibleStores();
   }
 
-  function isActive(href: string) {
-    const pathname = $page.url.pathname;
+  function normalizePath(pathname: string) {
+    if (pathname.length > 1 && pathname.endsWith('/')) {
+      return pathname.slice(0, -1);
+    }
+
+    return pathname;
+  }
+
+  function isActivePath(pathname: string, href: string) {
     if (href === '/') {
       return pathname === '/';
     }
@@ -399,7 +410,7 @@
                 <p class="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-white/45">
                   Current View
                 </p>
-                <span class="status-chip">{$page.url.pathname}</span>
+                <span class="status-chip">{currentPath}</span>
               </div>
               <h2 class="mt-4 font-display text-3xl font-semibold tracking-tight text-white">
                 {currentPageTitle}
@@ -444,9 +455,9 @@
             <nav class="nav-cluster mt-5">
               {#each nav as item}
                 <a
-                  aria-current={isActive(item.href) ? 'page' : undefined}
+                  aria-current={item.active ? 'page' : undefined}
                   class="app-nav-link"
-                  data-active={isActive(item.href)}
+                  data-active={item.active}
                   href={item.href}
                 >
                   <span class="app-nav-link__marker" aria-hidden="true"></span>
@@ -454,6 +465,9 @@
                     <span class="app-nav-link__label">{item.label}</span>
                     <span class="app-nav-link__meta">{item.description}</span>
                   </span>
+                  {#if item.active}
+                    <span class="app-nav-link__state">Active</span>
+                  {/if}
                   {#if item.badge}
                     <span class="app-nav-link__badge">{item.badge}</span>
                   {/if}

@@ -696,6 +696,24 @@
     box-shadow:
       0 14px 32px rgba(0, 0, 0, 0.24),
       inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    transform: translateX(6px);
+  }
+
+  .app-nav-link[data-active='true']::before {
+    content: '';
+    position: absolute;
+    inset-block: 0.8rem;
+    inset-inline-start: -0.55rem;
+    width: 0.3rem;
+    border-radius: 999px;
+    background: linear-gradient(
+      180deg,
+      rgba(239, 200, 109, 0.98),
+      rgba(34, 201, 119, 0.92)
+    );
+    box-shadow:
+      0 0 0 0.3rem rgba(239, 200, 109, 0.08),
+      0 0 24px rgba(239, 200, 109, 0.28);
   }
 
   .app-nav-link__marker {
@@ -748,6 +766,18 @@
     font-size: 0.68rem;
     font-weight: 700;
     letter-spacing: 0.16em;
+  }
+
+  .app-nav-link__state {
+    border-radius: 999px;
+    padding: 0.38rem 0.62rem;
+    font-size: 0.64rem;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    background: rgba(255, 247, 232, 0.12);
+    color: inherit;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
   }
 
   .nav-cluster {
@@ -1303,6 +1333,10 @@
   box-shadow:
     0 16px 36px rgba(28, 39, 33, 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+:root[data-theme='light'] .app-nav-link__state {
+  background: rgba(19, 33, 25, 0.08);
 }
 
 @media (min-width: 768px) {
