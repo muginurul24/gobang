@@ -87,7 +87,7 @@ try {
   );
 
   await page.goto(resolveURL('/app'), { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(1500);
+  await waitForSettledRoute(page);
 
   const loginSnapshot = await collectSnapshot(page, context, 'after-login');
   loginSnapshot.login_response = {
@@ -101,7 +101,7 @@ try {
 
   for (const route of routes) {
     await navigateWithRetry(page, route);
-    await page.waitForTimeout(1500);
+    await waitForSettledRoute(page);
     const snapshot = await collectSnapshot(page, context, route);
     snapshot.network = networkLog.splice(0);
     results.push(snapshot);
@@ -208,6 +208,24 @@ async function navigateWithRetry(page, route) {
       await page.waitForTimeout(900);
     }
   }
+}
+
+async function waitForSettledRoute(page) {
+  await page.waitForTimeout(1200);
+
+  await page
+    .waitForFunction(() => {
+      const titleReady = document.title.trim().length > 0;
+      const shellReady = Boolean(document.querySelector('[data-app-shell="ready"]'));
+      const activeNavCount = document.querySelectorAll(
+        '.app-nav-link[data-active="true"]',
+      ).length;
+
+      return titleReady && shellReady && activeNavCount >= 1;
+    })
+    .catch(() => null);
+
+  await page.waitForTimeout(600);
 }
 
 function resolveURL(path) {

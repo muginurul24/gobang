@@ -259,8 +259,21 @@ async function waitForAppReady(page, route, session) {
       .isVisible()
       .catch(() => false);
     if (readyVisible) {
-      await page.waitForTimeout(900);
-      return;
+      const routeSettled = await page
+        .waitForFunction(() => {
+          const titleReady = document.title.trim().length > 0;
+          const activeNavCount = document.querySelectorAll(
+            '.app-nav-link[data-active="true"]',
+          ).length;
+          return titleReady && activeNavCount >= 1;
+        })
+        .then(() => true)
+        .catch(() => false);
+
+      if (routeSettled) {
+        await page.waitForTimeout(700);
+        return;
+      }
     }
 
     const shellHeading = page.locator('text=Memeriksa sesi dashboard...');
@@ -279,8 +292,21 @@ async function waitForAppReady(page, route, session) {
       .isVisible()
       .catch(() => false);
     if (readyAfterWait) {
-      await page.waitForTimeout(900);
-      return;
+      const routeSettled = await page
+        .waitForFunction(() => {
+          const titleReady = document.title.trim().length > 0;
+          const activeNavCount = document.querySelectorAll(
+            '.app-nav-link[data-active="true"]',
+          ).length;
+          return titleReady && activeNavCount >= 1;
+        })
+        .then(() => true)
+        .catch(() => false);
+
+      if (routeSettled) {
+        await page.waitForTimeout(700);
+        return;
+      }
     }
   }
 

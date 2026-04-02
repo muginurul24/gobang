@@ -380,19 +380,6 @@
     selectedStoreSummary = response.data ?? null;
   }
 
-  async function applyStoreDirectorySearch() {
-    storePage = 1;
-    lastStoreDirectoryKey = '';
-    await loadAccessibleStores();
-  }
-
-  async function resetStoreDirectorySearch() {
-    storeQuery = '';
-    storePage = 1;
-    lastStoreDirectoryKey = '';
-    await loadAccessibleStores();
-  }
-
   function normalizePath(pathname: string) {
     if (pathname.length > 1 && pathname.endsWith('/')) {
       return pathname.slice(0, -1);
@@ -589,11 +576,11 @@
           </div>
         </section>
 
-        <section class="shell-context-grid">
-          <article class="glass-panel shell-context-card rounded-[2rem] p-5">
-            <div class="flex items-end justify-between gap-3">
+        <section class="shell-ribbon">
+          <article class="glass-panel shell-ribbon__card">
+            <div class="shell-ribbon__headline">
               <div>
-                <p class="section-kicker !text-brand-700">Store context</p>
+                <p class="section-kicker !text-brand-700">Store focus</p>
                 <h2 class="mt-2 font-display text-xl font-bold tracking-tight text-ink-900">
                   Active store rail
                 </h2>
@@ -602,19 +589,19 @@
             </div>
 
             {#if storeDirectoryLoading}
-              <div class="mt-5 animate-pulse rounded-[1.6rem] bg-canvas-50 px-4 py-5">
+              <div class="animate-pulse rounded-[1.45rem] bg-canvas-50 px-4 py-4">
                 <div class="h-3 w-24 rounded-full bg-white/80"></div>
                 <div class="mt-3 h-11 rounded-2xl bg-white/80"></div>
               </div>
             {:else if storeDirectoryError !== ''}
-              <div class="mt-5">
-                <Notice tone="warning" message={storeDirectoryError} />
-              </div>
+              <Notice tone="warning" message={storeDirectoryError} />
             {:else if accessibleStores.length === 0}
-              <div class="mt-5 rounded-[1.6rem] bg-canvas-50 px-4 py-5 text-sm leading-6 text-ink-700">
-                Belum ada toko di scope sesi ini. Gunakan onboarding untuk provision owner dan
-                tenant pertama, lalu selector ini akan aktif otomatis.
-                <div class="mt-4 flex flex-wrap gap-2">
+              <div class="shell-ribbon__cluster rounded-[1.45rem] bg-canvas-50 px-4 py-4">
+                <p class="shell-ribbon__subcopy">
+                  Belum ada tenant di scope sesi ini. Gunakan onboarding untuk provision owner dan
+                  tenant pertama.
+                </p>
+                <div class="shell-ribbon__actions">
                   <a class="surface-chip" href={role === 'karyawan' ? '/app/stores' : '/app/onboarding'}>
                     {role === 'karyawan' ? 'Open stores' : 'Open onboarding'}
                   </a>
@@ -622,17 +609,7 @@
                 </div>
               </div>
             {:else}
-              <div class="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_15rem] xl:items-end">
-                <label class="field-stack">
-                  <span class="field-label">Cari store untuk command flow</span>
-                  <input
-                    bind:value={storeQuery}
-                    type="search"
-                    placeholder="Cari nama, slug, atau callback URL..."
-                    class="field-input"
-                  />
-                </label>
-
+              <div class="shell-store-select">
                 <label class="field-stack">
                   <span class="field-label">Store aktif</span>
                   <select
@@ -645,75 +622,75 @@
                     {/each}
                   </select>
                 </label>
-              </div>
-              <div class="shell-context-card__toolbar mt-4">
-                <div class="toolbar-actions">
-                  <Button variant="brand" size="sm" onclick={applyStoreDirectorySearch}>
-                    Search
-                  </Button>
-                  <Button variant="outline" size="sm" onclick={resetStoreDirectorySearch}>
-                    Reset
-                  </Button>
-                  <a class="surface-chip" href="/app/stores">Open stores</a>
+
+                <div class="shell-store-select__toolbar">
+                  <div class="shell-ribbon__actions">
+                    <Button variant="outline" size="sm" onclick={goToPreviousStorePage} disabled={!canGoPrevStorePage}>
+                      Prev
+                    </Button>
+                    <Button variant="outline" size="sm" onclick={goToNextStorePage} disabled={!canGoNextStorePage}>
+                      Next
+                    </Button>
+                    <span class="surface-chip">page {storePage}/{storePageCount}</span>
+                  </div>
+
+                  <div class="shell-ribbon__actions">
+                    <a class="surface-chip" href="/app/stores">Open stores</a>
+                    {#if role !== 'karyawan'}
+                      <a class="surface-chip" href="/app/onboarding">Open onboarding</a>
+                    {/if}
+                  </div>
                 </div>
 
-                <div class="shell-context-card__pager">
-                  <span class="surface-chip">page {storePage}/{storePageCount}</span>
-                  <Button variant="outline" size="sm" onclick={goToPreviousStorePage} disabled={!canGoPrevStorePage}>
-                    Prev
-                  </Button>
-                  <Button variant="outline" size="sm" onclick={goToNextStorePage} disabled={!canGoNextStorePage}>
-                    Next
-                  </Button>
+                <div class="shell-ribbon__compact-grid">
+                  <div class="shell-ribbon__metric">
+                    <span class="shell-ribbon__metric-label">Current</span>
+                    <strong class="shell-ribbon__metric-value">{currentStore?.slug ?? 'platform'}</strong>
+                    <span class="shell-ribbon__metric-meta">
+                      {currentStore ? formatCurrency(currentStore.current_balance) : 'Platform-wide scope'}
+                    </span>
+                  </div>
+                  <div class="shell-ribbon__metric">
+                    <span class="shell-ribbon__metric-label">Low balance</span>
+                    <strong class="shell-ribbon__metric-value">{formatNumber(storeDirectorySummary.low_balance_count)}</strong>
+                    <span class="shell-ribbon__metric-meta">Store yang masuk threshold di scope sesi.</span>
+                  </div>
                 </div>
-              </div>
-
-              <div class="mt-4 flex flex-wrap gap-2">
-                <span class="surface-chip">{formatNumber(accessibleStores.length)} loaded</span>
-                <span class="surface-chip">{formatNumber(storeDirectorySummary.low_balance_count)} low balance</span>
-                {#if currentStore}
-                  <span class="surface-chip">{currentStore.slug}</span>
-                  <span class="surface-chip">{formatCurrency(currentStore.current_balance)}</span>
-                {/if}
               </div>
             {/if}
           </article>
 
-          <article class="glass-panel shell-context-card rounded-[2rem] p-5">
-            <div class="flex items-end justify-between gap-3">
+          <article class="glass-panel shell-ribbon__card">
+            <div class="shell-ribbon__headline">
               <div>
-                <p class="section-kicker !text-brand-700">Realtime scope</p>
+                <p class="section-kicker !text-brand-700">Realtime</p>
                 <h2 class="mt-2 font-display text-xl font-bold tracking-tight text-ink-900">
-                  Notification and transport
+                  Notification lane
                 </h2>
               </div>
               <span class="surface-chip">{notificationScope.label}</span>
             </div>
 
-            <div class="mt-4 grid gap-3 sm:grid-cols-2">
-              <div class="rounded-[1.5rem] bg-canvas-50 px-4 py-4">
-                <p class="text-xs font-semibold uppercase tracking-[0.24em] text-ink-500">Unread</p>
-                <p class="mt-2 font-display text-2xl font-semibold tracking-tight text-ink-900">
-                  {notificationBadge === '' ? '0' : notificationBadge}
-                </p>
-                <p class="mt-2 text-xs leading-5 text-ink-500">
+            <div class="shell-ribbon__compact-grid">
+              <div class="shell-ribbon__metric">
+                <span class="shell-ribbon__metric-label">Unread</span>
+                <strong class="shell-ribbon__metric-value">{notificationBadge === '' ? '0' : notificationBadge}</strong>
+                <span class="shell-ribbon__metric-meta">
                   {notificationLoading ? 'Counter sedang disinkronkan.' : notificationScope.description}
-                </p>
+                </span>
               </div>
 
-              <div class="rounded-[1.5rem] bg-canvas-50 px-4 py-4">
-                <p class="text-xs font-semibold uppercase tracking-[0.24em] text-ink-500">Transport</p>
-                <p class="mt-2 font-display text-2xl font-semibold tracking-tight text-ink-900">
-                  {realtimeLabel()}
-                </p>
-                <p class="mt-2 text-xs leading-5 text-ink-500">
-                  {formatNumber($realtimeState.channels.length)} channel aktif untuk sesi ini.
-                </p>
+              <div class="shell-ribbon__metric">
+                <span class="shell-ribbon__metric-label">Transport</span>
+                <strong class="shell-ribbon__metric-value">{realtimeLabel()}</strong>
+                <span class="shell-ribbon__metric-meta">
+                  {formatNumber($realtimeState.channels.length)} channel aktif
+                </span>
               </div>
             </div>
 
             {#if currentStore}
-              <div class="mt-4 flex flex-wrap gap-2">
+              <div class="shell-ribbon__actions">
                 <span class="surface-chip">{currentStore.name}</span>
                 <span class="surface-chip">staff {formatNumber(currentStore.staff_count)}</span>
                 <span class="surface-chip">
@@ -725,8 +702,8 @@
             {/if}
           </article>
 
-          <article class="glass-panel shell-context-card rounded-[2rem] p-5">
-            <div class="flex items-end justify-between gap-3">
+          <article class="glass-panel shell-ribbon__card">
+            <div class="shell-ribbon__headline">
               <div>
                 <p class="section-kicker !text-brand-700">Action lane</p>
                 <h2 class="mt-2 font-display text-xl font-bold tracking-tight text-ink-900">
@@ -736,17 +713,17 @@
               <span class="surface-chip">role {role || 'guest'}</span>
             </div>
 
-            <p class="mt-4 text-sm leading-6 text-ink-700">
+            <p class="shell-ribbon__subcopy">
               {#if role === 'dev' || role === 'superadmin'}
-                Provision owner lalu pindah ke Ops saat callback atau health bermasalah.
+                Provision owner, cek callback queue, lalu pindah ke Ops saat health atau delivery mulai bermasalah.
               {:else if role === 'owner'}
-                Buat store, atur callback, siapkan staff, lalu lanjutkan integrasi.
+                Buat store, atur callback, siapkan staff, lalu lanjutkan integrasi lewat API Docs.
               {:else}
-                Fokus ke store yang sudah diassign dan pantau notification stream.
+                Fokus ke store yang sudah diassign dan pantau notification stream untuk incident cepat.
               {/if}
             </p>
 
-            <div class="mt-4 flex flex-wrap gap-3">
+            <div class="shell-ribbon__actions">
               {#if role === 'dev' || role === 'superadmin'}
                 <a class="surface-chip" href="/app/onboarding">Open onboarding</a>
                 <a class="surface-chip" href="/app/users">Provision owner</a>
@@ -757,15 +734,20 @@
                 <a class="surface-chip" href="/app/api-docs">Read API docs</a>
               {:else}
                 <a class="surface-chip" href="/app/stores">View stores</a>
-                <a class="surface-chip" href="/app/notifications">Open notifications</a>
-                <a class="surface-chip" href="/app/security">Open security</a>
+                <a class="surface-chip" href="/app/notifications">Notifications</a>
+                <a class="surface-chip" href="/app/security">Security</a>
               {/if}
             </div>
 
             {#if storeDirectorySummary.low_balance_count > 0}
-              <div class="mt-4 rounded-[1.5rem] border border-amber-200/60 bg-linear-to-r from-accent-100/40 to-white px-4 py-4 text-sm leading-6 text-ink-700">
-                Ada {formatNumber(storeDirectorySummary.low_balance_count)} store low balance di scope
-                sesi ini. Gunakan Stores atau dashboard cards untuk triage lebih lanjut.
+              <div class="shell-ribbon__metric">
+                <span class="shell-ribbon__metric-label">Risk pulse</span>
+                <strong class="shell-ribbon__metric-value">
+                  {formatNumber(storeDirectorySummary.low_balance_count)} store low
+                </strong>
+                <span class="shell-ribbon__metric-meta">
+                  Gunakan dashboard cards atau Stores untuk triage lebih lanjut.
+                </span>
               </div>
             {/if}
           </article>

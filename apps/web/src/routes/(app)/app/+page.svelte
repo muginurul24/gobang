@@ -538,26 +538,22 @@
           <div class="grid gap-4 lg:grid-cols-[1fr_1fr]">
             <article class="rounded-[1.7rem] border border-white/10 bg-white/6 p-5 backdrop-blur">
               <p class="text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-white/46">
-                Capital pool
-              </p>
-              <p class="mt-4 font-display text-4xl font-semibold tracking-tight text-white">
-                {formatCurrency(storeMetrics.balance_total)}
+                Signal mix
               </p>
               <p class="mt-3 text-sm leading-6 text-white/66">
-                Live balance pool untuk store yang bisa diakses role saat ini.
+                Pending, success, dan expired QRIS langsung divisualisasikan di atas fold.
               </p>
+              <ChartCanvas class="mt-4 h-[220px]" config={storeMixChart} />
             </article>
 
             <article class="rounded-[1.7rem] border border-white/10 bg-white/6 p-5 backdrop-blur">
               <p class="text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-white/46">
-                Monthly intake
-              </p>
-              <p class="mt-4 font-display text-4xl font-semibold tracking-tight text-white">
-                {formatCurrency(storeMetrics.monthly_store_income)}
+                Finance split
               </p>
               <p class="mt-3 text-sm leading-6 text-white/66">
-                Inflow bulan berjalan dari member payment yang sudah final.
+                Balance pool versus monthly income untuk scope store aktif.
               </p>
+              <ChartCanvas class="mt-4 h-[220px]" config={storeFinanceChart} />
             </article>
           </div>
         </div>
@@ -821,26 +817,22 @@
           <div class="grid gap-4 lg:grid-cols-[1fr_1fr]">
             <article class="rounded-[1.7rem] border border-white/10 bg-white/6 p-5 backdrop-blur">
               <p class="text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-white/46">
-                Fee today
-              </p>
-              <p class="mt-4 font-display text-4xl font-semibold tracking-tight text-white">
-                {formatCurrency(platformMetrics.platform_income_today)}
+                Income ladder
               </p>
               <p class="mt-3 text-sm leading-6 text-white/66">
-                Akumulasi fee platform dari flow final hari ini.
+                Fee today versus month-to-date sekarang tampil langsung di frame pertama.
               </p>
+              <ChartCanvas class="mt-4 h-[220px]" config={platformFinanceChart} />
             </article>
 
             <article class="rounded-[1.7rem] border border-white/10 bg-white/6 p-5 backdrop-blur">
               <p class="text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-white/46">
-                Fee month
-              </p>
-              <p class="mt-4 font-display text-4xl font-semibold tracking-tight text-white">
-                {formatCurrency(platformMetrics.platform_income_month)}
+                Pressure mix
               </p>
               <p class="mt-3 text-sm leading-6 text-white/66">
-                Akumulasi fee platform bulan berjalan.
+                Pending withdraw, active tenant, dan low balance risk dalam satu mix chart.
               </p>
+              <ChartCanvas class="mt-4 h-[220px]" config={platformOpsChart} />
             </article>
           </div>
         </div>
